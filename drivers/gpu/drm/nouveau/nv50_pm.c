@@ -879,7 +879,7 @@ nv50_pm_pwm_set(struct drm_device *dev, int line, u32 divs, u32 duty)
 	if (ret)
 		return ret;
 
-	nv_mask(dev, ctrl, 0x00010001 << line, 0x00000001 << line);
+	//nv_mask(dev, ctrl, 0x00010001 << line, 0x00000001 << line);
 	nv_wr32(dev, 0x00e114 + (id * 8), divs);
 	nv_wr32(dev, 0x00e118 + (id * 8), duty | 0x80000000);
 	return 0;

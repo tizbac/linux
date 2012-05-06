@@ -71,7 +71,7 @@ nouveau_pwmfan_set(struct drm_device *dev, int percent)
 	struct gpio_func gpio;
 	u32 divs, duty;
 	int ret;
-
+  
 	if (!pm->pwm_set)
 		return -ENODEV;
 
@@ -88,7 +88,15 @@ nouveau_pwmfan_set(struct drm_device *dev, int percent)
 		duty = ((divs * percent) + 99) / 100;
 		if (dev_priv->card_type <= NV_40 || (gpio.log[0] & 1))
 			duty = divs - duty;
-
+			
+			
+	  divs = 520; // For gainward geforce GT 9800
+	  duty = (int)(520-percent*5.2);
+	  
+	  
+    printk("[nouveau] Set PWM %d\n",percent);
+    
+    
 		ret = pm->pwm_set(dev, gpio.line, divs, duty);
 		if (!ret)
 			pm->fan.percent = percent;
@@ -110,13 +118,13 @@ nouveau_pm_perflvl_aux(struct drm_device *dev, struct nouveau_pm_level *perflvl,
 	 *     on recent boards..  or maybe on some other factor we don't
 	 *     know about?
 	 */
-	if (a->fanspeed && b->fanspeed && b->fanspeed > a->fanspeed) {
+	/*if (a->fanspeed && b->fanspeed && b->fanspeed > a->fanspeed) {
 		ret = nouveau_pwmfan_set(dev, perflvl->fanspeed);
 		if (ret && ret != -ENODEV) {
 			NV_ERROR(dev, "fanspeed set failed: %d\n", ret);
 			return ret;
 		}
-	}
+	}*/
 
 	if (pm->voltage.supported && pm->voltage_set) {
 		if (perflvl->volt_min && b->volt_min > a->volt_min) {
@@ -610,8 +618,8 @@ nouveau_hwmon_set_pwm0(struct device *d, struct device_attribute *a,
 	int ret = -ENODEV;
 	long value;
 
-	if (nouveau_perflvl_wr != 7777)
-		return -EPERM;
+//	if (nouveau_perflvl_wr != 7777)
+//		return -EPERM;
 
 	if (kstrtol(buf, 10, &value) == -EINVAL)
 		return -EINVAL;
@@ -777,6 +785,7 @@ nouveau_hwmon_init(struct drm_device *dev)
 	 *     the gpio entries for pwm fan control even when there's no
 	 *     actual fan connected to it... therm table? */
 	if (nouveau_pwmfan_get(dev) >= 0) {
+	
 		ret = sysfs_create_group(&dev->pdev->dev.kobj,
 					 &hwmon_pwm_fan_attrgroup);
 		if (ret)
@@ -902,7 +911,12 @@ nouveau_pm_init(struct drm_device *dev)
 	pm->acpi_nb.notifier_call = nouveau_pm_acpi_event;
 	register_acpi_notifier(&pm->acpi_nb);
 #endif
-
+  if (nouveau_pwmfan_get(dev) >= 0) {
+	
+	  nv_wr32(dev,0xe11c,0x208);
+	  nv_wr32(dev,0x00e100,0x1b10);
+	}
+  
 	return 0;
 }
 
@@ -944,6 +958,12 @@ nouveau_pm_resume(struct drm_device *dev)
 
 	perflvl = pm->cur;
 	pm->cur = &pm->boot;
+	if (nouveau_pwmfan_get(dev) >= 0) {
+	
+	  nv_wr32(dev,0xe11c,0x208);
+	  nv_wr32(dev,0xe100,0x1b10);
+	}
 	nouveau_pm_perflvl_set(dev, perflvl);
 	nouveau_pwmfan_set(dev, pm->fan.percent);
+	
 }
