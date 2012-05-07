@@ -130,6 +130,11 @@ nv40_fanpwm_create(struct nouveau_device *ndev, int subdev)
 		return ret;
 	}
 
+	if (gpio.param != 1) {
+		NV_DEBUG(ndev, "FANCTL: not a PWM fan\n");
+		return -ENODEV;
+	}
+
 	if (gpio.line != 2 && gpio.line != 9) {
 		NV_ERROR(ndev, "FANCTL: PWM on unexpected GPIO pin\n");
 		return -ENODEV;

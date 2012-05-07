@@ -15,11 +15,21 @@ struct nouveau_therm_threshold_temp {
 	s16 fan_boost;
 };
 
+enum nouveau_pm_fan_type {
+	FAN_NONE = 0,
+	FAN_TOGGLE_OR_PWM,
+	FAN_I2C
+};
+
 struct nouveau_therm_fan {
-	u32 percent;
+	/* physical connection */
+	enum nouveau_pm_fan_type type;
+	struct i2c_client *i2c_fan;
+
+	/* pwm settings */
+	u32 pwm_freq;
 	u32 min_duty;
 	u32 max_duty;
-	u32 pwm_freq;
 };
 
 struct nouveau_therm {

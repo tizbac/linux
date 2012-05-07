@@ -10,6 +10,7 @@ struct nouveau_fanctl {
 
 int  nouveau_fanctl_create(struct nouveau_device *);
 
+int  nv40_fantoggle_create(struct nouveau_device *, int subdev);
 int  nv40_fanpwm_create(struct nouveau_device *, int subdev);
 int  nv50_fanpwm_create(struct nouveau_device *, int subdev);
 

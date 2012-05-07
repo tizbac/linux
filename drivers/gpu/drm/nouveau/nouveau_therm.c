@@ -20,6 +20,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * Authors: Martin Peres
+ *          Ben Skeggs
  */
 
 #include <linux/module.h>
@@ -220,6 +221,8 @@ nouveau_therm_vbios_parse(struct nouveau_therm *ptherm, u8 *temp)
 		case 0x13:
 			sensor->slope_div = value;
 			break;
+		case 0x21:
+			ptherm->fan.type = FAN_TOGGLE_OR_PWM;
 		case 0x22:
 			ptherm->fan.min_duty = value & 0xff;
 			ptherm->fan.max_duty = (value & 0xff00) >> 8;
@@ -267,6 +270,8 @@ static bool
 probe_monitoring_device(struct nouveau_i2c_chan *i2c,
 			struct i2c_board_info *info)
 {
+	struct nouveau_device *ndev = i2c->device;
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 	struct i2c_client *client;
 
 	request_module("%s%s", I2C_MODULE_PREFIX, info->type);
@@ -278,6 +283,15 @@ probe_monitoring_device(struct nouveau_i2c_chan *i2c,
 	if (!client->driver || client->driver->detect(client, info)) {
 		i2c_unregister_device(client);
 		return false;
+	}
+
+	/* if the i2c device can drive a fan */
+	if (strcmp(info->type, "w83781d") == 0 ||
+	    strcmp(info->type, "adt7473") == 0 ||
+	    strcmp(info->type, "f75375") == 0 ||
+	    strcmp(info->type, "lm63") == 0) {
+		ptherm->fan.type = FAN_I2C;
+		ptherm->fan.i2c_fan = client;
 	}
 
 	return true;
@@ -292,6 +306,20 @@ nouveau_therm_probe_i2c(struct nouveau_device *ndev)
 		{ I2C_BOARD_INFO("adt7473", 0x2e) },
 		{ I2C_BOARD_INFO("f75375", 0x2e) },
 		{ I2C_BOARD_INFO("lm99", 0x4c) },
+		{ I2C_BOARD_INFO("lm90", 0x4c) },
+		{ I2C_BOARD_INFO("lm90", 0x4d) },
+		{ I2C_BOARD_INFO("adm1021", 0x18) },
+		{ I2C_BOARD_INFO("adm1021", 0x19) },
+		{ I2C_BOARD_INFO("adm1021", 0x1a) },
+		{ I2C_BOARD_INFO("adm1021", 0x29) },
+		{ I2C_BOARD_INFO("adm1021", 0x2a) },
+		{ I2C_BOARD_INFO("adm1021", 0x2b) },
+		{ I2C_BOARD_INFO("adm1021", 0x2b) },
+		{ I2C_BOARD_INFO("adm1021", 0x4c) },
+		{ I2C_BOARD_INFO("adm1021", 0x4d) },
+		{ I2C_BOARD_INFO("adm1021", 0x4e) },
+		{ I2C_BOARD_INFO("lm63", 0x18) },
+		{ I2C_BOARD_INFO("lm63", 0x4e) },
 		{ }
 	};
 

@@ -27,16 +27,30 @@
 #include "nouveau_drv.h"
 #include "nouveau_gpio.h"
 #include "nouveau_fanctl.h"
+#include "nouveau_therm.h"
 
 int
 nouveau_fanctl_create(struct nouveau_device *ndev)
 {
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 	const int subdev = NVDEV_SUBDEV_FAN0;
+	const char *fan_s = "PWM";
 	int ret;
+
+	/* TODO: handle this mess */
+	if (ptherm->fan.type == FAN_I2C) {
+		NV_INFO(ndev, "FANCTL: use the onboard %s\n",
+			ptherm->fan.i2c_fan->name);
+		return -ENODEV;
+	}
 
 	switch (ndev->card_type) {
 	case NV_40:
-		ret = nv40_fanpwm_create(ndev, subdev);
+		ret = nv40_fantoggle_create(ndev, subdev);
+		if (ret)
+			ret = nv40_fanpwm_create(ndev, subdev);
+		else
+			fan_s = "TOGGLE";
 		break;
 	case NV_50:
 	case NV_C0:
@@ -48,7 +62,7 @@ nouveau_fanctl_create(struct nouveau_device *ndev)
 	}
 
 	if (ret == 0)
-		NV_INFO(ndev, "FANCTL: using PWM fan control\n");
+		NV_INFO(ndev, "FANCTL: using %s fan control\n", fan_s);
 	else
 		NV_INFO(ndev, "FANCTL: no controllable fan available\n");
 

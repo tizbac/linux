@@ -758,8 +758,6 @@ nouveau_pm_acpi_event(struct notifier_block *nb, unsigned long val, void *data)
 int
 nouveau_pm_init(struct nouveau_device *ndev)
 {
-	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
-	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	char info[256];
 	int ret, i;
@@ -800,10 +798,6 @@ nouveau_pm_init(struct nouveau_device *ndev)
 	if (nouveau_perflvl != NULL)
 		nouveau_pm_profile_set(ndev, nouveau_perflvl);
 
-	/* determine the current fan speed */
-	if (pfan)
-		ptherm->fan.percent = pfan->get(pfan);
-
 	nouveau_sysfs_init(ndev);
 	nouveau_hwmon_init(ndev);
 #if defined(CONFIG_ACPI) && defined(CONFIG_POWER_SUPPLY)
@@ -840,8 +834,6 @@ nouveau_pm_fini(struct nouveau_device *ndev)
 void
 nouveau_pm_resume(struct nouveau_device *ndev)
 {
-	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
-	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_level *perflvl;
 
@@ -851,6 +843,4 @@ nouveau_pm_resume(struct nouveau_device *ndev)
 	perflvl = pm->cur;
 	pm->cur = &pm->boot;
 	nouveau_pm_perflvl_set(ndev, perflvl);
-	if (pfan)
-		pfan->set(pfan, ptherm->fan.percent);
 }
