@@ -46,7 +46,7 @@ nv04_display_store_initial_head_owner(struct drm_device *dev)
 	}
 
 	/* reading CR44 is broken on nv11, so we attempt to infer it */
-	if (nvReadMC(dev, NV_PBUS_DEBUG_1) & (1 << 28))	/* heads tied, restore both */
+	if (nv_rd32(dev, NV_PBUS_DEBUG_1) & (1 << 28))	/* heads tied, restore both */
 		ndev->crtc_owner = 0x4;
 	else {
 		uint8_t slaved_on_A, slaved_on_B;

@@ -171,8 +171,8 @@ setPLL_single(struct drm_device *dev, uint32_t reg, struct nouveau_pll_vals *pv)
 		return;	/* already set */
 
 	if (shift_powerctrl_1 >= 0) {
-		saved_powerctrl_1 = nvReadMC(dev, NV_PBUS_POWERCTRL_1);
-		nvWriteMC(dev, NV_PBUS_POWERCTRL_1,
+		saved_powerctrl_1 = nv_rd32(dev, NV_PBUS_POWERCTRL_1);
+		nv_wr32(dev, NV_PBUS_POWERCTRL_1,
 			(saved_powerctrl_1 & ~(0xf << shift_powerctrl_1)) |
 			1 << shift_powerctrl_1);
 	}
@@ -193,7 +193,7 @@ setPLL_single(struct drm_device *dev, uint32_t reg, struct nouveau_pll_vals *pv)
 	NVWriteRAMDAC(dev, 0, reg, pll);
 
 	if (shift_powerctrl_1 >= 0)
-		nvWriteMC(dev, NV_PBUS_POWERCTRL_1, saved_powerctrl_1);
+		nv_wr32(dev, NV_PBUS_POWERCTRL_1, saved_powerctrl_1);
 }
 
 static uint32_t
@@ -251,8 +251,8 @@ setPLL_double_highregs(struct drm_device *dev, uint32_t reg1,
 		return;	/* already set */
 
 	if (shift_powerctrl_1 >= 0) {
-		saved_powerctrl_1 = nvReadMC(dev, NV_PBUS_POWERCTRL_1);
-		nvWriteMC(dev, NV_PBUS_POWERCTRL_1,
+		saved_powerctrl_1 = nv_rd32(dev, NV_PBUS_POWERCTRL_1);
+		nv_wr32(dev, NV_PBUS_POWERCTRL_1,
 			(saved_powerctrl_1 & ~(0xf << shift_powerctrl_1)) |
 			1 << shift_powerctrl_1);
 	}
@@ -271,9 +271,9 @@ setPLL_double_highregs(struct drm_device *dev, uint32_t reg1,
 			shift_c040 += 2;
 		}
 
-		savedc040 = nvReadMC(dev, 0xc040);
+		savedc040 = nv_rd32(dev, 0xc040);
 		if (shift_c040 != 14)
-			nvWriteMC(dev, 0xc040, savedc040 & ~(3 << shift_c040));
+			nv_wr32(dev, 0xc040, savedc040 & ~(3 << shift_c040));
 	}
 
 	if (oldramdac580 != ramdac580)
@@ -284,9 +284,9 @@ setPLL_double_highregs(struct drm_device *dev, uint32_t reg1,
 	NVWriteRAMDAC(dev, 0, reg1, pll1);
 
 	if (shift_powerctrl_1 >= 0)
-		nvWriteMC(dev, NV_PBUS_POWERCTRL_1, saved_powerctrl_1);
+		nv_wr32(dev, NV_PBUS_POWERCTRL_1, saved_powerctrl_1);
 	if (chip_version >= 0x40)
-		nvWriteMC(dev, 0xc040, savedc040);
+		nv_wr32(dev, 0xc040, savedc040);
 }
 
 static void
@@ -303,7 +303,7 @@ setPLL_double_lowregs(struct drm_device *dev, uint32_t NMNMreg,
 
 	uint32_t Preg = NMNMreg - 4;
 	bool mpll = Preg == 0x4020;
-	uint32_t oldPval = nvReadMC(dev, Preg);
+	uint32_t oldPval = nv_rd32(dev, Preg);
 	uint32_t NMNM = pv->NM2 << 16 | pv->NM1;
 	uint32_t Pval = (oldPval & (mpll ? ~(0x77 << 16) : ~(7 << 16))) |
 			0xc << 28 | pv->log2P << 16;
@@ -312,7 +312,7 @@ setPLL_double_lowregs(struct drm_device *dev, uint32_t NMNMreg,
 	uint32_t maskc040 = ~(3 << 14), savedc040;
 	bool single_stage = !pv->NM2 || pv->N2 == pv->M2;
 
-	if (nvReadMC(dev, NMNMreg) == NMNM && (oldPval & 0xc0070000) == Pval)
+	if (nv_rd32(dev, NMNMreg) == NMNM && (oldPval & 0xc0070000) == Pval)
 		return;
 
 	if (Preg == 0x4000)
@@ -332,40 +332,40 @@ setPLL_double_lowregs(struct drm_device *dev, uint32_t NMNMreg,
 			Pval2 = pll_lim.max_log2p;
 		Pval |= 1 << 28 | Pval2 << 20;
 
-		saved4600 = nvReadMC(dev, 0x4600);
-		nvWriteMC(dev, 0x4600, saved4600 | 8 << 28);
+		saved4600 = nv_rd32(dev, 0x4600);
+		nv_wr32(dev, 0x4600, saved4600 | 8 << 28);
 	}
 	if (single_stage)
 		Pval |= mpll ? 1 << 12 : 1 << 8;
 
-	nvWriteMC(dev, Preg, oldPval | 1 << 28);
-	nvWriteMC(dev, Preg, Pval & ~(4 << 28));
+	nv_wr32(dev, Preg, oldPval | 1 << 28);
+	nv_wr32(dev, Preg, Pval & ~(4 << 28));
 	if (mpll) {
 		Pval |= 8 << 20;
-		nvWriteMC(dev, 0x4020, Pval & ~(0xc << 28));
-		nvWriteMC(dev, 0x4038, Pval & ~(0xc << 28));
+		nv_wr32(dev, 0x4020, Pval & ~(0xc << 28));
+		nv_wr32(dev, 0x4038, Pval & ~(0xc << 28));
 	}
 
-	savedc040 = nvReadMC(dev, 0xc040);
-	nvWriteMC(dev, 0xc040, savedc040 & maskc040);
+	savedc040 = nv_rd32(dev, 0xc040);
+	nv_wr32(dev, 0xc040, savedc040 & maskc040);
 
-	nvWriteMC(dev, NMNMreg, NMNM);
+	nv_wr32(dev, NMNMreg, NMNM);
 	if (NMNMreg == 0x4024)
-		nvWriteMC(dev, 0x403c, NMNM);
+		nv_wr32(dev, 0x403c, NMNM);
 
-	nvWriteMC(dev, Preg, Pval);
+	nv_wr32(dev, Preg, Pval);
 	if (mpll) {
 		Pval &= ~(8 << 20);
-		nvWriteMC(dev, 0x4020, Pval);
-		nvWriteMC(dev, 0x4038, Pval);
-		nvWriteMC(dev, 0x4600, saved4600);
+		nv_wr32(dev, 0x4020, Pval);
+		nv_wr32(dev, 0x4038, Pval);
+		nv_wr32(dev, 0x4600, saved4600);
 	}
 
-	nvWriteMC(dev, 0xc040, savedc040);
+	nv_wr32(dev, 0xc040, savedc040);
 
 	if (mpll) {
-		nvWriteMC(dev, 0x4020, Pval & ~(1 << 28));
-		nvWriteMC(dev, 0x4038, Pval & ~(1 << 28));
+		nv_wr32(dev, 0x4020, Pval & ~(1 << 28));
+		nv_wr32(dev, 0x4038, Pval & ~(1 << 28));
 	}
 }
 
@@ -434,14 +434,14 @@ nouveau_hw_get_pllvals(struct drm_device *dev, enum pll_types plltype,
 	if (reg1 == 0)
 		return -ENOENT;
 
-	pll1 = nvReadMC(dev, reg1);
+	pll1 = nv_rd32(dev, reg1);
 
 	if (reg1 <= 0x405c)
-		pll2 = nvReadMC(dev, reg1 + 4);
+		pll2 = nv_rd32(dev, reg1 + 4);
 	else if (nv_two_reg_pll(dev)) {
 		uint32_t reg2 = reg1 + (reg1 == NV_RAMDAC_VPLL2 ? 0x5c : 0x70);
 
-		pll2 = nvReadMC(dev, reg2);
+		pll2 = nv_rd32(dev, reg2);
 	}
 
 	if (ndev->card_type == 0x40 && reg1 >= NV_PRAMDAC_VPLL_COEFF) {
@@ -933,15 +933,15 @@ nv_load_state_ext(struct drm_device *dev, int head,
 			 */
 			NVWriteCRTC(dev, head, NV_PCRTC_ENGINE_CTRL, regp->crtc_eng_ctrl);
 
-		nvWriteVIDEO(dev, NV_PVIDEO_STOP, 1);
-		nvWriteVIDEO(dev, NV_PVIDEO_INTR_EN, 0);
-		nvWriteVIDEO(dev, NV_PVIDEO_OFFSET_BUFF(0), 0);
-		nvWriteVIDEO(dev, NV_PVIDEO_OFFSET_BUFF(1), 0);
-		nvWriteVIDEO(dev, NV_PVIDEO_LIMIT(0), ndev->fb_available_size - 1);
-		nvWriteVIDEO(dev, NV_PVIDEO_LIMIT(1), ndev->fb_available_size - 1);
-		nvWriteVIDEO(dev, NV_PVIDEO_UVPLANE_LIMIT(0), ndev->fb_available_size - 1);
-		nvWriteVIDEO(dev, NV_PVIDEO_UVPLANE_LIMIT(1), ndev->fb_available_size - 1);
-		nvWriteMC(dev, NV_PBUS_POWERCTRL_2, 0);
+		nv_wr32(dev, NV_PVIDEO_STOP, 1);
+		nv_wr32(dev, NV_PVIDEO_INTR_EN, 0);
+		nv_wr32(dev, NV_PVIDEO_OFFSET_BUFF(0), 0);
+		nv_wr32(dev, NV_PVIDEO_OFFSET_BUFF(1), 0);
+		nv_wr32(dev, NV_PVIDEO_LIMIT(0), ndev->fb_available_size - 1);
+		nv_wr32(dev, NV_PVIDEO_LIMIT(1), ndev->fb_available_size - 1);
+		nv_wr32(dev, NV_PVIDEO_UVPLANE_LIMIT(0), ndev->fb_available_size - 1);
+		nv_wr32(dev, NV_PVIDEO_UVPLANE_LIMIT(1), ndev->fb_available_size - 1);
+		nv_wr32(dev, NV_PBUS_POWERCTRL_2, 0);
 
 		NVWriteCRTC(dev, head, NV_PCRTC_CURSOR_CONFIG, regp->cursor_cfg);
 		NVWriteCRTC(dev, head, NV_PCRTC_830, regp->crtc_830);

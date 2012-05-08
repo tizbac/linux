@@ -58,65 +58,6 @@ extern void nouveau_calc_arb(struct drm_device *, int vclk, int bpp,
 extern int nouveau_calc_pll_mnp(struct drm_device *, struct pll_lims *pll_lim,
 				int clk, struct nouveau_pll_vals *pv);
 
-static inline uint32_t
-nvReadMC(struct drm_device *dev, uint32_t reg)
-{
-	uint32_t val = nv_rd32(dev, reg);
-	NV_REG_DEBUG(MC, dev, "reg %08x val %08x\n", reg, val);
-	return val;
-}
-
-static inline void
-nvWriteMC(struct drm_device *dev, uint32_t reg, uint32_t val)
-{
-	NV_REG_DEBUG(MC, dev, "reg %08x val %08x\n", reg, val);
-	nv_wr32(dev, reg, val);
-}
-
-static inline uint32_t
-nvReadVIDEO(struct drm_device *dev, uint32_t reg)
-{
-	uint32_t val = nv_rd32(dev, reg);
-	NV_REG_DEBUG(VIDEO, dev, "reg %08x val %08x\n", reg, val);
-	return val;
-}
-
-static inline void
-nvWriteVIDEO(struct drm_device *dev, uint32_t reg, uint32_t val)
-{
-	NV_REG_DEBUG(VIDEO, dev, "reg %08x val %08x\n", reg, val);
-	nv_wr32(dev, reg, val);
-}
-
-static inline uint32_t
-nvReadFB(struct drm_device *dev, uint32_t reg)
-{
-	uint32_t val = nv_rd32(dev, reg);
-	NV_REG_DEBUG(FB, dev, "reg %08x val %08x\n", reg, val);
-	return val;
-}
-
-static inline void
-nvWriteFB(struct drm_device *dev, uint32_t reg, uint32_t val)
-{
-	NV_REG_DEBUG(FB, dev, "reg %08x val %08x\n", reg, val);
-	nv_wr32(dev, reg, val);
-}
-
-static inline uint32_t
-nvReadEXTDEV(struct drm_device *dev, uint32_t reg)
-{
-	uint32_t val = nv_rd32(dev, reg);
-	NV_REG_DEBUG(EXTDEV, dev, "reg %08x val %08x\n", reg, val);
-	return val;
-}
-
-static inline void
-nvWriteEXTDEV(struct drm_device *dev, uint32_t reg, uint32_t val)
-{
-	NV_REG_DEBUG(EXTDEV, dev, "reg %08x val %08x\n", reg, val);
-	nv_wr32(dev, reg, val);
-}
 
 static inline uint32_t NVReadCRTC(struct drm_device *dev,
 					int head, uint32_t reg)
@@ -328,7 +269,7 @@ nv_heads_tied(struct drm_device *dev)
 	struct nouveau_device *ndev = nouveau_device(dev);
 
 	if (ndev->chipset == 0x11)
-		return !!(nvReadMC(dev, NV_PBUS_DEBUG_1) & (1 << 28));
+		return !!(nv_rd32(dev, NV_PBUS_DEBUG_1) & (1 << 28));
 
 	return NVReadVgaCrtc(dev, 0, NV_CIO_CRE_44) & 0x4;
 }

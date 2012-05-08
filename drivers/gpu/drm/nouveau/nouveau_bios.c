@@ -3924,7 +3924,7 @@ int call_lvds_script(struct drm_device *dev, struct dcb_entry *dcbent, int head,
 	sel_clk = NVReadRAMDAC(dev, 0, NV_PRAMDAC_SEL_CLK) & ~0x50000;
 	NVWriteRAMDAC(dev, 0, NV_PRAMDAC_SEL_CLK, sel_clk | sel_clk_binding);
 	/* some scripts set a value in NV_PBUS_POWERCTRL_2 and break video overlay */
-	nvWriteMC(dev, NV_PBUS_POWERCTRL_2, 0);
+	nv_wr32(dev, NV_PBUS_POWERCTRL_2, 0);
 
 	return ret;
 }
@@ -4670,8 +4670,7 @@ int get_pll_limits(struct drm_device *dev, uint32_t limit_match, struct pll_lims
 	/* open coded dev->twoHeads test */
 	if (cv > 0x10 && cv != 0x15 && cv != 0x1a && cv != 0x20)
 		crystal_strap_mask |= 1 << 22;
-	crystal_straps = nvReadEXTDEV(dev, NV_PEXTDEV_BOOT_0) &
-							crystal_strap_mask;
+	crystal_straps = nv_rd32(dev, NV_PEXTDEV_BOOT_0) & crystal_strap_mask;
 
 	switch (pll_lim_ver) {
 	/*
