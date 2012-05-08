@@ -195,7 +195,7 @@ static void
 nv04_update_arb(struct drm_device *dev, int VClk, int bpp,
 		int *burst, int *lwm)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv_fifo_info fifo_data;
 	struct nv_sim_state sim_data;
 	int MClk = nouveau_hw_get_clock(dev, PLL_MEMORY);
@@ -224,7 +224,7 @@ nv04_update_arb(struct drm_device *dev, int VClk, int bpp,
 		sim_data.mem_page_miss = ((cfg1 >> 4) & 0xf) + ((cfg1 >> 31) & 0x1);
 	}
 
-	if (dev_priv->card_type == NV_04)
+	if (ndev->card_type == NV_04)
 		nv04_calc_arb(&fifo_data, &sim_data);
 	else
 		nv10_calc_arb(&fifo_data, &sim_data);
@@ -249,9 +249,9 @@ nv20_update_arb(int *burst, int *lwm)
 void
 nouveau_calc_arb(struct drm_device *dev, int vclk, int bpp, int *burst, int *lwm)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
-	if (dev_priv->card_type < NV_20)
+	if (ndev->card_type < NV_20)
 		nv04_update_arb(dev, vclk, bpp, burst, lwm);
 	else if ((dev->pci_device & 0xfff0) == 0x0240 /*CHIPSET_C51*/ ||
 		 (dev->pci_device & 0xfff0) == 0x03d0 /*CHIPSET_C512*/) {
@@ -273,8 +273,8 @@ getMNP_single(struct drm_device *dev, struct pll_lims *pll_lim, int clk,
 	 * "clk" parameter in kHz
 	 * returns calculated clock
 	 */
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int cv = dev_priv->vbios.chip_version;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	int cv = ndev->vbios.chip_version;
 	int minvco = pll_lim->vco1.minfreq, maxvco = pll_lim->vco1.maxfreq;
 	int minM = pll_lim->vco1.min_m, maxM = pll_lim->vco1.max_m;
 	int minN = pll_lim->vco1.min_n, maxN = pll_lim->vco1.max_n;
@@ -290,7 +290,7 @@ getMNP_single(struct drm_device *dev, struct pll_lims *pll_lim, int clk,
 
 	/* this division verified for nv20, nv18, nv28 (Haiku), and nv34 */
 	/* possibly correlated with introduction of 27MHz crystal */
-	if (dev_priv->card_type < NV_50) {
+	if (ndev->card_type < NV_50) {
 		if (cv < 0x17 || cv == 0x1a || cv == 0x20) {
 			if (clk > 250000)
 				maxM = 6;
@@ -372,8 +372,8 @@ getMNP_double(struct drm_device *dev, struct pll_lims *pll_lim, int clk,
 	 * "clk" parameter in kHz
 	 * returns calculated clock
 	 */
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int chip_version = dev_priv->vbios.chip_version;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	int chip_version = ndev->vbios.chip_version;
 	int minvco1 = pll_lim->vco1.minfreq, maxvco1 = pll_lim->vco1.maxfreq;
 	int minvco2 = pll_lim->vco2.minfreq, maxvco2 = pll_lim->vco2.maxfreq;
 	int minU1 = pll_lim->vco1.min_inputfreq, minU2 = pll_lim->vco2.min_inputfreq;

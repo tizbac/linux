@@ -102,20 +102,20 @@ nvc0_vm_unmap(struct nouveau_gpuobj *pgt, u32 pte, u32 cnt)
 void
 nvc0_vm_flush(struct nouveau_vm *vm)
 {
-	struct drm_nouveau_private *dev_priv = vm->dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
+	struct nouveau_device *ndev = nouveau_device(vm->dev);
+	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	struct drm_device *dev = vm->dev;
 	struct nouveau_vm_pgd *vpgd;
 	unsigned long flags;
 	u32 engine;
 
 	engine = 1;
-	if (vm == dev_priv->bar1_vm || vm == dev_priv->bar3_vm)
+	if (vm == ndev->bar1_vm || vm == ndev->bar3_vm)
 		engine |= 4;
 
 	pinstmem->flush(vm->dev);
 
-	spin_lock_irqsave(&dev_priv->vm_lock, flags);
+	spin_lock_irqsave(&ndev->vm_lock, flags);
 	list_for_each_entry(vpgd, &vm->pgd_list, head) {
 		/* looks like maybe a "free flush slots" counter, the
 		 * faster you write to 0x100cbc to more it decreases
@@ -132,5 +132,5 @@ nvc0_vm_flush(struct nouveau_vm *vm)
 				 nv_rd32(dev, 0x100c80), engine);
 		}
 	}
-	spin_unlock_irqrestore(&dev_priv->vm_lock, flags);
+	spin_unlock_irqrestore(&ndev->vm_lock, flags);
 }

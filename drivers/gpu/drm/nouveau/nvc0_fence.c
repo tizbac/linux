@@ -137,12 +137,12 @@ nvc0_fence_init(struct drm_device *dev, int engine)
 static void
 nvc0_fence_destroy(struct drm_device *dev, int engine)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_fence_priv *priv = nv_engine(dev, engine);
 
 	nouveau_bo_unmap(priv->bo);
 	nouveau_bo_ref(NULL, &priv->bo);
-	dev_priv->engine[engine] = NULL;
+	ndev->engine[engine] = NULL;
 	kfree(priv);
 }
 
@@ -150,7 +150,7 @@ int
 nvc0_fence_create(struct drm_device *dev)
 {
 	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_fence_priv *priv;
 	int ret;
 
@@ -166,7 +166,7 @@ nvc0_fence_create(struct drm_device *dev)
 	priv->base.emit = nvc0_fence_emit;
 	priv->base.sync = nvc0_fence_sync;
 	priv->base.read = nvc0_fence_read;
-	dev_priv->engine[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
+	ndev->engine[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
 
 	ret = nouveau_bo_new(dev, 16 * pfifo->channels, 0, TTM_PL_FLAG_VRAM,
 			     0, 0, NULL, &priv->bo);

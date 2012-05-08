@@ -12,8 +12,8 @@ struct nv50_fb_priv {
 static void
 nv50_fb_destroy(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	struct nv50_fb_priv *priv = pfb->priv;
 
 	if (drm_mm_initialized(&pfb->tag_heap))
@@ -32,8 +32,8 @@ nv50_fb_destroy(struct drm_device *dev)
 static int
 nv50_fb_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	struct nv50_fb_priv *priv;
 	u32 tagmem;
 	int ret;
@@ -70,16 +70,16 @@ nv50_fb_create(struct drm_device *dev)
 int
 nv50_fb_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv50_fb_priv *priv;
 	int ret;
 
-	if (!dev_priv->subsys.fb.priv) {
+	if (!ndev->subsys.fb.priv) {
 		ret = nv50_fb_create(dev);
 		if (ret)
 			return ret;
 	}
-	priv = dev_priv->subsys.fb.priv;
+	priv = ndev->subsys.fb.priv;
 
 	/* Not a clue what this is exactly.  Without pointing it at a
 	 * scratch page, VRAM->GART blits with M2MF (as in DDX DFS)
@@ -89,7 +89,7 @@ nv50_fb_init(struct drm_device *dev)
 
 	/* This is needed to get meaningful information from 100c90
 	 * on traps. No idea what these values mean exactly. */
-	switch (dev_priv->chipset) {
+	switch (ndev->chipset) {
 	case 0x50:
 		nv_wr32(dev, 0x100c90, 0x000707ff);
 		break;
@@ -214,7 +214,7 @@ void
 nv50_fb_vm_trap(struct drm_device *dev, int display)
 {
 	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	const struct nouveau_enum *en, *cl;
 	unsigned long flags;
 	u32 trap[6], idx, chinst;
@@ -237,9 +237,9 @@ nv50_fb_vm_trap(struct drm_device *dev, int display)
 
 	/* lookup channel id */
 	chinst = (trap[2] << 16) | trap[1];
-	spin_lock_irqsave(&dev_priv->channels.lock, flags);
+	spin_lock_irqsave(&ndev->channels.lock, flags);
 	for (ch = 0; ch < pfifo->channels; ch++) {
-		struct nouveau_channel *chan = dev_priv->channels.ptr[ch];
+		struct nouveau_channel *chan = ndev->channels.ptr[ch];
 
 		if (!chan || !chan->ramin)
 			continue;
@@ -247,11 +247,11 @@ nv50_fb_vm_trap(struct drm_device *dev, int display)
 		if (chinst == chan->ramin->vinst >> 12)
 			break;
 	}
-	spin_unlock_irqrestore(&dev_priv->channels.lock, flags);
+	spin_unlock_irqrestore(&ndev->channels.lock, flags);
 
 	/* decode status bits into something more useful */
-	if (dev_priv->chipset  < 0xa3 ||
-	    dev_priv->chipset == 0xaa || dev_priv->chipset == 0xac) {
+	if (ndev->chipset  < 0xa3 ||
+	    ndev->chipset == 0xaa || ndev->chipset == 0xac) {
 		st0 = (trap[0] & 0x0000000f) >> 0;
 		st1 = (trap[0] & 0x000000f0) >> 4;
 		st2 = (trap[0] & 0x00000f00) >> 8;

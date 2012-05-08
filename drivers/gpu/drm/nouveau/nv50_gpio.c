@@ -93,12 +93,12 @@ nvd0_gpio_sense(struct drm_device *dev, int line)
 static void
 nv50_gpio_isr(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 intr0, intr1 = 0;
 	u32 hi, lo;
 
 	intr0 = nv_rd32(dev, 0xe054) & nv_rd32(dev, 0xe050);
-	if (dev_priv->chipset >= 0x90)
+	if (ndev->chipset >= 0x90)
 		intr1 = nv_rd32(dev, 0xe074) & nv_rd32(dev, 0xe070);
 
 	hi = (intr0 & 0x0000ffff) | (intr1 << 16);
@@ -106,19 +106,19 @@ nv50_gpio_isr(struct drm_device *dev)
 	nouveau_gpio_isr(dev, 0, hi | lo);
 
 	nv_wr32(dev, 0xe054, intr0);
-	if (dev_priv->chipset >= 0x90)
+	if (ndev->chipset >= 0x90)
 		nv_wr32(dev, 0xe074, intr1);
 }
 
 int
 nv50_gpio_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
 	/* disable, and ack any pending gpio interrupts */
 	nv_wr32(dev, 0xe050, 0x00000000);
 	nv_wr32(dev, 0xe054, 0xffffffff);
-	if (dev_priv->chipset >= 0x90) {
+	if (ndev->chipset >= 0x90) {
 		nv_wr32(dev, 0xe070, 0x00000000);
 		nv_wr32(dev, 0xe074, 0xffffffff);
 	}
@@ -130,10 +130,10 @@ nv50_gpio_init(struct drm_device *dev)
 void
 nv50_gpio_fini(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
 	nv_wr32(dev, 0xe050, 0x00000000);
-	if (dev_priv->chipset >= 0x90)
+	if (ndev->chipset >= 0x90)
 		nv_wr32(dev, 0xe070, 0x00000000);
 	nouveau_irq_unregister(dev, 21);
 }

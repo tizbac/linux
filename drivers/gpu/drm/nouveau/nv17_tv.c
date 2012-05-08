@@ -37,7 +37,7 @@
 static uint32_t nv42_tv_sample_load(struct drm_encoder *encoder)
 {
 	struct drm_device *dev = encoder->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	uint32_t testval, regoffset = nv04_dac_output_offset(encoder);
 	uint32_t gpio0, gpio1, fp_htotal, fp_hsync_start, fp_hsync_end,
 		fp_control, test_ctrl, dacclk, ctv_14, ctv_1c, ctv_6c;
@@ -46,8 +46,8 @@ static uint32_t nv42_tv_sample_load(struct drm_encoder *encoder)
 
 #define RGB_TEST_DATA(r, g, b) (r << 0 | g << 10 | b << 20)
 	testval = RGB_TEST_DATA(0x82, 0xeb, 0x82);
-	if (dev_priv->vbios.tvdactestval)
-		testval = dev_priv->vbios.tvdactestval;
+	if (ndev->vbios.tvdactestval)
+		testval = ndev->vbios.tvdactestval;
 
 	dacclk = NVReadRAMDAC(dev, 0, NV_PRAMDAC_DACCLK + regoffset);
 	head = (dacclk & 0x100) >> 8;
@@ -140,7 +140,7 @@ static enum drm_connector_status
 nv17_tv_detect(struct drm_encoder *encoder, struct drm_connector *connector)
 {
 	struct drm_device *dev = encoder->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_mode_config *conf = &dev->mode_config;
 	struct nv17_tv_encoder *tv_enc = to_tv_enc(encoder);
 	struct dcb_entry *dcb = tv_enc->base.dcb;
@@ -150,8 +150,8 @@ nv17_tv_detect(struct drm_encoder *encoder, struct drm_connector *connector)
 		return connector_status_disconnected;
 
 	if (reliable) {
-		if (dev_priv->chipset == 0x42 ||
-		    dev_priv->chipset == 0x43)
+		if (ndev->chipset == 0x42 ||
+		    ndev->chipset == 0x43)
 			tv_enc->pin_mask =
 				nv42_tv_sample_load(encoder) >> 28 & 0xe;
 		else
@@ -390,11 +390,11 @@ static void  nv17_tv_dpms(struct drm_encoder *encoder, int mode)
 static void nv17_tv_prepare(struct drm_encoder *encoder)
 {
 	struct drm_device *dev = encoder->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_encoder_helper_funcs *helper = encoder->helper_private;
 	struct nv17_tv_norm_params *tv_norm = get_tv_norm(encoder);
 	int head = nouveau_crtc(encoder->crtc)->index;
-	uint8_t *cr_lcd = &dev_priv->mode_reg.crtc_reg[head].CRTC[
+	uint8_t *cr_lcd = &ndev->mode_reg.crtc_reg[head].CRTC[
 							NV_CIO_CRE_LCD__INDEX];
 	uint32_t dacclk_off = NV_PRAMDAC_DACCLK +
 					nv04_dac_output_offset(encoder);
@@ -417,7 +417,7 @@ static void nv17_tv_prepare(struct drm_encoder *encoder)
 			     !enc->crtc &&
 			     nv04_dfp_get_bound_head(dev, dcb) == head) {
 				nv04_dfp_bind_head(dev, dcb, head ^ 1,
-						dev_priv->vbios.fp.dual_link);
+						ndev->vbios.fp.dual_link);
 			}
 		}
 
@@ -429,7 +429,7 @@ static void nv17_tv_prepare(struct drm_encoder *encoder)
 	/* Set the DACCLK register */
 	dacclk = (NVReadRAMDAC(dev, 0, dacclk_off) & ~0x30) | 0x1;
 
-	if (dev_priv->card_type == NV_40)
+	if (ndev->card_type == NV_40)
 		dacclk |= 0x1a << 16;
 
 	if (tv_norm->kind == CTV_ENC_MODE) {
@@ -453,9 +453,9 @@ static void nv17_tv_mode_set(struct drm_encoder *encoder,
 			     struct drm_display_mode *adjusted_mode)
 {
 	struct drm_device *dev = encoder->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int head = nouveau_crtc(encoder->crtc)->index;
-	struct nv04_crtc_reg *regs = &dev_priv->mode_reg.crtc_reg[head];
+	struct nv04_crtc_reg *regs = &ndev->mode_reg.crtc_reg[head];
 	struct nv17_tv_state *tv_regs = &to_tv_enc(encoder)->state;
 	struct nv17_tv_norm_params *tv_norm = get_tv_norm(encoder);
 	int i;
@@ -486,7 +486,7 @@ static void nv17_tv_mode_set(struct drm_encoder *encoder,
 			tv_regs->ptv_614 = 0x13;
 		}
 
-		if (dev_priv->card_type >= NV_30) {
+		if (ndev->card_type >= NV_30) {
 			tv_regs->ptv_500 = 0xe8e0;
 			tv_regs->ptv_504 = 0x1710;
 			tv_regs->ptv_604 = 0x0;
@@ -566,7 +566,7 @@ static void nv17_tv_mode_set(struct drm_encoder *encoder,
 static void nv17_tv_commit(struct drm_encoder *encoder)
 {
 	struct drm_device *dev = encoder->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(encoder->crtc);
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
 	struct drm_encoder_helper_funcs *helper = encoder->helper_private;
@@ -581,7 +581,7 @@ static void nv17_tv_commit(struct drm_encoder *encoder)
 	nv17_tv_state_load(dev, &to_tv_enc(encoder)->state);
 
 	/* This could use refinement for flatpanels, but it should work */
-	if (dev_priv->chipset < 0x44)
+	if (ndev->chipset < 0x44)
 		NVWriteRAMDAC(dev, 0, NV_PRAMDAC_TEST_CONTROL +
 					nv04_dac_output_offset(encoder),
 					0xf0000000);

@@ -73,14 +73,14 @@ nouveau_debugfs_channel_info(struct seq_file *m, void *data)
 int
 nouveau_debugfs_channel_init(struct nouveau_channel *chan)
 {
-	struct drm_nouveau_private *dev_priv = chan->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(chan->dev);
 	struct drm_minor *minor = chan->dev->primary;
 	int ret;
 
-	if (!dev_priv->debugfs.channel_root) {
-		dev_priv->debugfs.channel_root =
+	if (!ndev->debugfs.channel_root) {
+		ndev->debugfs.channel_root =
 			debugfs_create_dir("channel", minor->debugfs_root);
-		if (!dev_priv->debugfs.channel_root)
+		if (!ndev->debugfs.channel_root)
 			return -ENOENT;
 	}
 
@@ -91,7 +91,7 @@ nouveau_debugfs_channel_init(struct nouveau_channel *chan)
 	chan->debugfs.info.data = chan;
 
 	ret = drm_debugfs_create_files(&chan->debugfs.info, 1,
-				       dev_priv->debugfs.channel_root,
+				       ndev->debugfs.channel_root,
 				       chan->dev->primary);
 	if (ret == 0)
 		chan->debugfs.active = true;
@@ -101,7 +101,7 @@ nouveau_debugfs_channel_init(struct nouveau_channel *chan)
 void
 nouveau_debugfs_channel_fini(struct nouveau_channel *chan)
 {
-	struct drm_nouveau_private *dev_priv = chan->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(chan->dev);
 
 	if (!chan->debugfs.active)
 		return;
@@ -109,9 +109,9 @@ nouveau_debugfs_channel_fini(struct nouveau_channel *chan)
 	drm_debugfs_remove_files(&chan->debugfs.info, 1, chan->dev->primary);
 	chan->debugfs.active = false;
 
-	if (chan == dev_priv->channel) {
-		debugfs_remove(dev_priv->debugfs.channel_root);
-		dev_priv->debugfs.channel_root = NULL;
+	if (chan == ndev->channel) {
+		debugfs_remove(ndev->debugfs.channel_root);
+		ndev->debugfs.channel_root = NULL;
 	}
 }
 
@@ -121,10 +121,10 @@ nouveau_debugfs_chipset_info(struct seq_file *m, void *data)
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_minor *minor = node->minor;
 	struct drm_device *dev = minor->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	uint32_t ppci_0;
 
-	ppci_0 = nv_rd32(dev, dev_priv->chipset >= 0x40 ? 0x88000 : 0x1800);
+	ppci_0 = nv_rd32(dev, ndev->chipset >= 0x40 ? 0x88000 : 0x1800);
 
 	seq_printf(m, "PMC_BOOT_0: 0x%08x\n", nv_rd32(dev, NV03_PMC_BOOT_0));
 	seq_printf(m, "PCI ID    : 0x%04x:0x%04x\n",
@@ -137,9 +137,9 @@ nouveau_debugfs_memory_info(struct seq_file *m, void *data)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_minor *minor = node->minor;
-	struct drm_nouveau_private *dev_priv = minor->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(minor->dev);
 
-	seq_printf(m, "VRAM total: %dKiB\n", (int)(dev_priv->vram_size >> 10));
+	seq_printf(m, "VRAM total: %dKiB\n", (int)(ndev->vram_size >> 10));
 	return 0;
 }
 
@@ -147,11 +147,11 @@ static int
 nouveau_debugfs_vbios_image(struct seq_file *m, void *data)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
-	struct drm_nouveau_private *dev_priv = node->minor->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(node->minor->dev);
 	int i;
 
-	for (i = 0; i < dev_priv->vbios.length; i++)
-		seq_printf(m, "%c", dev_priv->vbios.data[i]);
+	for (i = 0; i < ndev->vbios.length; i++)
+		seq_printf(m, "%c", ndev->vbios.data[i]);
 	return 0;
 }
 
@@ -159,10 +159,10 @@ static int
 nouveau_debugfs_evict_vram(struct seq_file *m, void *data)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
-	struct drm_nouveau_private *dev_priv = node->minor->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(node->minor->dev);
 	int ret;
 
-	ret = ttm_bo_evict_mm(&dev_priv->ttm.bdev, TTM_PL_VRAM);
+	ret = ttm_bo_evict_mm(&ndev->ttm.bdev, TTM_PL_VRAM);
 	if (ret)
 		seq_printf(m, "failed: %d", ret);
 	else

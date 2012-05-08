@@ -31,10 +31,10 @@
 static bool
 hdmi_sor(struct drm_encoder *encoder)
 {
-	struct drm_nouveau_private *dev_priv = encoder->dev->dev_private;
-	if (dev_priv->chipset <  0xa3 ||
-	    dev_priv->chipset == 0xaa ||
-	    dev_priv->chipset == 0xac)
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
+	if (ndev->chipset <  0xa3 ||
+	    ndev->chipset == 0xaa ||
+	    ndev->chipset == 0xac)
 		return false;
 	return true;
 }

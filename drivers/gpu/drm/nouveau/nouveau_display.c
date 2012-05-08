@@ -71,7 +71,7 @@ nouveau_framebuffer_init(struct drm_device *dev,
 			 struct drm_mode_fb_cmd2 *mode_cmd,
 			 struct nouveau_bo *nvbo)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_framebuffer *fb = &nv_fb->base;
 	int ret;
 
@@ -83,7 +83,7 @@ nouveau_framebuffer_init(struct drm_device *dev,
 	drm_helper_mode_fill_fb_struct(fb, mode_cmd);
 	nv_fb->nvbo = nvbo;
 
-	if (dev_priv->card_type >= NV_50) {
+	if (ndev->card_type >= NV_50) {
 		u32 tile_flags = nouveau_bo_tile_layout(nvbo);
 		if (tile_flags == 0x7a00 ||
 		    tile_flags == 0xfe00)
@@ -106,17 +106,17 @@ nouveau_framebuffer_init(struct drm_device *dev,
 			 return -EINVAL;
 		}
 
-		if (dev_priv->chipset == 0x50)
+		if (ndev->chipset == 0x50)
 			nv_fb->r_format |= (tile_flags << 8);
 
 		if (!tile_flags) {
-			if (dev_priv->card_type < NV_D0)
+			if (ndev->card_type < NV_D0)
 				nv_fb->r_pitch = 0x00100000 | fb->pitches[0];
 			else
 				nv_fb->r_pitch = 0x01000000 | fb->pitches[0];
 		} else {
 			u32 mode = nvbo->tile_mode;
-			if (dev_priv->card_type >= NV_C0)
+			if (ndev->card_type >= NV_C0)
 				mode >>= 4;
 			nv_fb->r_pitch = ((fb->pitches[0] / 4) << 4) | mode;
 		}
@@ -212,8 +212,8 @@ static struct nouveau_drm_prop_enum_list dither_depth[] = {
 int
 nouveau_display_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_display_engine *disp = &dev_priv->subsys.display;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_display_engine *disp = &ndev->subsys.display;
 	struct drm_connector *connector;
 	int ret;
 
@@ -245,8 +245,8 @@ nouveau_display_init(struct drm_device *dev)
 void
 nouveau_display_fini(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_display_engine *disp = &dev_priv->subsys.display;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_display_engine *disp = &ndev->subsys.display;
 	struct drm_connector *connector;
 
 	/* disable hotplug interrupts */
@@ -262,18 +262,18 @@ nouveau_display_fini(struct drm_device *dev)
 int
 nouveau_display_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_display_engine *disp = &dev_priv->subsys.display;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_display_engine *disp = &ndev->subsys.display;
 	int ret, gen;
 
 	drm_mode_config_init(dev);
 	drm_mode_create_scaling_mode_property(dev);
 	drm_mode_create_dvi_i_properties(dev);
 
-	if (dev_priv->card_type < NV_50)
+	if (ndev->card_type < NV_50)
 		gen = 0;
 	else
-	if (dev_priv->card_type < NV_D0)
+	if (ndev->card_type < NV_D0)
 		gen = 1;
 	else
 		gen = 2;
@@ -307,11 +307,11 @@ nouveau_display_create(struct drm_device *dev)
 
 	dev->mode_config.min_width = 0;
 	dev->mode_config.min_height = 0;
-	if (dev_priv->card_type < NV_10) {
+	if (ndev->card_type < NV_10) {
 		dev->mode_config.max_width = 2048;
 		dev->mode_config.max_height = 2048;
 	} else
-	if (dev_priv->card_type < NV_50) {
+	if (ndev->card_type < NV_50) {
 		dev->mode_config.max_width = 4096;
 		dev->mode_config.max_height = 4096;
 	} else {
@@ -348,8 +348,8 @@ disp_create_err:
 void
 nouveau_display_destroy(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_display_engine *disp = &dev_priv->subsys.display;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_display_engine *disp = &ndev->subsys.display;
 
 	drm_vblank_cleanup(dev);
 
@@ -362,9 +362,9 @@ nouveau_display_destroy(struct drm_device *dev)
 int
 nouveau_vblank_enable(struct drm_device *dev, int crtc)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
-	if (dev_priv->card_type >= NV_50)
+	if (ndev->card_type >= NV_50)
 		nv_mask(dev, NV50_PDISPLAY_INTR_EN_1, 0,
 			NV50_PDISPLAY_INTR_EN_1_VBLANK_CRTC_(crtc));
 	else
@@ -377,9 +377,9 @@ nouveau_vblank_enable(struct drm_device *dev, int crtc)
 void
 nouveau_vblank_disable(struct drm_device *dev, int crtc)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
-	if (dev_priv->card_type >= NV_50)
+	if (ndev->card_type >= NV_50)
 		nv_mask(dev, NV50_PDISPLAY_INTR_EN_1,
 			NV50_PDISPLAY_INTR_EN_1_VBLANK_CRTC_(crtc), 0);
 	else
@@ -435,7 +435,7 @@ nouveau_page_flip_emit(struct nouveau_channel *chan,
 		       struct nouveau_fence **pfence)
 {
 	struct nouveau_software_chan *swch = chan->engctx[NVOBJ_ENGINE_SW];
-	struct drm_nouveau_private *dev_priv = chan->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(chan->dev);
 	struct drm_device *dev = chan->dev;
 	unsigned long flags;
 	int ret;
@@ -455,7 +455,7 @@ nouveau_page_flip_emit(struct nouveau_channel *chan,
 	if (ret)
 		goto fail;
 
-	if (dev_priv->card_type < NV_C0) {
+	if (ndev->card_type < NV_C0) {
 		BEGIN_NV04(chan, NvSubSw, NV_SW_PAGE_FLIP, 1);
 		OUT_RING  (chan, 0x00000000);
 		OUT_RING  (chan, 0x00000000);
@@ -483,7 +483,7 @@ nouveau_crtc_page_flip(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 		       struct drm_pending_vblank_event *event)
 {
 	struct drm_device *dev = crtc->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_bo *old_bo = nouveau_framebuffer(crtc->fb)->nvbo;
 	struct nouveau_bo *new_bo = nouveau_framebuffer(fb)->nvbo;
 	struct nouveau_page_flip_state *s;
@@ -491,7 +491,7 @@ nouveau_crtc_page_flip(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 	struct nouveau_fence *fence;
 	int ret;
 
-	if (!dev_priv->channel)
+	if (!ndev->channel)
 		return -ENODEV;
 
 	s = kzalloc(sizeof(*s), GFP_KERNEL);
@@ -514,12 +514,12 @@ nouveau_crtc_page_flip(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 	if (fence)
 		chan = nouveau_channel_get_unlocked(fence->channel);
 	if (!chan)
-		chan = nouveau_channel_get_unlocked(dev_priv->channel);
+		chan = nouveau_channel_get_unlocked(ndev->channel);
 	mutex_lock(&chan->mutex);
 
 	/* Emit a page flip */
-	if (dev_priv->card_type >= NV_50) {
-		if (dev_priv->card_type >= NV_D0)
+	if (ndev->card_type >= NV_50) {
+		if (ndev->card_type >= NV_D0)
 			ret = nvd0_display_flip_next(crtc, fb, chan, 0);
 		else
 			ret = nv50_display_flip_next(crtc, fb, chan);

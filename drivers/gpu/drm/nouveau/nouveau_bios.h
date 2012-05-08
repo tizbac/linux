@@ -39,8 +39,8 @@
 #define ROM48(x) ({ u8 *p = &(x); (u64)ROM16(p[4]) << 32 | ROM32(p[0]); })
 #define ROM64(x) le64_to_cpu(*(u64 *)&(x))
 #define ROMPTR(d,x) ({            \
-	struct drm_nouveau_private *dev_priv = (d)->dev_private; \
-	ROM16(x) ? &dev_priv->vbios.data[ROM16(x)] : NULL; \
+	struct nouveau_device *ndev = nouveau_device(d); \
+	ROM16(x) ? &ndev->vbios.data[ROM16(x)] : NULL; \
 })
 
 struct bit_entry {

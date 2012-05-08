@@ -64,7 +64,7 @@ static int
 nv10_fifo_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv10_fifo_priv *priv = nv_engine(dev, engine);
 	struct nv10_fifo_chan *fctx;
 	unsigned long flags;
@@ -83,7 +83,7 @@ nv10_fifo_context_new(struct nouveau_channel *chan, int engine)
 	}
 
 	/* initialise default fifo context */
-	ret = nouveau_gpuobj_new_fake(dev, dev_priv->ramfc->pinst +
+	ret = nouveau_gpuobj_new_fake(dev, ndev->ramfc->pinst +
 				      chan->id * 32, ~0, 32,
 				      NVOBJ_FLAG_ZERO_FREE, &fctx->ramfc);
 	if (ret)
@@ -104,9 +104,9 @@ nv10_fifo_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(fctx->ramfc, 0x1c, 0x00000000);
 
 	/* enable dma mode on the channel */
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_mask(dev, NV04_PFIFO_MODE, (1 << chan->id), (1 << chan->id));
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 error:
 	if (ret)
@@ -117,7 +117,7 @@ error:
 int
 nv10_fifo_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv10_fifo_priv *priv;
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
@@ -131,7 +131,7 @@ nv10_fifo_create(struct drm_device *dev)
 	priv->base.base.context_del = nv04_fifo_context_del;
 	priv->base.channels = 31;
 	priv->ramfc_desc = nv10_ramfc;
-	dev_priv->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
+	ndev->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
 
 	nouveau_irq_register(dev, 8, nv04_fifo_isr);
 	return 0;

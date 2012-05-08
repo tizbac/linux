@@ -35,14 +35,14 @@ nouveau_software_create(struct nouveau_software_priv *psw)
 static inline u16
 nouveau_software_class(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	if (dev_priv->card_type <= NV_04)
+	struct nouveau_device *ndev = nouveau_device(dev);
+	if (ndev->card_type <= NV_04)
 		return 0x006e;
-	if (dev_priv->card_type <= NV_40)
+	if (ndev->card_type <= NV_40)
 		return 0x016e;
-	if (dev_priv->card_type <= NV_50)
+	if (ndev->card_type <= NV_50)
 		return 0x506e;
-	if (dev_priv->card_type <= NV_E0)
+	if (ndev->card_type <= NV_E0)
 		return 0x906e;
 	return 0x0000;
 }

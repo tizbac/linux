@@ -46,8 +46,8 @@ struct nvc0_fifo_chan {
 static void
 nvc0_fifo_playlist_update(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	struct nvc0_fifo_priv *priv = nv_engine(dev, NVOBJ_ENGINE_FIFO);
 	struct nouveau_gpuobj *cur;
 	int i, p;
@@ -74,8 +74,8 @@ static int
 nvc0_fifo_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	struct nvc0_fifo_priv *priv = nv_engine(dev, engine);
 	struct nvc0_fifo_chan *fctx;
 	u64 ib_virt = chan->pushbuf_base + chan->dma.ib_base * 4;
@@ -160,7 +160,7 @@ nvc0_fifo_context_del(struct nouveau_channel *chan, int engine)
 static int
 nvc0_fifo_init(struct drm_device *dev, int engine)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_fifo_priv *priv = nv_engine(dev, engine);
 	struct nouveau_channel *chan;
 	int i;
@@ -200,7 +200,7 @@ nvc0_fifo_init(struct drm_device *dev, int engine)
 
 	/* restore PFIFO context table */
 	for (i = 0; i < 128; i++) {
-		chan = dev_priv->channels.ptr[i];
+		chan = ndev->channels.ptr[i];
 		if (!chan || !chan->engctx[engine])
 			continue;
 
@@ -326,18 +326,18 @@ static int
 nvc0_fifo_page_flip(struct drm_device *dev, u32 chid)
 {
 	struct nvc0_fifo_priv *priv = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_channel *chan = NULL;
 	unsigned long flags;
 	int ret = -EINVAL;
 
-	spin_lock_irqsave(&dev_priv->channels.lock, flags);
+	spin_lock_irqsave(&ndev->channels.lock, flags);
 	if (likely(chid >= 0 && chid < priv->base.channels)) {
-		chan = dev_priv->channels.ptr[chid];
+		chan = ndev->channels.ptr[chid];
 		if (likely(chan))
 			ret = nouveau_finish_page_flip(chan, NULL);
 	}
-	spin_unlock_irqrestore(&dev_priv->channels.lock, flags);
+	spin_unlock_irqrestore(&ndev->channels.lock, flags);
 	return ret;
 }
 
@@ -426,20 +426,20 @@ static void
 nvc0_fifo_destroy(struct drm_device *dev, int engine)
 {
 	struct nvc0_fifo_priv *priv = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
 	nouveau_vm_put(&priv->user_vma);
 	nouveau_gpuobj_ref(NULL, &priv->playlist[1]);
 	nouveau_gpuobj_ref(NULL, &priv->playlist[0]);
 
-	dev_priv->engine[engine] = NULL;
+	ndev->engine[engine] = NULL;
 	kfree(priv);
 }
 
 int
 nvc0_fifo_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_fifo_priv *priv;
 	int ret;
 
@@ -453,7 +453,7 @@ nvc0_fifo_create(struct drm_device *dev)
 	priv->base.base.context_new = nvc0_fifo_context_new;
 	priv->base.base.context_del = nvc0_fifo_context_del;
 	priv->base.channels = 128;
-	dev_priv->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
+	ndev->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
 
 	ret = nouveau_gpuobj_new(dev, NULL, 4096, 4096, 0, &priv->playlist[0]);
 	if (ret)
@@ -463,7 +463,7 @@ nvc0_fifo_create(struct drm_device *dev)
 	if (ret)
 		goto error;
 
-	ret = nouveau_vm_get(dev_priv->bar1_vm, priv->base.channels * 0x1000,
+	ret = nouveau_vm_get(ndev->bar1_vm, priv->base.channels * 0x1000,
 			     12, NV_MEM_ACCESS_RW, &priv->user_vma);
 	if (ret)
 		goto error;

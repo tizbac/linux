@@ -72,7 +72,7 @@ static int
 nv40_backlight_init(struct drm_connector *connector)
 {
 	struct drm_device *dev = connector->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct backlight_properties props;
 	struct backlight_device *bd;
 
@@ -87,7 +87,7 @@ nv40_backlight_init(struct drm_connector *connector)
 	if (IS_ERR(bd))
 		return PTR_ERR(bd);
 
-	dev_priv->backlight = bd;
+	ndev->backlight = bd;
 	bd->props.brightness = nv40_get_intensity(bd);
 	backlight_update_status(bd);
 
@@ -175,7 +175,7 @@ static int
 nv50_backlight_init(struct drm_connector *connector)
 {
 	struct drm_device *dev = connector->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_encoder *nv_encoder;
 	struct backlight_properties props;
 	struct backlight_device *bd;
@@ -191,9 +191,9 @@ nv50_backlight_init(struct drm_connector *connector)
 	if (!nv_rd32(dev, NV50_PDISP_SOR_PWM_CTL(nv_encoder->or)))
 		return 0;
 
-	if (dev_priv->chipset <= 0xa0 ||
-	    dev_priv->chipset == 0xaa ||
-	    dev_priv->chipset == 0xac)
+	if (ndev->chipset <= 0xa0 ||
+	    ndev->chipset == 0xaa ||
+	    ndev->chipset == 0xac)
 		ops = &nv50_bl_ops;
 	else
 		ops = &nva3_bl_ops;
@@ -206,7 +206,7 @@ nv50_backlight_init(struct drm_connector *connector)
 	if (IS_ERR(bd))
 		return PTR_ERR(bd);
 
-	dev_priv->backlight = bd;
+	ndev->backlight = bd;
 	bd->props.brightness = bd->ops->get_brightness(bd);
 	backlight_update_status(bd);
 	return 0;
@@ -215,7 +215,7 @@ nv50_backlight_init(struct drm_connector *connector)
 int
 nouveau_backlight_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_connector *connector;
 
 #ifdef CONFIG_ACPI
@@ -231,7 +231,7 @@ nouveau_backlight_init(struct drm_device *dev)
 		    connector->connector_type != DRM_MODE_CONNECTOR_eDP)
 			continue;
 
-		switch (dev_priv->card_type) {
+		switch (ndev->card_type) {
 		case NV_40:
 			return nv40_backlight_init(connector);
 		case NV_50:
@@ -248,10 +248,10 @@ nouveau_backlight_init(struct drm_device *dev)
 void
 nouveau_backlight_exit(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
-	if (dev_priv->backlight) {
-		backlight_device_unregister(dev_priv->backlight);
-		dev_priv->backlight = NULL;
+	if (ndev->backlight) {
+		backlight_device_unregister(ndev->backlight);
+		ndev->backlight = NULL;
 	}
 }

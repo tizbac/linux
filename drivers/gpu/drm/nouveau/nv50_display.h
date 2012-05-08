@@ -62,8 +62,8 @@ struct nv50_display {
 static inline struct nv50_display *
 nv50_display(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	return dev_priv->subsys.display.priv;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	return ndev->subsys.display.priv;
 }
 
 int nv50_display_early_init(struct drm_device *dev);

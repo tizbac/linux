@@ -7,8 +7,8 @@ void
 nv10_fb_init_tile_region(struct drm_device *dev, int i, uint32_t addr,
 			 uint32_t size, uint32_t pitch, uint32_t flags)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_tile_reg *tile = &dev_priv->tile.reg[i];
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	tile->addr  = 0x80000000 | addr;
 	tile->limit = max(1u, addr + size) - 1;
@@ -18,8 +18,8 @@ nv10_fb_init_tile_region(struct drm_device *dev, int i, uint32_t addr,
 void
 nv10_fb_free_tile_region(struct drm_device *dev, int i)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_tile_reg *tile = &dev_priv->tile.reg[i];
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	tile->addr = tile->limit = tile->pitch = tile->zcomp = 0;
 }
@@ -27,8 +27,8 @@ nv10_fb_free_tile_region(struct drm_device *dev, int i)
 void
 nv10_fb_set_tile_region(struct drm_device *dev, int i)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_tile_reg *tile = &dev_priv->tile.reg[i];
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	nv_wr32(dev, NV10_PFB_TLIMIT(i), tile->limit);
 	nv_wr32(dev, NV10_PFB_TSIZE(i), tile->pitch);
@@ -38,7 +38,7 @@ nv10_fb_set_tile_region(struct drm_device *dev, int i)
 int
 nv1a_fb_vram_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct pci_dev *bridge;
 	uint32_t mem, mib;
 
@@ -48,7 +48,7 @@ nv1a_fb_vram_init(struct drm_device *dev)
 		return 0;
 	}
 
-	if (dev_priv->chipset == 0x1a) {
+	if (ndev->chipset == 0x1a) {
 		pci_read_config_dword(bridge, 0x7c, &mem);
 		mib = ((mem >> 6) & 31) + 1;
 	} else {
@@ -56,23 +56,23 @@ nv1a_fb_vram_init(struct drm_device *dev)
 		mib = ((mem >> 4) & 127) + 1;
 	}
 
-	dev_priv->vram_size = mib * 1024 * 1024;
+	ndev->vram_size = mib * 1024 * 1024;
 	return 0;
 }
 
 int
 nv10_fb_vram_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 fifo_data = nv_rd32(dev, NV04_PFB_FIFO_DATA);
 	u32 cfg0 = nv_rd32(dev, 0x100200);
 
-	dev_priv->vram_size = fifo_data & NV10_PFB_FIFO_DATA_RAM_AMOUNT_MB_MASK;
+	ndev->vram_size = fifo_data & NV10_PFB_FIFO_DATA_RAM_AMOUNT_MB_MASK;
 
 	if (cfg0 & 0x00000001)
-		dev_priv->vram_type = NV_MEM_TYPE_DDR1;
+		ndev->vram_type = NV_MEM_TYPE_DDR1;
 	else
-		dev_priv->vram_type = NV_MEM_TYPE_SDRAM;
+		ndev->vram_type = NV_MEM_TYPE_SDRAM;
 
 	return 0;
 }
@@ -80,8 +80,8 @@ nv10_fb_vram_init(struct drm_device *dev)
 int
 nv10_fb_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	int i;
 
 	/* Turn all the tiling regions off. */
@@ -95,8 +95,8 @@ nv10_fb_init(struct drm_device *dev)
 void
 nv10_fb_takedown(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	int i;
 
 	for (i = 0; i < pfb->num_tiles; i++)

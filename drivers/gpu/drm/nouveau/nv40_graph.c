@@ -40,7 +40,7 @@ nv40_graph_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct nv40_graph_engine *pgraph = nv_engine(chan->dev, engine);
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_gpuobj *grctx = NULL;
 	unsigned long flags;
 	int ret;
@@ -57,13 +57,13 @@ nv40_graph_context_new(struct nouveau_channel *chan, int engine)
 	/* init grctx pointer in ramfc, and on PFIFO if channel is
 	 * already active there
 	 */
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_wo32(chan->ramfc, 0x38, grctx->vinst >> 4);
 	nv_mask(dev, 0x002500, 0x00000001, 0x00000000);
 	if ((nv_rd32(dev, 0x003204) & 0x0000001f) == chan->id)
 		nv_wr32(dev, 0x0032e0, grctx->vinst >> 4);
 	nv_mask(dev, 0x002500, 0x00000001, 0x00000001);
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 	chan->engctx[engine] = grctx;
 	return 0;
@@ -74,18 +74,18 @@ nv40_graph_context_del(struct nouveau_channel *chan, int engine)
 {
 	struct nouveau_gpuobj *grctx = chan->engctx[engine];
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 inst = 0x01000000 | (grctx->pinst >> 4);
 	unsigned long flags;
 
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_mask(dev, 0x400720, 0x00000000, 0x00000001);
 	if (nv_rd32(dev, 0x40032c) == inst)
 		nv_mask(dev, 0x40032c, 0x01000000, 0x00000000);
 	if (nv_rd32(dev, 0x400330) == inst)
 		nv_mask(dev, 0x400330, 0x01000000, 0x00000000);
 	nv_mask(dev, 0x400720, 0x00000001, 0x00000001);
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 	/* Free the context resources */
 	nouveau_gpuobj_ref(NULL, &grctx);
@@ -124,10 +124,10 @@ nv40_graph_object_new(struct nouveau_channel *chan, int engine,
 static void
 nv40_graph_set_tile_region(struct drm_device *dev, int i)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_tile_reg *tile = &dev_priv->tile.reg[i];
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
-	switch (dev_priv->chipset) {
+	switch (ndev->chipset) {
 	case 0x40:
 	case 0x41: /* guess */
 	case 0x42:
@@ -177,8 +177,8 @@ int
 nv40_graph_init(struct drm_device *dev, int engine)
 {
 	struct nv40_graph_engine *pgraph = nv_engine(dev, engine);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	uint32_t vramsz;
 	int i, j;
 
@@ -213,7 +213,7 @@ nv40_graph_init(struct drm_device *dev, int engine)
 		nv_wr32(dev, 0x405000, i);
 	}
 
-	if (dev_priv->chipset == 0x40) {
+	if (ndev->chipset == 0x40) {
 		nv_wr32(dev, 0x4009b0, 0x83280fff);
 		nv_wr32(dev, 0x4009b4, 0x000000a0);
 	} else {
@@ -221,7 +221,7 @@ nv40_graph_init(struct drm_device *dev, int engine)
 		nv_wr32(dev, 0x400824, 0x000000a0);
 	}
 
-	switch (dev_priv->chipset) {
+	switch (ndev->chipset) {
 	case 0x40:
 	case 0x45:
 		nv_wr32(dev, 0x4009b8, 0x0078e366);
@@ -259,7 +259,7 @@ nv40_graph_init(struct drm_device *dev, int engine)
 	nv_wr32(dev, 0x400b3c, 0x00006000);
 
 	/* Tiling related stuff. */
-	switch (dev_priv->chipset) {
+	switch (ndev->chipset) {
 	case 0x44:
 	case 0x4a:
 		nv_wr32(dev, 0x400bc4, 0x1003d888);
@@ -285,7 +285,7 @@ nv40_graph_init(struct drm_device *dev, int engine)
 
 	/* begin RAM config */
 	vramsz = pci_resource_len(dev->pdev, 0) - 1;
-	switch (dev_priv->chipset) {
+	switch (ndev->chipset) {
 	case 0x40:
 		nv_wr32(dev, 0x4009A4, nv_rd32(dev, NV04_PFB_CFG0));
 		nv_wr32(dev, 0x4009A8, nv_rd32(dev, NV04_PFB_CFG1));
@@ -297,7 +297,7 @@ nv40_graph_init(struct drm_device *dev, int engine)
 		nv_wr32(dev, 0x400868, vramsz);
 		break;
 	default:
-		switch (dev_priv->chipset) {
+		switch (ndev->chipset) {
 		case 0x41:
 		case 0x42:
 		case 0x43:
@@ -347,21 +347,21 @@ static int
 nv40_graph_isr_chid(struct drm_device *dev, u32 inst)
 {
 	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_gpuobj *grctx;
 	unsigned long flags;
 	int i;
 
-	spin_lock_irqsave(&dev_priv->channels.lock, flags);
+	spin_lock_irqsave(&ndev->channels.lock, flags);
 	for (i = 0; i < pfifo->channels; i++) {
-		if (!dev_priv->channels.ptr[i])
+		if (!ndev->channels.ptr[i])
 			continue;
-		grctx = dev_priv->channels.ptr[i]->engctx[NVOBJ_ENGINE_GR];
+		grctx = ndev->channels.ptr[i]->engctx[NVOBJ_ENGINE_GR];
 
 		if (grctx && grctx->pinst == inst)
 			break;
 	}
-	spin_unlock_irqrestore(&dev_priv->channels.lock, flags);
+	spin_unlock_irqrestore(&ndev->channels.lock, flags);
 	return i;
 }
 

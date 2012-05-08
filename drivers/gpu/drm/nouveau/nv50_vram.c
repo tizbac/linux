@@ -50,8 +50,8 @@ nv50_vram_flags_valid(struct drm_device *dev, u32 tile_flags)
 void
 nv50_vram_del(struct drm_device *dev, struct nouveau_mem **pmem)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_mm *mm = &dev_priv->subsys.vram.mm;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_mm *mm = &ndev->subsys.vram.mm;
 	struct nouveau_mm_node *this;
 	struct nouveau_mem *mem;
 
@@ -81,8 +81,8 @@ int
 nv50_vram_new(struct drm_device *dev, u64 size, u32 align, u32 size_nc,
 	      u32 memtype, struct nouveau_mem **pmem)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_mm *mm = &dev_priv->subsys.vram.mm;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_mm *mm = &ndev->subsys.vram.mm;
 	struct nouveau_mm_node *r;
 	struct nouveau_mem *mem;
 	int comp = (memtype & 0x300) >> 8;
@@ -102,7 +102,7 @@ nv50_vram_new(struct drm_device *dev, u64 size, u32 align, u32 size_nc,
 	mutex_lock(&mm->mutex);
 	if (comp) {
 		if (align == 16) {
-			struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
+			struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 			int n = (size >> 4) * comp;
 
 			mem->tag = drm_mm_search_free(&pfb->tag_heap, n, 0, 0);
@@ -115,7 +115,7 @@ nv50_vram_new(struct drm_device *dev, u64 size, u32 align, u32 size_nc,
 	}
 
 	INIT_LIST_HEAD(&mem->regions);
-	mem->dev = dev_priv->dev;
+	mem->dev = ndev->dev;
 	mem->memtype = (comp << 7) | type;
 	mem->size = size;
 
@@ -141,7 +141,7 @@ nv50_vram_new(struct drm_device *dev, u64 size, u32 align, u32 size_nc,
 static u32
 nv50_vram_rblock(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int i, parts, colbits, rowbitsa, rowbitsb, banks;
 	u64 rowsize, predicted;
 	u32 r0, r4, rt, ru, rblock_size;
@@ -167,9 +167,9 @@ nv50_vram_rblock(struct drm_device *dev)
 	if (r0 & 0x00000004)
 		predicted += rowsize << rowbitsb;
 
-	if (predicted != dev_priv->vram_size) {
+	if (predicted != ndev->vram_size) {
 		NV_WARN(dev, "memory controller reports %dMiB VRAM\n",
-			(u32)(dev_priv->vram_size >> 20));
+			(u32)(ndev->vram_size >> 20));
 		NV_WARN(dev, "we calculated %dMiB VRAM\n",
 			(u32)(predicted >> 20));
 	}
@@ -185,44 +185,44 @@ nv50_vram_rblock(struct drm_device *dev)
 int
 nv50_vram_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_vram_engine *vram = &dev_priv->subsys.vram;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_vram_engine *vram = &ndev->subsys.vram;
 	const u32 rsvd_head = ( 256 * 1024) >> 12; /* vga memory */
 	const u32 rsvd_tail = (1024 * 1024) >> 12; /* vbios etc */
 	u32 pfb714 = nv_rd32(dev, 0x100714);
 	u32 rblock, length;
 
 	switch (pfb714 & 0x00000007) {
-	case 0: dev_priv->vram_type = NV_MEM_TYPE_DDR1; break;
+	case 0: ndev->vram_type = NV_MEM_TYPE_DDR1; break;
 	case 1:
 		if (nouveau_mem_vbios_type(dev) == NV_MEM_TYPE_DDR3)
-			dev_priv->vram_type = NV_MEM_TYPE_DDR3;
+			ndev->vram_type = NV_MEM_TYPE_DDR3;
 		else
-			dev_priv->vram_type = NV_MEM_TYPE_DDR2;
+			ndev->vram_type = NV_MEM_TYPE_DDR2;
 		break;
-	case 2: dev_priv->vram_type = NV_MEM_TYPE_GDDR3; break;
-	case 3: dev_priv->vram_type = NV_MEM_TYPE_GDDR4; break;
-	case 4: dev_priv->vram_type = NV_MEM_TYPE_GDDR5; break;
+	case 2: ndev->vram_type = NV_MEM_TYPE_GDDR3; break;
+	case 3: ndev->vram_type = NV_MEM_TYPE_GDDR4; break;
+	case 4: ndev->vram_type = NV_MEM_TYPE_GDDR5; break;
 	default:
 		break;
 	}
 
-	dev_priv->vram_rank_B = !!(nv_rd32(dev, 0x100200) & 0x4);
-	dev_priv->vram_size  = nv_rd32(dev, 0x10020c);
-	dev_priv->vram_size |= (dev_priv->vram_size & 0xff) << 32;
-	dev_priv->vram_size &= 0xffffffff00ULL;
+	ndev->vram_rank_B = !!(nv_rd32(dev, 0x100200) & 0x4);
+	ndev->vram_size  = nv_rd32(dev, 0x10020c);
+	ndev->vram_size |= (ndev->vram_size & 0xff) << 32;
+	ndev->vram_size &= 0xffffffff00ULL;
 
 	/* IGPs, no funky reordering happens here, they don't have VRAM */
-	if (dev_priv->chipset == 0xaa ||
-	    dev_priv->chipset == 0xac ||
-	    dev_priv->chipset == 0xaf) {
-		dev_priv->vram_sys_base = (u64)nv_rd32(dev, 0x100e10) << 12;
+	if (ndev->chipset == 0xaa ||
+	    ndev->chipset == 0xac ||
+	    ndev->chipset == 0xaf) {
+		ndev->vram_sys_base = (u64)nv_rd32(dev, 0x100e10) << 12;
 		rblock = 4096 >> 12;
 	} else {
 		rblock = nv50_vram_rblock(dev) >> 12;
 	}
 
-	length = (dev_priv->vram_size >> 12) - rsvd_head - rsvd_tail;
+	length = (ndev->vram_size >> 12) - rsvd_head - rsvd_tail;
 
 	return nouveau_mm_init(&vram->mm, rsvd_head, length, rblock);
 }
@@ -230,8 +230,8 @@ nv50_vram_init(struct drm_device *dev)
 void
 nv50_vram_fini(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_vram_engine *vram = &dev_priv->subsys.vram;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_vram_engine *vram = &ndev->subsys.vram;
 
 	nouveau_mm_fini(&vram->mm);
 }

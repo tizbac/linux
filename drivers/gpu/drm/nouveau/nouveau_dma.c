@@ -33,10 +33,10 @@
 void
 nouveau_dma_init(struct nouveau_channel *chan)
 {
-	struct drm_nouveau_private *dev_priv = chan->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(chan->dev);
 	struct nouveau_bo *pushbuf = chan->pushbuf_bo;
 
-	if (dev_priv->card_type >= NV_50) {
+	if (ndev->card_type >= NV_50) {
 		const int ib_size = pushbuf->bo.mem.size / 2;
 
 		chan->dma.ib_base = (pushbuf->bo.mem.size - ib_size) >> 2;

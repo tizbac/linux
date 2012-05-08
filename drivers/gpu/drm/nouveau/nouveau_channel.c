@@ -37,7 +37,7 @@ nouveau_channel_pushbuf_init(struct nouveau_channel *chan)
 {
 	u32 mem = nouveau_vram_pushbuf ? TTM_PL_FLAG_VRAM : TTM_PL_FLAG_TT;
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int ret;
 
 	/* allocate buffer object */
@@ -58,13 +58,13 @@ nouveau_channel_pushbuf_init(struct nouveau_channel *chan)
 	 * anywhere within the same memtype.
 	 */
 	chan->pushbuf_base = chan->pushbuf_bo->bo.offset;
-	if (dev_priv->card_type >= NV_50) {
+	if (ndev->card_type >= NV_50) {
 		ret = nouveau_bo_vma_add(chan->pushbuf_bo, chan->vm,
 					 &chan->pushbuf_vma);
 		if (ret)
 			goto out;
 
-		if (dev_priv->card_type < NV_C0) {
+		if (ndev->card_type < NV_C0) {
 			ret = nouveau_gpuobj_dma_new(chan,
 						     NV_CLASS_DMA_IN_MEMORY, 0,
 						     (1ULL << 40),
@@ -76,14 +76,14 @@ nouveau_channel_pushbuf_init(struct nouveau_channel *chan)
 	} else
 	if (chan->pushbuf_bo->bo.mem.mem_type == TTM_PL_TT) {
 		ret = nouveau_gpuobj_dma_new(chan, NV_CLASS_DMA_IN_MEMORY, 0,
-					     dev_priv->gart_info.aper_size,
+					     ndev->gart_info.aper_size,
 					     NV_MEM_ACCESS_RO,
 					     NV_MEM_TARGET_GART,
 					     &chan->pushbuf);
 	} else
-	if (dev_priv->card_type != NV_04) {
+	if (ndev->card_type != NV_04) {
 		ret = nouveau_gpuobj_dma_new(chan, NV_CLASS_DMA_IN_MEMORY, 0,
-					     dev_priv->fb_available_size,
+					     ndev->fb_available_size,
 					     NV_MEM_ACCESS_RO,
 					     NV_MEM_TARGET_VRAM,
 					     &chan->pushbuf);
@@ -94,7 +94,7 @@ nouveau_channel_pushbuf_init(struct nouveau_channel *chan)
 		 */
 		ret = nouveau_gpuobj_dma_new(chan, NV_CLASS_DMA_IN_MEMORY,
 					     pci_resource_start(dev->pdev, 1),
-					     dev_priv->fb_available_size,
+					     ndev->fb_available_size,
 					     NV_MEM_ACCESS_RO,
 					     NV_MEM_TARGET_PCI,
 					     &chan->pushbuf);
@@ -122,7 +122,7 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 {
 	struct nouveau_engine *fence = nv_engine(dev, NVOBJ_ENGINE_FENCE);
 	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_fpriv *fpriv = nouveau_fpriv(file_priv);
 	struct nouveau_channel *chan;
 	unsigned long flags;
@@ -143,14 +143,14 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 	mutex_lock(&chan->mutex);
 
 	/* allocate hw channel id */
-	spin_lock_irqsave(&dev_priv->channels.lock, flags);
+	spin_lock_irqsave(&ndev->channels.lock, flags);
 	for (chan->id = 0; chan->id < pfifo->channels; chan->id++) {
-		if (!dev_priv->channels.ptr[chan->id]) {
-			nouveau_channel_ref(chan, &dev_priv->channels.ptr[chan->id]);
+		if (!ndev->channels.ptr[chan->id]) {
+			nouveau_channel_ref(chan, &ndev->channels.ptr[chan->id]);
 			break;
 		}
 	}
-	spin_unlock_irqrestore(&dev_priv->channels.lock, flags);
+	spin_unlock_irqrestore(&ndev->channels.lock, flags);
 
 	if (chan->id == pfifo->channels) {
 		mutex_unlock(&chan->mutex);
@@ -187,7 +187,7 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 	nouveau_dma_init(chan);
 	chan->user_put = 0x40;
 	chan->user_get = 0x44;
-	if (dev_priv->card_type >= NV_50)
+	if (ndev->card_type >= NV_50)
 		chan->user_get_hi = 0x60;
 
 	/* create fifo context */
@@ -213,7 +213,7 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 		return ret;
 	}
 
-	if (dev_priv->card_type < NV_C0) {
+	if (ndev->card_type < NV_C0) {
 		ret = RING_SPACE(chan, 2);
 		if (ret) {
 			nouveau_channel_put(&chan);
@@ -281,7 +281,7 @@ nouveau_channel_put_unlocked(struct nouveau_channel **pchan)
 {
 	struct nouveau_channel *chan = *pchan;
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	unsigned long flags;
 	int i;
 
@@ -301,15 +301,15 @@ nouveau_channel_put_unlocked(struct nouveau_channel **pchan)
 	/* destroy the engine specific contexts */
 	for (i = NVOBJ_ENGINE_NR - 1; i >= 0; i--) {
 		if (chan->engctx[i])
-			dev_priv->engine[i]->context_del(chan, i);
+			ndev->engine[i]->context_del(chan, i);
 	}
 
 	/* aside from its resources, the channel should now be dead,
 	 * remove it from the channel list
 	 */
-	spin_lock_irqsave(&dev_priv->channels.lock, flags);
-	nouveau_channel_ref(NULL, &dev_priv->channels.ptr[chan->id]);
-	spin_unlock_irqrestore(&dev_priv->channels.lock, flags);
+	spin_lock_irqsave(&ndev->channels.lock, flags);
+	nouveau_channel_ref(NULL, &ndev->channels.ptr[chan->id]);
+	spin_unlock_irqrestore(&ndev->channels.lock, flags);
 
 	/* destroy any resources the channel owned */
 	nouveau_gpuobj_ref(NULL, &chan->pushbuf);

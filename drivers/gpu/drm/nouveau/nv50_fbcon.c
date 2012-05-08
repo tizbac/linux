@@ -34,8 +34,8 @@ nv50_fbcon_fillrect(struct fb_info *info, const struct fb_fillrect *rect)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
 	struct drm_device *dev = nfbdev->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_channel *chan = dev_priv->channel;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_channel *chan = ndev->channel;
 	int ret;
 
 	ret = RING_SPACE(chan, rect->rop == ROP_COPY ? 7 : 11);
@@ -70,8 +70,8 @@ nv50_fbcon_copyarea(struct fb_info *info, const struct fb_copyarea *region)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
 	struct drm_device *dev = nfbdev->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_channel *chan = dev_priv->channel;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_channel *chan = ndev->channel;
 	int ret;
 
 	ret = RING_SPACE(chan, 12);
@@ -99,8 +99,8 @@ nv50_fbcon_imageblit(struct fb_info *info, const struct fb_image *image)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
 	struct drm_device *dev = nfbdev->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_channel *chan = dev_priv->channel;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_channel *chan = ndev->channel;
 	uint32_t width, dwords, *data = (uint32_t *)image->data;
 	uint32_t mask = ~(~0 >> (32 - info->var.bits_per_pixel));
 	uint32_t *palette = info->pseudo_palette;
@@ -157,8 +157,8 @@ nv50_fbcon_accel_init(struct fb_info *info)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
 	struct drm_device *dev = nfbdev->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_channel *chan = dev_priv->channel;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_channel *chan = ndev->channel;
 	struct nouveau_framebuffer *fb = &nfbdev->nouveau_fb;
 	int ret, format;
 
@@ -189,7 +189,7 @@ nv50_fbcon_accel_init(struct fb_info *info)
 		return -EINVAL;
 	}
 
-	ret = nouveau_gpuobj_gr_new(dev_priv->channel, Nv2D, 0x502d);
+	ret = nouveau_gpuobj_gr_new(ndev->channel, Nv2D, 0x502d);
 	if (ret)
 		return ret;
 

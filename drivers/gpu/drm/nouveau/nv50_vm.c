@@ -73,15 +73,15 @@ void
 nv50_vm_map(struct nouveau_vma *vma, struct nouveau_gpuobj *pgt,
 	    struct nouveau_mem *mem, u32 pte, u32 cnt, u64 phys, u64 delta)
 {
-	struct drm_nouveau_private *dev_priv = vma->vm->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(vma->vm->dev);
 	u32 comp = (mem->memtype & 0x180) >> 7;
 	u32 block, target;
 	int i;
 
 	/* IGPs don't have real VRAM, re-target to stolen system memory */
 	target = 0;
-	if (dev_priv->vram_sys_base) {
-		phys += dev_priv->vram_sys_base;
+	if (ndev->vram_sys_base) {
+		phys += ndev->vram_sys_base;
 		target = 3;
 	}
 
@@ -145,33 +145,33 @@ nv50_vm_unmap(struct nouveau_gpuobj *pgt, u32 pte, u32 cnt)
 void
 nv50_vm_flush(struct nouveau_vm *vm)
 {
-	struct drm_nouveau_private *dev_priv = vm->dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
+	struct nouveau_device *ndev = nouveau_device(vm->dev);
+	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	int i;
 
 	pinstmem->flush(vm->dev);
 
 	/* BAR */
-	if (vm == dev_priv->bar1_vm || vm == dev_priv->bar3_vm) {
+	if (vm == ndev->bar1_vm || vm == ndev->bar3_vm) {
 		nv50_vm_flush_engine(vm->dev, 6);
 		return;
 	}
 
 	for (i = 0; i < NVOBJ_ENGINE_NR; i++) {
 		if (atomic_read(&vm->engref[i]))
-			dev_priv->engine[i]->tlb_flush(vm->dev, i);
+			ndev->engine[i]->tlb_flush(vm->dev, i);
 	}
 }
 
 void
 nv50_vm_flush_engine(struct drm_device *dev, int engine)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	unsigned long flags;
 
-	spin_lock_irqsave(&dev_priv->vm_lock, flags);
+	spin_lock_irqsave(&ndev->vm_lock, flags);
 	nv_wr32(dev, 0x100c80, (engine << 16) | 1);
 	if (!nv_wait(dev, 0x100c80, 0x00000001, 0x00000000))
 		NV_ERROR(dev, "vm flush timeout: engine %d\n", engine);
-	spin_unlock_irqrestore(&dev_priv->vm_lock, flags);
+	spin_unlock_irqrestore(&ndev->vm_lock, flags);
 }

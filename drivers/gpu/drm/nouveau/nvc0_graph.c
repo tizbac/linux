@@ -90,7 +90,7 @@ nvc0_graph_unload_context_to(struct drm_device *dev, u64 chan)
 static int
 nvc0_graph_construct_context(struct nouveau_channel *chan)
 {
-	struct drm_nouveau_private *dev_priv = chan->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(chan->dev);
 	struct nvc0_graph_priv *priv = nv_engine(chan->dev, NVOBJ_ENGINE_GR);
 	struct nvc0_graph_chan *grch = chan->engctx[NVOBJ_ENGINE_GR];
 	struct drm_device *dev = chan->dev;
@@ -118,7 +118,7 @@ nvc0_graph_construct_context(struct nouveau_channel *chan)
 		nv_wo32(grch->grctx, 0x20, 0);
 		nv_wo32(grch->grctx, 0x28, 0);
 		nv_wo32(grch->grctx, 0x2c, 0);
-		dev_priv->subsys.instmem.flush(dev);
+		ndev->subsys.instmem.flush(dev);
 	}
 
 	ret = nvc0_grctx_generate(chan);
@@ -158,7 +158,7 @@ nvc0_graph_create_context_mmio_list(struct nouveau_channel *chan)
 	struct nvc0_graph_priv *priv = nv_engine(chan->dev, NVOBJ_ENGINE_GR);
 	struct nvc0_graph_chan *grch = chan->engctx[NVOBJ_ENGINE_GR];
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int i = 0, gpc, tp, ret;
 
 	ret = nouveau_gpuobj_new(dev, chan, 0x2000, 256, NVOBJ_FLAG_VM,
@@ -208,7 +208,7 @@ nvc0_graph_create_context_mmio_list(struct nouveau_channel *chan)
 	nv_wo32(grch->mmio, i++ * 4, 0x0041880c);
 	nv_wo32(grch->mmio, i++ * 4, 0x80000018);
 
-	if (dev_priv->chipset != 0xc1) {
+	if (ndev->chipset != 0xc1) {
 		u32 magic = 0x02180000;
 		nv_wo32(grch->mmio, i++ * 4, 0x00405830);
 		nv_wo32(grch->mmio, i++ * 4, magic);
@@ -250,8 +250,8 @@ static int
 nvc0_graph_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	struct nvc0_graph_priv *priv = nv_engine(dev, engine);
 	struct nvc0_graph_chan *grch;
 	struct nouveau_gpuobj *grctx;
@@ -488,7 +488,7 @@ nvc0_graph_init_fuc(struct drm_device *dev, u32 fuc_base,
 static int
 nvc0_graph_init_ctxctl(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_graph_priv *priv = nv_engine(dev, NVOBJ_ENGINE_GR);
 	u32 r000260;
 	int i;
@@ -521,7 +521,7 @@ nvc0_graph_init_ctxctl(struct drm_device *dev)
 		nv_wr32(dev, 0x000260, r000260);
 
 		/* start HUB ucode running, it'll init the GPCs */
-		nv_wr32(dev, 0x409800, dev_priv->chipset);
+		nv_wr32(dev, 0x409800, ndev->chipset);
 		nv_wr32(dev, 0x40910c, 0x00000000);
 		nv_wr32(dev, 0x409100, 0x00000002);
 		if (!nv_wait(dev, 0x409800, 0x80000000, 0x80000000)) {
@@ -622,21 +622,21 @@ int
 nvc0_graph_isr_chid(struct drm_device *dev, u64 inst)
 {
 	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_channel *chan;
 	unsigned long flags;
 	int i;
 
-	spin_lock_irqsave(&dev_priv->channels.lock, flags);
+	spin_lock_irqsave(&ndev->channels.lock, flags);
 	for (i = 0; i < pfifo->channels; i++) {
-		chan = dev_priv->channels.ptr[i];
+		chan = ndev->channels.ptr[i];
 		if (!chan || !chan->ramin)
 			continue;
 
 		if (inst == chan->ramin->vinst)
 			break;
 	}
-	spin_unlock_irqrestore(&dev_priv->channels.lock, flags);
+	spin_unlock_irqrestore(&ndev->channels.lock, flags);
 	return i;
 }
 
@@ -724,12 +724,12 @@ static int
 nvc0_graph_create_fw(struct drm_device *dev, const char *fwname,
 		     struct nvc0_graph_fuc *fuc)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	const struct firmware *fw;
 	char f[32];
 	int ret;
 
-	snprintf(f, sizeof(f), "nouveau/nv%02x_%s", dev_priv->chipset, fwname);
+	snprintf(f, sizeof(f), "nouveau/nv%02x_%s", ndev->chipset, fwname);
 	ret = request_firmware(&fw, f, &dev->pdev->dev);
 	if (ret) {
 		snprintf(f, sizeof(f), "nouveau/%s", fwname);
@@ -782,7 +782,7 @@ nvc0_graph_destroy(struct drm_device *dev, int engine)
 int
 nvc0_graph_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_graph_priv *priv;
 	int ret, gpc, i;
 	u32 fermi;
@@ -839,7 +839,7 @@ nvc0_graph_create(struct drm_device *dev)
 	}
 
 	/*XXX: these need figuring out... */
-	switch (dev_priv->chipset) {
+	switch (ndev->chipset) {
 	case 0xc0:
 		if (priv->tp_total == 11) { /* 465, 3/4/4/0, 4 */
 			priv->magic_not_rop_nr = 0x07;

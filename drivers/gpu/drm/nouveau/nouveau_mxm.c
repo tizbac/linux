@@ -33,8 +33,8 @@
 static u8 *
 mxms_data(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	return dev_priv->mxms;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	return ndev->mxms;
 
 }
 
@@ -235,7 +235,7 @@ static u8 nv98_sor_map[16] = {
 static u8
 mxm_sor_map(struct drm_device *dev, u8 conn)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u8 len, *mxm = mxm_table(dev, &len);
 	if (mxm && len >= 6) {
 		u8 *map = ROMPTR(dev, mxm[4]);
@@ -250,15 +250,15 @@ mxm_sor_map(struct drm_device *dev, u8 conn)
 		}
 	}
 
-	if (dev_priv->chipset == 0x84 || dev_priv->chipset == 0x86)
+	if (ndev->chipset == 0x84 || ndev->chipset == 0x86)
 		return nv84_sor_map[conn];
-	if (dev_priv->chipset == 0x92)
+	if (ndev->chipset == 0x92)
 		return nv92_sor_map[conn];
-	if (dev_priv->chipset == 0x94)
+	if (ndev->chipset == 0x94)
 		return nv94_sor_map[conn];
-	if (dev_priv->chipset == 0x96)
+	if (ndev->chipset == 0x96)
 		return nv96_sor_map[conn];
-	if (dev_priv->chipset == 0x98)
+	if (ndev->chipset == 0x98)
 		return nv98_sor_map[conn];
 
 	MXM_MSG(dev, "missing sor map\n");
@@ -485,7 +485,7 @@ mxm_shadow_rom_fetch(struct nouveau_i2c_chan *i2c, u8 addr,
 static bool
 mxm_shadow_rom(struct drm_device *dev, u8 version)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_i2c_chan *i2c = NULL;
 	u8 i2cidx, mxms[6], addr, size;
 
@@ -502,16 +502,16 @@ mxm_shadow_rom(struct drm_device *dev, u8 version)
 			return false;
 	}
 
-	dev_priv->mxms = mxms;
+	ndev->mxms = mxms;
 	size = mxms_headerlen(dev) + mxms_structlen(dev);
-	dev_priv->mxms = kmalloc(size, GFP_KERNEL);
+	ndev->mxms = kmalloc(size, GFP_KERNEL);
 
-	if (dev_priv->mxms &&
-	    mxm_shadow_rom_fetch(i2c, addr, 0, size, dev_priv->mxms))
+	if (ndev->mxms &&
+	    mxm_shadow_rom_fetch(i2c, addr, 0, size, ndev->mxms))
 		return true;
 
-	kfree(dev_priv->mxms);
-	dev_priv->mxms = NULL;
+	kfree(ndev->mxms);
+	ndev->mxms = NULL;
 	return false;
 }
 
@@ -519,7 +519,7 @@ mxm_shadow_rom(struct drm_device *dev, u8 version)
 static bool
 mxm_shadow_dsm(struct drm_device *dev, u8 version)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	static char muid[] = {
 		0x00, 0xA4, 0x04, 0x40, 0x7D, 0x91, 0xF2, 0x4C,
 		0xB8, 0x9C, 0x79, 0xB6, 0x2F, 0xD5, 0x56, 0x65
@@ -566,7 +566,7 @@ mxm_shadow_dsm(struct drm_device *dev, u8 version)
 
 	obj = retn.pointer;
 	if (obj->type == ACPI_TYPE_BUFFER) {
-		dev_priv->mxms = kmemdup(obj->buffer.pointer,
+		ndev->mxms = kmemdup(obj->buffer.pointer,
 					 obj->buffer.length, GFP_KERNEL);
 	} else
 	if (obj->type == ACPI_TYPE_INTEGER) {
@@ -574,7 +574,7 @@ mxm_shadow_dsm(struct drm_device *dev, u8 version)
 	}
 
 	kfree(obj);
-	return dev_priv->mxms != NULL;
+	return ndev->mxms != NULL;
 }
 #endif
 
@@ -614,7 +614,7 @@ wmi_wmmx_mxmi(struct drm_device *dev, u8 version)
 static bool
 mxm_shadow_wmi(struct drm_device *dev, u8 version)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 mxms_args[] = { 0x534D584D /* MXMS */, version, 0 };
 	struct acpi_buffer args = { sizeof(mxms_args), mxms_args };
 	struct acpi_buffer retn = { ACPI_ALLOCATE_BUFFER, NULL };
@@ -640,12 +640,12 @@ mxm_shadow_wmi(struct drm_device *dev, u8 version)
 
 	obj = retn.pointer;
 	if (obj->type == ACPI_TYPE_BUFFER) {
-		dev_priv->mxms = kmemdup(obj->buffer.pointer,
+		ndev->mxms = kmemdup(obj->buffer.pointer,
 					 obj->buffer.length, GFP_KERNEL);
 	}
 
 	kfree(obj);
-	return dev_priv->mxms != NULL;
+	return ndev->mxms != NULL;
 }
 #endif
 
@@ -666,15 +666,15 @@ struct mxm_shadow_h {
 static int
 mxm_shadow(struct drm_device *dev, u8 version)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct mxm_shadow_h *shadow = _mxm_shadow;
 	do {
 		MXM_DBG(dev, "checking %s\n", shadow->name);
 		if (shadow->exec(dev, version)) {
 			if (mxms_valid(dev))
 				return 0;
-			kfree(dev_priv->mxms);
-			dev_priv->mxms = NULL;
+			kfree(ndev->mxms);
+			ndev->mxms = NULL;
 		}
 	} while ((++shadow)->name);
 	return -ENOENT;
@@ -717,7 +717,7 @@ nouveau_mxm_init(struct drm_device *dev)
 void
 nouveau_mxm_fini(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	kfree(dev_priv->mxms);
-	dev_priv->mxms = NULL;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	kfree(ndev->mxms);
+	ndev->mxms = NULL;
 }

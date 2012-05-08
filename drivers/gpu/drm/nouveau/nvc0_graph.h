@@ -75,9 +75,9 @@ int nvc0_grctx_generate(struct nouveau_channel *);
 static inline u32
 nvc0_graph_class(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
-	switch (dev_priv->chipset) {
+	switch (ndev->chipset) {
 	case 0xc0:
 	case 0xc3:
 	case 0xc4:

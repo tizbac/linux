@@ -37,7 +37,7 @@ static void
 nv50_cursor_show(struct nouveau_crtc *nv_crtc, bool update)
 {
 	struct drm_device *dev = nv_crtc->base.dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_channel *evo = nv50_display(dev)->master;
 	int ret;
 
@@ -46,13 +46,13 @@ nv50_cursor_show(struct nouveau_crtc *nv_crtc, bool update)
 	if (update && nv_crtc->cursor.visible)
 		return;
 
-	ret = RING_SPACE(evo, (dev_priv->chipset != 0x50 ? 5 : 3) + update * 2);
+	ret = RING_SPACE(evo, (ndev->chipset != 0x50 ? 5 : 3) + update * 2);
 	if (ret) {
 		NV_ERROR(dev, "no space while unhiding cursor\n");
 		return;
 	}
 
-	if (dev_priv->chipset != 0x50) {
+	if (ndev->chipset != 0x50) {
 		BEGIN_NV04(evo, 0, NV84_EVO_CRTC(nv_crtc->index, CURSOR_DMA), 1);
 		OUT_RING(evo, NvEvoVRAM);
 	}
@@ -72,7 +72,7 @@ static void
 nv50_cursor_hide(struct nouveau_crtc *nv_crtc, bool update)
 {
 	struct drm_device *dev = nv_crtc->base.dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_channel *evo = nv50_display(dev)->master;
 	int ret;
 
@@ -81,7 +81,7 @@ nv50_cursor_hide(struct nouveau_crtc *nv_crtc, bool update)
 	if (update && !nv_crtc->cursor.visible)
 		return;
 
-	ret = RING_SPACE(evo, (dev_priv->chipset != 0x50 ? 5 : 3) + update * 2);
+	ret = RING_SPACE(evo, (ndev->chipset != 0x50 ? 5 : 3) + update * 2);
 	if (ret) {
 		NV_ERROR(dev, "no space while hiding cursor\n");
 		return;
@@ -89,7 +89,7 @@ nv50_cursor_hide(struct nouveau_crtc *nv_crtc, bool update)
 	BEGIN_NV04(evo, 0, NV50_EVO_CRTC(nv_crtc->index, CURSOR_CTRL), 2);
 	OUT_RING(evo, NV50_EVO_CRTC_CURSOR_CTRL_HIDE);
 	OUT_RING(evo, 0);
-	if (dev_priv->chipset != 0x50) {
+	if (ndev->chipset != 0x50) {
 		BEGIN_NV04(evo, 0, NV84_EVO_CRTC(nv_crtc->index, CURSOR_DMA), 1);
 		OUT_RING(evo, NV84_EVO_CRTC_CURSOR_DMA_HANDLE_NONE);
 	}

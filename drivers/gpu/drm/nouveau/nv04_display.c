@@ -38,16 +38,16 @@ static void nv04_vblank_crtc1_isr(struct drm_device *);
 static void
 nv04_display_store_initial_head_owner(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
-	if (dev_priv->chipset != 0x11) {
-		dev_priv->crtc_owner = NVReadVgaCrtc(dev, 0, NV_CIO_CRE_44);
+	if (ndev->chipset != 0x11) {
+		ndev->crtc_owner = NVReadVgaCrtc(dev, 0, NV_CIO_CRE_44);
 		return;
 	}
 
 	/* reading CR44 is broken on nv11, so we attempt to infer it */
 	if (nvReadMC(dev, NV_PBUS_DEBUG_1) & (1 << 28))	/* heads tied, restore both */
-		dev_priv->crtc_owner = 0x4;
+		ndev->crtc_owner = 0x4;
 	else {
 		uint8_t slaved_on_A, slaved_on_B;
 		bool tvA = false;
@@ -66,15 +66,15 @@ nv04_display_store_initial_head_owner(struct drm_device *dev)
 					MASK(NV_CIO_CRE_LCD_LCD_SELECT));
 
 		if (slaved_on_A && !tvA)
-			dev_priv->crtc_owner = 0x0;
+			ndev->crtc_owner = 0x0;
 		else if (slaved_on_B && !tvB)
-			dev_priv->crtc_owner = 0x3;
+			ndev->crtc_owner = 0x3;
 		else if (slaved_on_A)
-			dev_priv->crtc_owner = 0x0;
+			ndev->crtc_owner = 0x0;
 		else if (slaved_on_B)
-			dev_priv->crtc_owner = 0x3;
+			ndev->crtc_owner = 0x3;
 		else
-			dev_priv->crtc_owner = 0x0;
+			ndev->crtc_owner = 0x0;
 	}
 }
 
@@ -111,10 +111,10 @@ nv04_display_early_init(struct drm_device *dev)
 void
 nv04_display_late_takedown(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
 	if (nv_two_heads(dev))
-		NVSetOwner(dev, dev_priv->crtc_owner);
+		NVSetOwner(dev, ndev->crtc_owner);
 
 	NVLockVgaCrtcs(dev, true);
 }
@@ -122,8 +122,8 @@ nv04_display_late_takedown(struct drm_device *dev)
 int
 nv04_display_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct dcb_table *dcb = &dev_priv->vbios.dcb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct dcb_table *dcb = &ndev->vbios.dcb;
 	struct drm_connector *connector, *ct;
 	struct drm_encoder *encoder;
 	struct drm_crtc *crtc;

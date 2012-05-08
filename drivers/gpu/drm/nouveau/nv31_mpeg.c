@@ -57,7 +57,7 @@ static int
 nv40_mpeg_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_gpuobj *ctx = NULL;
 	unsigned long flags;
 	int ret;
@@ -71,13 +71,13 @@ nv40_mpeg_context_new(struct nouveau_channel *chan, int engine)
 
 	nv_wo32(ctx, 0x78, 0x02001ec1);
 
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_mask(dev, 0x002500, 0x00000001, 0x00000000);
 	if ((nv_rd32(dev, 0x003204) & 0x1f) == chan->id)
 		nv_wr32(dev, 0x00330c, ctx->pinst >> 4);
 	nv_wo32(chan->ramfc, 0x54, ctx->pinst >> 4);
 	nv_mask(dev, 0x002500, 0x00000001, 0x00000001);
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 	chan->engctx[engine] = ctx;
 	return 0;
@@ -86,18 +86,18 @@ nv40_mpeg_context_new(struct nouveau_channel *chan, int engine)
 static void
 nv40_mpeg_context_del(struct nouveau_channel *chan, int engine)
 {
-	struct drm_nouveau_private *dev_priv = chan->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(chan->dev);
 	struct nouveau_gpuobj *ctx = chan->engctx[engine];
 	struct drm_device *dev = chan->dev;
 	unsigned long flags;
 	u32 inst = 0x80000000 | (ctx->pinst >> 4);
 
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_mask(dev, 0x00b32c, 0x00000001, 0x00000000);
 	if (nv_rd32(dev, 0x00b318) == inst)
 		nv_mask(dev, 0x00b318, 0x80000000, 0x00000000);
 	nv_mask(dev, 0x00b32c, 0x00000001, 0x00000001);
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 	nouveau_gpuobj_ref(NULL, &ctx);
 	chan->engctx[engine] = NULL;
@@ -128,7 +128,7 @@ nv31_mpeg_object_new(struct nouveau_channel *chan, int engine,
 static int
 nv31_mpeg_init(struct drm_device *dev, int engine)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv31_mpeg_engine *pmpeg = nv_engine(dev, engine);
 	int i;
 
@@ -138,7 +138,7 @@ nv31_mpeg_init(struct drm_device *dev, int engine)
 	nv_wr32(dev, 0x00b0e0, 0x00000020); /* nvidia: rd 0x01, wr 0x20 */
 	nv_wr32(dev, 0x00b0e8, 0x00000020); /* nvidia: rd 0x01, wr 0x20 */
 
-	for (i = 0; i < dev_priv->subsys.fb.num_tiles; i++)
+	for (i = 0; i < ndev->subsys.fb.num_tiles; i++)
 		pmpeg->base.set_tile_region(dev, i);
 
 	/* PMPEG init */
@@ -210,33 +210,33 @@ static int
 nv31_mpeg_isr_chid(struct drm_device *dev, u32 inst)
 {
 	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_gpuobj *ctx;
 	unsigned long flags;
 	int i;
 
 	/* hardcode drm channel id on nv3x, so swmthd lookup works */
-	if (dev_priv->card_type < NV_40)
+	if (ndev->card_type < NV_40)
 		return 0;
 
-	spin_lock_irqsave(&dev_priv->channels.lock, flags);
+	spin_lock_irqsave(&ndev->channels.lock, flags);
 	for (i = 0; i < pfifo->channels; i++) {
-		if (!dev_priv->channels.ptr[i])
+		if (!ndev->channels.ptr[i])
 			continue;
 
-		ctx = dev_priv->channels.ptr[i]->engctx[NVOBJ_ENGINE_MPEG];
+		ctx = ndev->channels.ptr[i]->engctx[NVOBJ_ENGINE_MPEG];
 		if (ctx && ctx->pinst == inst)
 			break;
 	}
-	spin_unlock_irqrestore(&dev_priv->channels.lock, flags);
+	spin_unlock_irqrestore(&ndev->channels.lock, flags);
 	return i;
 }
 
 static void
 nv31_vpe_set_tile_region(struct drm_device *dev, int i)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_tile_reg *tile = &dev_priv->tile.reg[i];
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	nv_wr32(dev, 0x00b008 + (i * 0x10), tile->pitch);
 	nv_wr32(dev, 0x00b004 + (i * 0x10), tile->limit);
@@ -303,7 +303,7 @@ nv31_mpeg_destroy(struct drm_device *dev, int engine)
 int
 nv31_mpeg_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv31_mpeg_engine *pmpeg;
 
 	pmpeg = kzalloc(sizeof(*pmpeg), GFP_KERNEL);
@@ -314,7 +314,7 @@ nv31_mpeg_create(struct drm_device *dev)
 	pmpeg->base.destroy = nv31_mpeg_destroy;
 	pmpeg->base.init = nv31_mpeg_init;
 	pmpeg->base.fini = nv31_mpeg_fini;
-	if (dev_priv->card_type < NV_40) {
+	if (ndev->card_type < NV_40) {
 		pmpeg->base.context_new = nv31_mpeg_context_new;
 		pmpeg->base.context_del = nv31_mpeg_context_del;
 	} else {

@@ -7,7 +7,7 @@
 int
 nv04_timer_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 m, n, d;
 
 	nv_wr32(dev, NV04_PTIMER_INTR_EN_0, 0x00000000);
@@ -17,14 +17,14 @@ nv04_timer_init(struct drm_device *dev)
 	d = 1000000 / 32;
 
 	/* determine base clock for timer source */
-	if (dev_priv->chipset < 0x40) {
+	if (ndev->chipset < 0x40) {
 		n = nouveau_hw_get_clock(dev, PLL_CORE);
 	} else
-	if (dev_priv->chipset == 0x40) {
+	if (ndev->chipset == 0x40) {
 		/*XXX: figure this out */
 		n = 0;
 	} else {
-		n = dev_priv->crystal;
+		n = ndev->crystal;
 		m = 1;
 		while (n < (d * 2)) {
 			n += (n / m);

@@ -118,7 +118,7 @@ nv04_software_destroy(struct drm_device *dev, int engine)
 int
 nv04_software_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv04_software_priv *psw;
 
 	psw = kzalloc(sizeof(*psw), GFP_KERNEL);
@@ -134,7 +134,7 @@ nv04_software_create(struct drm_device *dev)
 	nouveau_software_create(&psw->base);
 
 	NVOBJ_ENGINE_ADD(dev, SW, &psw->base.base);
-	if (dev_priv->card_type <= NV_04) {
+	if (ndev->card_type <= NV_04) {
 		NVOBJ_CLASS(dev, 0x006e, SW);
 		NVOBJ_MTHD (dev, 0x006e, 0x0150, nv04_fence_mthd);
 		NVOBJ_MTHD (dev, 0x006e, 0x0500, mthd_flip);

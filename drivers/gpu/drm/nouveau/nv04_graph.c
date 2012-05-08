@@ -355,7 +355,7 @@ struct graph_state {
 static struct nouveau_channel *
 nv04_graph_channel(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int chid = 15;
 
 	if (nv_rd32(dev, NV04_PGRAPH_CTX_CONTROL) & 0x00010000)
@@ -364,7 +364,7 @@ nv04_graph_channel(struct drm_device *dev)
 	if (chid > 15)
 		return NULL;
 
-	return dev_priv->channels.ptr[chid];
+	return ndev->channels.ptr[chid];
 }
 
 static uint32_t *ctx_reg(struct graph_state *ctx, uint32_t reg)
@@ -444,11 +444,11 @@ static void
 nv04_graph_context_del(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct graph_state *pgraph_ctx = chan->engctx[engine];
 	unsigned long flags;
 
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_mask(dev, NV04_PGRAPH_FIFO, 0x00000001, 0x00000000);
 
 	/* Unload the context if it's the currently active one */
@@ -456,7 +456,7 @@ nv04_graph_context_del(struct nouveau_channel *chan, int engine)
 		nv04_graph_unload_context(dev);
 
 	nv_mask(dev, NV04_PGRAPH_FIFO, 0x00000001, 0x00000001);
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 	/* Free the context resources */
 	kfree(pgraph_ctx);
@@ -986,7 +986,7 @@ struct nouveau_bitfield nv04_graph_nsource[] = {
 static void
 nv04_graph_context_switch(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_channel *chan = NULL;
 	int chid;
 
@@ -998,7 +998,7 @@ nv04_graph_context_switch(struct drm_device *dev)
 	/* Load context for next channel */
 	chid = nv_rd32(dev, NV03_PFIFO_CACHE1_PUSH1) &
 			    NV03_PFIFO_CACHE1_PUSH1_CHID_MASK;
-	chan = dev_priv->channels.ptr[chid];
+	chan = ndev->channels.ptr[chid];
 	if (chan)
 		nv04_graph_load_context(chan);
 }

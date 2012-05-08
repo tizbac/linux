@@ -69,7 +69,7 @@ static int
 nv17_fifo_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv17_fifo_priv *priv = nv_engine(dev, engine);
 	struct nv17_fifo_chan *fctx;
 	unsigned long flags;
@@ -88,7 +88,7 @@ nv17_fifo_context_new(struct nouveau_channel *chan, int engine)
 	}
 
 	/* initialise default fifo context */
-	ret = nouveau_gpuobj_new_fake(dev, dev_priv->ramfc->pinst +
+	ret = nouveau_gpuobj_new_fake(dev, ndev->ramfc->pinst +
 				      chan->id * 64, ~0, 64,
 				      NVOBJ_FLAG_ZERO_ALLOC |
 				      NVOBJ_FLAG_ZERO_FREE, &fctx->ramfc);
@@ -106,9 +106,9 @@ nv17_fifo_context_new(struct nouveau_channel *chan, int engine)
 				   NV_PFIFO_CACHE1_DMA_FETCH_MAX_REQS_8);
 
 	/* enable dma mode on the channel */
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_mask(dev, NV04_PFIFO_MODE, (1 << chan->id), (1 << chan->id));
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 error:
 	if (ret)
@@ -119,7 +119,7 @@ error:
 static int
 nv17_fifo_init(struct drm_device *dev, int engine)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv17_fifo_priv *priv = nv_engine(dev, engine);
 	int i;
 
@@ -130,11 +130,11 @@ nv17_fifo_init(struct drm_device *dev, int engine)
 	nv_wr32(dev, NV04_PFIFO_DMA_TIMESLICE, 0x0101ffff);
 
 	nv_wr32(dev, NV03_PFIFO_RAMHT, (0x03 << 24) /* search 128 */ |
-				       ((dev_priv->ramht->bits - 9) << 16) |
-				       (dev_priv->ramht->gpuobj->pinst >> 8));
-	nv_wr32(dev, NV03_PFIFO_RAMRO, dev_priv->ramro->pinst >> 8);
+				       ((ndev->ramht->bits - 9) << 16) |
+				       (ndev->ramht->gpuobj->pinst >> 8));
+	nv_wr32(dev, NV03_PFIFO_RAMRO, ndev->ramro->pinst >> 8);
 	nv_wr32(dev, NV03_PFIFO_RAMFC, 0x00010000 |
-				       dev_priv->ramfc->pinst >> 8);
+				       ndev->ramfc->pinst >> 8);
 
 	nv_wr32(dev, NV03_PFIFO_CACHE1_PUSH1, priv->base.channels);
 
@@ -146,7 +146,7 @@ nv17_fifo_init(struct drm_device *dev, int engine)
 	nv_wr32(dev, NV03_PFIFO_CACHES, 1);
 
 	for (i = 0; i < priv->base.channels; i++) {
-		if (dev_priv->channels.ptr[i])
+		if (ndev->channels.ptr[i])
 			nv_mask(dev, NV04_PFIFO_MODE, (1 << i), (1 << i));
 	}
 
@@ -156,7 +156,7 @@ nv17_fifo_init(struct drm_device *dev, int engine)
 int
 nv17_fifo_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv17_fifo_priv *priv;
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
@@ -170,7 +170,7 @@ nv17_fifo_create(struct drm_device *dev)
 	priv->base.base.context_del = nv04_fifo_context_del;
 	priv->base.channels = 31;
 	priv->ramfc_desc = nv17_ramfc;
-	dev_priv->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
+	ndev->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
 
 	nouveau_irq_register(dev, 8, nv04_fifo_isr);
 	return 0;

@@ -43,7 +43,7 @@ nvc0_copy_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct nvc0_copy_engine *pcopy = nv_engine(chan->dev, engine);
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_gpuobj *ramin = chan->ramin;
 	struct nouveau_gpuobj *ctx = NULL;
 	int ret;
@@ -56,7 +56,7 @@ nvc0_copy_context_new(struct nouveau_channel *chan, int engine)
 
 	nv_wo32(ramin, pcopy->ctx + 0, lower_32_bits(ctx->linst));
 	nv_wo32(ramin, pcopy->ctx + 4, upper_32_bits(ctx->linst));
-	dev_priv->subsys.instmem.flush(dev);
+	ndev->subsys.instmem.flush(dev);
 
 	chan->engctx[engine] = ctx;
 	return 0;

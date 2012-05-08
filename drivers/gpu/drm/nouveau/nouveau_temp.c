@@ -32,8 +32,8 @@
 static void
 nouveau_temp_vbios_parse(struct drm_device *dev, u8 *temp)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_temp_sensor_constants *sensor = &pm->sensor_constants;
 	struct nouveau_pm_threshold_temp *temps = &pm->threshold_temp;
 	int i, headerlen, recordlen, entries;
@@ -60,8 +60,8 @@ nouveau_temp_vbios_parse(struct drm_device *dev, u8 *temp)
 	pm->fan.max_duty = 100;
 
 	/* Set the known default values to setup the temperature sensor */
-	if (dev_priv->card_type >= NV_40) {
-		switch (dev_priv->chipset) {
+	if (ndev->card_type >= NV_40) {
+		switch (ndev->chipset) {
 		case 0x43:
 			sensor->offset_mult = 32060;
 			sensor->offset_div = 1000;
@@ -185,8 +185,8 @@ nouveau_temp_vbios_parse(struct drm_device *dev, u8 *temp)
 static int
 nv40_sensor_setup(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_temp_sensor_constants *sensor = &pm->sensor_constants;
 	s32 offset = sensor->offset_mult / sensor->offset_div;
 	s32 sensor_calibration;
@@ -196,7 +196,7 @@ nv40_sensor_setup(struct drm_device *dev)
 	sensor_calibration = sensor_calibration * sensor->slope_div /
 				sensor->slope_mult;
 
-	if (dev_priv->chipset >= 0x46)
+	if (ndev->chipset >= 0x46)
 		sensor_calibration |= 0x80000000;
 	else
 		sensor_calibration |= 0x10000000;
@@ -213,13 +213,13 @@ nv40_sensor_setup(struct drm_device *dev)
 int
 nv40_temp_get(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_temp_sensor_constants *sensor = &pm->sensor_constants;
 	int offset = sensor->offset_mult / sensor->offset_div;
 	int core_temp;
 
-	if (dev_priv->card_type >= NV_50) {
+	if (ndev->card_type >= NV_50) {
 		core_temp = nv_rd32(dev, 0x20008);
 	} else {
 		core_temp = nv_rd32(dev, 0x0015b4) & 0x1fff;
@@ -243,8 +243,8 @@ nv84_temp_get(struct drm_device *dev)
 void
 nouveau_temp_safety_checks(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_threshold_temp *temps = &pm->threshold_temp;
 
 	if (temps->critical > 120)
@@ -302,8 +302,8 @@ nouveau_temp_probe_i2c(struct drm_device *dev)
 void
 nouveau_temp_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	struct bit_entry P;
 	u8 *temp = NULL;
 

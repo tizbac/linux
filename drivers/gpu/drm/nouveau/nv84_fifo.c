@@ -49,7 +49,7 @@ nv84_fifo_context_new(struct nouveau_channel *chan, int engine)
 	struct nv84_fifo_priv *priv = nv_engine(chan->dev, engine);
 	struct nv84_fifo_chan *fctx;
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
         u64 ib_offset = chan->pushbuf_base + chan->dma.ib_base * 4;
 	u64 instance;
 	unsigned long flags;
@@ -97,12 +97,12 @@ nv84_fifo_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(chan->ramin, 0x00, chan->id);
 	nv_wo32(chan->ramin, 0x04, fctx->ramfc->vinst >> 8);
 
-	dev_priv->subsys.instmem.flush(dev);
+	ndev->subsys.instmem.flush(dev);
 
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_wr32(dev, 0x002600 + (chan->id * 4), 0x80000000 | instance);
 	nv50_fifo_playlist_update(dev);
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 error:
 	if (ret)
@@ -115,11 +115,11 @@ nv84_fifo_context_del(struct nouveau_channel *chan, int engine)
 {
 	struct nv84_fifo_chan *fctx = chan->engctx[engine];
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	unsigned long flags;
 
 	/* remove channel from playlist, will context switch if active */
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_mask(dev, 0x002600 + (chan->id * 4), 0x80000000, 0x00000000);
 	nv50_fifo_playlist_update(dev);
 
@@ -129,7 +129,7 @@ nv84_fifo_context_del(struct nouveau_channel *chan, int engine)
 		NV_INFO(dev, "PFIFO: channel %d unload timeout\n", chan->id);
 
 	nv_wr32(dev, 0x002600 + (chan->id * 4), 0x00000000);
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 	/* clean up */
 	if (chan->user) {
@@ -148,7 +148,7 @@ nv84_fifo_context_del(struct nouveau_channel *chan, int engine)
 static int
 nv84_fifo_init(struct drm_device *dev, int engine)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv84_fifo_chan *fctx;
 	u32 instance;
 	int i;
@@ -162,7 +162,7 @@ nv84_fifo_init(struct drm_device *dev, int engine)
 	nv_wr32(dev, 0x002140, 0xffffffff);
 
 	for (i = 0; i < 128; i++) {
-		struct nouveau_channel *chan = dev_priv->channels.ptr[i];
+		struct nouveau_channel *chan = ndev->channels.ptr[i];
 		if (chan && (fctx = chan->engctx[engine]))
 			instance = 0x80000000 | fctx->ramfc->vinst >> 8;
 		else
@@ -181,7 +181,7 @@ nv84_fifo_init(struct drm_device *dev, int engine)
 static int
 nv84_fifo_fini(struct drm_device *dev, int engine, bool suspend)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv84_fifo_priv *priv = nv_engine(dev, engine);
 	int i;
 
@@ -190,7 +190,7 @@ nv84_fifo_fini(struct drm_device *dev, int engine, bool suspend)
 
 	/* tell all connected engines to unload their contexts */
 	for (i = 0; i < priv->base.channels; i++) {
-		struct nouveau_channel *chan = dev_priv->channels.ptr[i];
+		struct nouveau_channel *chan = ndev->channels.ptr[i];
 		if (chan)
 			nv_wr32(dev, 0x0032fc, chan->ramin->vinst >> 12);
 		if (!nv_wait_ne(dev, 0x0032fc, 0xffffffff, 0xffffffff)) {
@@ -206,7 +206,7 @@ nv84_fifo_fini(struct drm_device *dev, int engine, bool suspend)
 int
 nv84_fifo_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv84_fifo_priv *priv;
 	int ret;
 
@@ -221,7 +221,7 @@ nv84_fifo_create(struct drm_device *dev)
 	priv->base.base.context_del = nv84_fifo_context_del;
 	priv->base.base.tlb_flush = nv50_fifo_tlb_flush;
 	priv->base.channels = 127;
-	dev_priv->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
+	ndev->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
 
 	ret = nouveau_gpuobj_new(dev, NULL, priv->base.channels * 4, 0x1000,
 				 NVOBJ_FLAG_ZERO_ALLOC, &priv->playlist[0]);

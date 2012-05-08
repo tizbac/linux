@@ -34,8 +34,8 @@ static int nr_vidtag = sizeof(vidtag) / sizeof(vidtag[0]);
 int
 nouveau_voltage_gpio_get(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_voltage *volt = &dev_priv->subsys.pm.voltage;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_pm_voltage *volt = &ndev->subsys.pm.voltage;
 	u8 vid = 0;
 	int i;
 
@@ -52,8 +52,8 @@ nouveau_voltage_gpio_get(struct drm_device *dev)
 int
 nouveau_voltage_gpio_set(struct drm_device *dev, int voltage)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_voltage *volt = &dev_priv->subsys.pm.voltage;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_pm_voltage *volt = &ndev->subsys.pm.voltage;
 	int vid, i;
 
 	vid = nouveau_volt_vid_lookup(dev, voltage);
@@ -73,8 +73,8 @@ nouveau_voltage_gpio_set(struct drm_device *dev, int voltage)
 int
 nouveau_volt_vid_lookup(struct drm_device *dev, int voltage)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_voltage *volt = &dev_priv->subsys.pm.voltage;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_pm_voltage *volt = &ndev->subsys.pm.voltage;
 	int i;
 
 	for (i = 0; i < volt->nr_level; i++) {
@@ -88,8 +88,8 @@ nouveau_volt_vid_lookup(struct drm_device *dev, int voltage)
 int
 nouveau_volt_lvl_lookup(struct drm_device *dev, int vid)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_voltage *volt = &dev_priv->subsys.pm.voltage;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_pm_voltage *volt = &ndev->subsys.pm.voltage;
 	int i;
 
 	for (i = 0; i < volt->nr_level; i++) {
@@ -103,10 +103,10 @@ nouveau_volt_lvl_lookup(struct drm_device *dev, int vid)
 void
 nouveau_volt_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_voltage *voltage = &pm->voltage;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nvbios *bios = &ndev->vbios;
 	struct bit_entry P;
 	u8 *volt = NULL, *entry;
 	int i, headerlen, recordlen, entries, vidmask, vidshift;
@@ -240,8 +240,8 @@ nouveau_volt_init(struct drm_device *dev)
 void
 nouveau_volt_fini(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_voltage *volt = &dev_priv->subsys.pm.voltage;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_pm_voltage *volt = &ndev->subsys.pm.voltage;
 
 	kfree(volt->level);
 }

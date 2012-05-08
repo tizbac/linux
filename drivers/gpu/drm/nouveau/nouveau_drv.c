@@ -175,8 +175,8 @@ int
 nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 {
 	struct drm_device *dev = pci_get_drvdata(pdev);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
 	struct nouveau_channel *chan;
 	struct drm_crtc *crtc;
@@ -213,21 +213,21 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 	}
 
 	NV_INFO(dev, "Evicting buffers...\n");
-	ttm_bo_evict_mm(&dev_priv->ttm.bdev, TTM_PL_VRAM);
+	ttm_bo_evict_mm(&ndev->ttm.bdev, TTM_PL_VRAM);
 
 	NV_INFO(dev, "Idling channels...\n");
 	for (i = 0; i < (pfifo ? pfifo->channels : 0); i++) {
-		chan = dev_priv->channels.ptr[i];
+		chan = ndev->channels.ptr[i];
 
 		if (chan && chan->pushbuf_bo)
 			nouveau_channel_idle(chan);
 	}
 
 	for (e = NVOBJ_ENGINE_NR - 1; e >= 0; e--) {
-		if (!dev_priv->engine[e])
+		if (!ndev->engine[e])
 			continue;
 
-		ret = dev_priv->engine[e]->fini(dev, e, true);
+		ret = ndev->engine[e]->fini(dev, e, true);
 		if (ret) {
 			NV_ERROR(dev, "... engine %d failed: %d\n", e, ret);
 			goto out_abort;
@@ -260,8 +260,8 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 out_abort:
 	NV_INFO(dev, "Re-enabling acceleration..\n");
 	for (e = e + 1; e < NVOBJ_ENGINE_NR; e++) {
-		if (dev_priv->engine[e])
-			dev_priv->engine[e]->init(dev, e);
+		if (ndev->engine[e])
+			ndev->engine[e]->init(dev, e);
 	}
 	return ret;
 }
@@ -271,8 +271,8 @@ nouveau_pci_resume(struct pci_dev *pdev)
 {
 	struct drm_device *dev = pci_get_drvdata(pdev);
 	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_subsys *engine = &dev_priv->subsys;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_subsys *engine = &ndev->subsys;
 	struct drm_crtc *crtc;
 	int ret, i;
 
@@ -287,7 +287,7 @@ nouveau_pci_resume(struct pci_dev *pdev)
 	pci_set_master(dev->pdev);
 
 	/* Make sure the AGP controller is in a consistent state */
-	if (dev_priv->gart_info.type == NOUVEAU_GART_AGP)
+	if (ndev->gart_info.type == NOUVEAU_GART_AGP)
 		nouveau_mem_reset_agp(dev);
 
 	/* Make the CRTCs accessible */
@@ -298,7 +298,7 @@ nouveau_pci_resume(struct pci_dev *pdev)
 	if (ret)
 		return ret;
 
-	if (dev_priv->gart_info.type == NOUVEAU_GART_AGP) {
+	if (ndev->gart_info.type == NOUVEAU_GART_AGP) {
 		ret = nouveau_mem_init_agp(dev);
 		if (ret) {
 			NV_ERROR(dev, "error reinitialising AGP: %d\n", ret);
@@ -315,8 +315,8 @@ nouveau_pci_resume(struct pci_dev *pdev)
 	engine->timer.init(dev);
 	engine->fb.init(dev);
 	for (i = 0; i < NVOBJ_ENGINE_NR; i++) {
-		if (dev_priv->engine[i])
-			dev_priv->engine[i]->init(dev, i);
+		if (ndev->engine[i])
+			ndev->engine[i]->init(dev, i);
 	}
 
 	nouveau_irq_postinstall(dev);
@@ -327,7 +327,7 @@ nouveau_pci_resume(struct pci_dev *pdev)
 		int j;
 
 		for (i = 0; i < (pfifo ? pfifo->channels : 0); i++) {
-			chan = dev_priv->channels.ptr[i];
+			chan = ndev->channels.ptr[i];
 			if (!chan || !chan->pushbuf_bo)
 				continue;
 

@@ -6,8 +6,8 @@
 static struct drm_mm_node *
 nv20_fb_alloc_tag(struct drm_device *dev, uint32_t size)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	struct drm_mm_node *mem;
 	int ret;
 
@@ -15,11 +15,11 @@ nv20_fb_alloc_tag(struct drm_device *dev, uint32_t size)
 	if (ret)
 		return NULL;
 
-	spin_lock(&dev_priv->tile.lock);
+	spin_lock(&ndev->tile.lock);
 	mem = drm_mm_search_free(&pfb->tag_heap, size, 0, 0);
 	if (mem)
 		mem = drm_mm_get_block_atomic(mem, size, 0);
-	spin_unlock(&dev_priv->tile.lock);
+	spin_unlock(&ndev->tile.lock);
 
 	return mem;
 }
@@ -27,12 +27,12 @@ nv20_fb_alloc_tag(struct drm_device *dev, uint32_t size)
 static void
 nv20_fb_free_tag(struct drm_device *dev, struct drm_mm_node **pmem)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_mm_node *mem = *pmem;
 	if (mem) {
-		spin_lock(&dev_priv->tile.lock);
+		spin_lock(&ndev->tile.lock);
 		drm_mm_put_block(mem);
-		spin_unlock(&dev_priv->tile.lock);
+		spin_unlock(&ndev->tile.lock);
 		*pmem = NULL;
 	}
 }
@@ -41,8 +41,8 @@ void
 nv20_fb_init_tile_region(struct drm_device *dev, int i, uint32_t addr,
 			 uint32_t size, uint32_t pitch, uint32_t flags)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_tile_reg *tile = &dev_priv->tile.reg[i];
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 	int bpp = (flags & NOUVEAU_GEM_TILE_32BPP ? 32 : 16);
 
 	tile->addr  = 0x00000001 | addr;
@@ -58,7 +58,7 @@ nv20_fb_init_tile_region(struct drm_device *dev, int i, uint32_t addr,
 		if (tile->tag_mem) {
 			/* Enable Z compression */
 			tile->zcomp = tile->tag_mem->start;
-			if (dev_priv->chipset >= 0x25) {
+			if (ndev->chipset >= 0x25) {
 				if (bpp == 16)
 					tile->zcomp |= NV25_PFB_ZCOMP_MODE_16;
 				else
@@ -77,8 +77,8 @@ nv20_fb_init_tile_region(struct drm_device *dev, int i, uint32_t addr,
 void
 nv20_fb_free_tile_region(struct drm_device *dev, int i)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_tile_reg *tile = &dev_priv->tile.reg[i];
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	tile->addr = tile->limit = tile->pitch = tile->zcomp = 0;
 	nv20_fb_free_tag(dev, &tile->tag_mem);
@@ -87,8 +87,8 @@ nv20_fb_free_tile_region(struct drm_device *dev, int i)
 void
 nv20_fb_set_tile_region(struct drm_device *dev, int i)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_tile_reg *tile = &dev_priv->tile.reg[i];
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	nv_wr32(dev, NV10_PFB_TLIMIT(i), tile->limit);
 	nv_wr32(dev, NV10_PFB_TSIZE(i), tile->pitch);
@@ -99,16 +99,16 @@ nv20_fb_set_tile_region(struct drm_device *dev, int i)
 int
 nv20_fb_vram_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 mem_size = nv_rd32(dev, 0x10020c);
 	u32 pbus1218 = nv_rd32(dev, 0x001218);
 
-	dev_priv->vram_size = mem_size & 0xff000000;
+	ndev->vram_size = mem_size & 0xff000000;
 	switch (pbus1218 & 0x00000300) {
-	case 0x00000000: dev_priv->vram_type = NV_MEM_TYPE_SDRAM; break;
-	case 0x00000100: dev_priv->vram_type = NV_MEM_TYPE_DDR1; break;
-	case 0x00000200: dev_priv->vram_type = NV_MEM_TYPE_GDDR3; break;
-	case 0x00000300: dev_priv->vram_type = NV_MEM_TYPE_GDDR2; break;
+	case 0x00000000: ndev->vram_type = NV_MEM_TYPE_SDRAM; break;
+	case 0x00000100: ndev->vram_type = NV_MEM_TYPE_DDR1; break;
+	case 0x00000200: ndev->vram_type = NV_MEM_TYPE_GDDR3; break;
+	case 0x00000300: ndev->vram_type = NV_MEM_TYPE_GDDR2; break;
 	}
 
 	return 0;
@@ -117,11 +117,11 @@ nv20_fb_vram_init(struct drm_device *dev)
 int
 nv20_fb_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	int i;
 
-	if (dev_priv->chipset >= 0x25)
+	if (ndev->chipset >= 0x25)
 		drm_mm_init(&pfb->tag_heap, 0, 64 * 1024);
 	else
 		drm_mm_init(&pfb->tag_heap, 0, 32 * 1024);
@@ -137,8 +137,8 @@ nv20_fb_init(struct drm_device *dev)
 void
 nv20_fb_takedown(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	int i;
 
 	for (i = 0; i < pfb->num_tiles; i++)

@@ -135,11 +135,11 @@ nv84_fence_init(struct drm_device *dev, int engine)
 static void
 nv84_fence_destroy(struct drm_device *dev, int engine)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv84_fence_priv *priv = nv_engine(dev, engine);
 
 	nouveau_gpuobj_ref(NULL, &priv->mem);
-	dev_priv->engine[engine] = NULL;
+	ndev->engine[engine] = NULL;
 	kfree(priv);
 }
 
@@ -147,7 +147,7 @@ int
 nv84_fence_create(struct drm_device *dev)
 {
 	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv84_fence_priv *priv;
 	int ret;
 
@@ -163,7 +163,7 @@ nv84_fence_create(struct drm_device *dev)
 	priv->base.emit = nv84_fence_emit;
 	priv->base.sync = nv84_fence_sync;
 	priv->base.read = nv84_fence_read;
-	dev_priv->engine[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
+	ndev->engine[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
 
 	ret = nouveau_gpuobj_new(dev, NULL, 16 * pfifo->channels,
 				 0x1000, 0, &priv->mem);

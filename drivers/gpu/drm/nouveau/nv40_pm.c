@@ -226,7 +226,7 @@ nv40_pm_gr_idle(void *data)
 int
 nv40_pm_clocks_set(struct drm_device *dev, void *pre_state)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv40_pm_state *info = pre_state;
 	unsigned long flags;
 	struct bit_entry M;
@@ -251,7 +251,7 @@ nv40_pm_clocks_set(struct drm_device *dev, void *pre_state)
 	}
 
 	/* halt and idle engines */
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_mask(dev, 0x002500, 0x00000001, 0x00000000);
 	if (!nv_wait(dev, 0x002500, 0x00000010, 0x00000000))
 		goto resume;
@@ -296,7 +296,7 @@ nv40_pm_clocks_set(struct drm_device *dev, void *pre_state)
 
 	/* change the PLL of each memory partition */
 	nv_mask(dev, 0x00c040, 0x0000c000, 0x00000000);
-	switch (dev_priv->chipset) {
+	switch (ndev->chipset) {
 	case 0x40:
 	case 0x45:
 	case 0x41:
@@ -345,7 +345,7 @@ resume:
 	nv_mask(dev, 0x003220, 0x00000001, 0x00000001);
 	nv_wr32(dev, 0x003200, 0x00000001);
 	nv_wr32(dev, 0x002500, 0x00000001);
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 	kfree(info);
 	return ret;

@@ -73,7 +73,7 @@ static int
 i2c_sense_scl(void *data)
 {
 	struct nouveau_i2c_chan *port = data;
-	struct drm_nouveau_private *dev_priv = port->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(port->dev);
 	if (port->type == 0) {
 		return !!(NVReadVgaCrtc(port->dev, 0, port->sense) & 0x04);
 	} else
@@ -81,7 +81,7 @@ i2c_sense_scl(void *data)
 		return !!(nv_rd32(port->dev, port->sense) & 0x00040000);
 	} else
 	if (port->type == 5) {
-		if (dev_priv->card_type < NV_D0)
+		if (ndev->card_type < NV_D0)
 			return !!(nv_rd32(port->dev, port->sense) & 0x01);
 		else
 			return !!(nv_rd32(port->dev, port->sense) & 0x10);
@@ -93,7 +93,7 @@ static int
 i2c_sense_sda(void *data)
 {
 	struct nouveau_i2c_chan *port = data;
-	struct drm_nouveau_private *dev_priv = port->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(port->dev);
 	if (port->type == 0) {
 		return !!(NVReadVgaCrtc(port->dev, 0, port->sense) & 0x08);
 	} else
@@ -101,7 +101,7 @@ i2c_sense_sda(void *data)
 		return !!(nv_rd32(port->dev, port->sense) & 0x00080000);
 	} else
 	if (port->type == 5) {
-		if (dev_priv->card_type < NV_D0)
+		if (ndev->card_type < NV_D0)
 			return !!(nv_rd32(port->dev, port->sense) & 0x02);
 		else
 			return !!(nv_rd32(port->dev, port->sense) & 0x20);
@@ -139,14 +139,14 @@ i2c_table(struct drm_device *dev, u8 *version)
 int
 nouveau_i2c_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	struct nouveau_i2c_chan *port;
 	u8 version = 0x00, entries, recordlen;
 	u8 *i2c, *entry, legacy[2][4] = {};
 	int ret, i;
 
-	INIT_LIST_HEAD(&dev_priv->i2c_ports);
+	INIT_LIST_HEAD(&ndev->i2c_ports);
 
 	i2c = i2c_table(dev, &version);
 	if (!i2c) {
@@ -218,7 +218,7 @@ nouveau_i2c_init(struct drm_device *dev)
 			break;
 		case 5: /* NV50- */
 			port->drive = entry[0] & 0x0f;
-			if (dev_priv->card_type < NV_D0) {
+			if (ndev->card_type < NV_D0) {
 				if (port->drive >= ARRAY_SIZE(nv50_i2c_port))
 					break;
 				port->drive = nv50_i2c_port[port->drive];
@@ -279,7 +279,7 @@ nouveau_i2c_init(struct drm_device *dev)
 			continue;
 		}
 
-		list_add_tail(&port->head, &dev_priv->i2c_ports);
+		list_add_tail(&port->head, &ndev->i2c_ports);
 	}
 
 	return 0;
@@ -288,10 +288,10 @@ nouveau_i2c_init(struct drm_device *dev)
 void
 nouveau_i2c_fini(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_i2c_chan *port, *tmp;
 
-	list_for_each_entry_safe(port, tmp, &dev_priv->i2c_ports, head) {
+	list_for_each_entry_safe(port, tmp, &ndev->i2c_ports, head) {
 		i2c_del_adapter(&port->adapter);
 		kfree(port);
 	}
@@ -300,7 +300,7 @@ nouveau_i2c_fini(struct drm_device *dev)
 struct nouveau_i2c_chan *
 nouveau_i2c_find(struct drm_device *dev, u8 index)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_i2c_chan *port;
 
 	if (index == NV_I2C_DEFAULT(0) ||
@@ -316,15 +316,15 @@ nouveau_i2c_find(struct drm_device *dev, u8 index)
 		}
 	}
 
-	list_for_each_entry(port, &dev_priv->i2c_ports, head) {
+	list_for_each_entry(port, &ndev->i2c_ports, head) {
 		if (port->index == index)
 			break;
 	}
 
-	if (&port->head == &dev_priv->i2c_ports)
+	if (&port->head == &ndev->i2c_ports)
 		return NULL;
 
-	if (dev_priv->card_type >= NV_50 && (port->dcb & 0x00000100)) {
+	if (ndev->card_type >= NV_50 && (port->dcb & 0x00000100)) {
 		u32 reg = 0x00e500, val;
 		if (port->type == 6) {
 			reg += port->drive * 0x50;

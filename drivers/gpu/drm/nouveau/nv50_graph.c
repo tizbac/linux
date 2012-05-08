@@ -43,7 +43,7 @@ struct nv50_graph_engine {
 static int
 nv50_graph_init(struct drm_device *dev, int engine)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv50_graph_engine *pgraph = nv_engine(dev, engine);
 	u32 units = nv_rd32(dev, 0x001540);
 	int i;
@@ -66,7 +66,7 @@ nv50_graph_init(struct drm_device *dev, int engine)
 		if (!(units & (1 << i)))
 			continue;
 
-		if (dev_priv->chipset < 0xa0) {
+		if (ndev->chipset < 0xa0) {
 			nv_wr32(dev, 0x408900 + (i << 12), 0xc0000000);
 			nv_wr32(dev, 0x408e08 + (i << 12), 0xc0000000);
 			nv_wr32(dev, 0x408314 + (i << 12), 0xc0000000);
@@ -96,7 +96,7 @@ nv50_graph_init(struct drm_device *dev, int engine)
 	nv_wr32(dev, 0x400320, 4);	/* CTXCTL_CMD = NEWCTXDMA */
 
 	/* some unknown zcull magic */
-	switch (dev_priv->chipset & 0xf0) {
+	switch (ndev->chipset & 0xf0) {
 	case 0x50:
 	case 0x80:
 	case 0x90:
@@ -105,9 +105,9 @@ nv50_graph_init(struct drm_device *dev, int engine)
 	case 0xa0:
 	default:
 		nv_wr32(dev, 0x402cc0, 0x00000000);
-		if (dev_priv->chipset == 0xa0 ||
-		    dev_priv->chipset == 0xaa ||
-		    dev_priv->chipset == 0xac) {
+		if (ndev->chipset == 0xa0 ||
+		    ndev->chipset == 0xaa ||
+		    ndev->chipset == 0xac) {
 			nv_wr32(dev, 0x402ca8, 0x00000802);
 		} else {
 			nv_wr32(dev, 0x402cc0, 0x00000000);
@@ -139,7 +139,7 @@ static int
 nv50_graph_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_gpuobj *ramin = chan->ramin;
 	struct nouveau_gpuobj *grctx = NULL;
 	struct nv50_graph_engine *pgraph = nv_engine(dev, engine);
@@ -153,7 +153,7 @@ nv50_graph_context_new(struct nouveau_channel *chan, int engine)
 	if (ret)
 		return ret;
 
-	hdr = (dev_priv->chipset == 0x50) ? 0x200 : 0x20;
+	hdr = (ndev->chipset == 0x50) ? 0x200 : 0x20;
 	nv_wo32(ramin, hdr + 0x00, 0x00190002);
 	nv_wo32(ramin, hdr + 0x04, grctx->vinst + grctx->size - 1);
 	nv_wo32(ramin, hdr + 0x08, grctx->vinst);
@@ -164,7 +164,7 @@ nv50_graph_context_new(struct nouveau_channel *chan, int engine)
 	nv50_grctx_fill(dev, grctx);
 	nv_wo32(grctx, 0x00000, chan->ramin->vinst >> 12);
 
-	dev_priv->subsys.instmem.flush(dev);
+	ndev->subsys.instmem.flush(dev);
 
 	atomic_inc(&chan->vm->engref[NVOBJ_ENGINE_GR]);
 	chan->engctx[NVOBJ_ENGINE_GR] = grctx;
@@ -176,12 +176,12 @@ nv50_graph_context_del(struct nouveau_channel *chan, int engine)
 {
 	struct nouveau_gpuobj *grctx = chan->engctx[engine];
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int i, hdr = (dev_priv->chipset == 0x50) ? 0x200 : 0x20;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	int i, hdr = (ndev->chipset == 0x50) ? 0x200 : 0x20;
 
 	for (i = hdr; i < hdr + 24; i += 4)
 		nv_wo32(chan->ramin, i, 0);
-	dev_priv->subsys.instmem.flush(dev);
+	ndev->subsys.instmem.flush(dev);
 
 	atomic_dec(&chan->vm->engref[engine]);
 	nouveau_gpuobj_ref(NULL, &grctx);
@@ -193,7 +193,7 @@ nv50_graph_object_new(struct nouveau_channel *chan, int engine,
 		      u32 handle, u16 class)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_gpuobj *obj = NULL;
 	int ret;
 
@@ -207,7 +207,7 @@ nv50_graph_object_new(struct nouveau_channel *chan, int engine,
 	nv_wo32(obj, 0x04, 0x00000000);
 	nv_wo32(obj, 0x08, 0x00000000);
 	nv_wo32(obj, 0x0c, 0x00000000);
-	dev_priv->subsys.instmem.flush(dev);
+	ndev->subsys.instmem.flush(dev);
 
 	ret = nouveau_ramht_insert(chan, handle, obj);
 	nouveau_gpuobj_ref(NULL, &obj);
@@ -223,14 +223,14 @@ nv50_graph_tlb_flush(struct drm_device *dev, int engine)
 static void
 nv84_graph_tlb_flush(struct drm_device *dev, int engine)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_timer_engine *ptimer = &dev_priv->subsys.timer;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_timer_engine *ptimer = &ndev->subsys.timer;
 	bool idle, timeout = false;
 	unsigned long flags;
 	u64 start;
 	u32 tmp;
 
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_mask(dev, 0x400500, 0x00000001, 0x00000000);
 
 	start = ptimer->read(dev);
@@ -263,7 +263,7 @@ nv84_graph_tlb_flush(struct drm_device *dev, int engine)
 	nv50_vm_flush_engine(dev, 0);
 
 	nv_mask(dev, 0x400500, 0x00000001, 0x00000001);
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 }
 
 static struct nouveau_enum nv50_mp_exec_error_names[] = {
@@ -361,7 +361,7 @@ static struct nouveau_bitfield nv50_graph_intr[] = {
 static void
 nv50_pgraph_mp_trap(struct drm_device *dev, int tpid, int display)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	uint32_t units = nv_rd32(dev, 0x1540);
 	uint32_t addr, mp10, status, pc, oplow, ophigh;
 	int i;
@@ -369,7 +369,7 @@ nv50_pgraph_mp_trap(struct drm_device *dev, int tpid, int display)
 	for (i = 0; i < 4; i++) {
 		if (!(units & 1 << (i+24)))
 			continue;
-		if (dev_priv->chipset < 0xa0)
+		if (ndev->chipset < 0xa0)
 			addr = 0x408200 + (tpid << 12) + (i << 7);
 		else
 			addr = 0x408100 + (tpid << 11) + (i << 7);
@@ -402,7 +402,7 @@ static void
 nv50_pgraph_tp_trap(struct drm_device *dev, int type, uint32_t ustatus_old,
 		uint32_t ustatus_new, int display, const char *name)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int tps = 0;
 	uint32_t units = nv_rd32(dev, 0x1540);
 	int i, r;
@@ -410,7 +410,7 @@ nv50_pgraph_tp_trap(struct drm_device *dev, int type, uint32_t ustatus_old,
 	for (i = 0; i < 16; i++) {
 		if (!(units & (1 << i)))
 			continue;
-		if (dev_priv->chipset < 0xa0)
+		if (ndev->chipset < 0xa0)
 			ustatus_addr = ustatus_old + (i << 12);
 		else
 			ustatus_addr = ustatus_new + (i << 11);
@@ -713,21 +713,21 @@ int
 nv50_graph_isr_chid(struct drm_device *dev, u64 inst)
 {
 	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_channel *chan;
 	unsigned long flags;
 	int i;
 
-	spin_lock_irqsave(&dev_priv->channels.lock, flags);
+	spin_lock_irqsave(&ndev->channels.lock, flags);
 	for (i = 0; i < pfifo->channels; i++) {
-		chan = dev_priv->channels.ptr[i];
+		chan = ndev->channels.ptr[i];
 		if (!chan || !chan->ramin)
 			continue;
 
 		if (inst == chan->ramin->vinst)
 			break;
 	}
-	spin_unlock_irqrestore(&dev_priv->channels.lock, flags);
+	spin_unlock_irqrestore(&ndev->channels.lock, flags);
 	return i;
 }
 
@@ -798,7 +798,7 @@ nv50_graph_destroy(struct drm_device *dev, int engine)
 int
 nv50_graph_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv50_graph_engine *pgraph;
 	int ret;
 
@@ -821,7 +821,7 @@ nv50_graph_create(struct drm_device *dev)
 	pgraph->base.context_new = nv50_graph_context_new;
 	pgraph->base.context_del = nv50_graph_context_del;
 	pgraph->base.object_new = nv50_graph_object_new;
-	if (dev_priv->chipset == 0x50 || dev_priv->chipset == 0xac)
+	if (ndev->chipset == 0x50 || ndev->chipset == 0xac)
 		pgraph->base.tlb_flush = nv50_graph_tlb_flush;
 	else
 		pgraph->base.tlb_flush = nv84_graph_tlb_flush;
@@ -834,13 +834,13 @@ nv50_graph_create(struct drm_device *dev)
 	NVOBJ_CLASS(dev, 0x502d, GR); /* 2d */
 
 	/* tesla */
-	if (dev_priv->chipset == 0x50)
+	if (ndev->chipset == 0x50)
 		NVOBJ_CLASS(dev, 0x5097, GR); /* tesla (nv50) */
 	else
-	if (dev_priv->chipset < 0xa0)
+	if (ndev->chipset < 0xa0)
 		NVOBJ_CLASS(dev, 0x8297, GR); /* tesla (nv8x/nv9x) */
 	else {
-		switch (dev_priv->chipset) {
+		switch (ndev->chipset) {
 		case 0xa0:
 		case 0xaa:
 		case 0xac:
@@ -859,9 +859,9 @@ nv50_graph_create(struct drm_device *dev)
 
 	/* compute */
 	NVOBJ_CLASS(dev, 0x50c0, GR);
-	if (dev_priv->chipset  > 0xa0 &&
-	    dev_priv->chipset != 0xaa &&
-	    dev_priv->chipset != 0xac)
+	if (ndev->chipset  > 0xa0 &&
+	    ndev->chipset != 0xaa &&
+	    ndev->chipset != 0xac)
 		NVOBJ_CLASS(dev, 0x85c0, GR);
 
 	return 0;

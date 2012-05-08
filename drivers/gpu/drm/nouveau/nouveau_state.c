@@ -48,10 +48,10 @@ static int nouveau_stub_init(struct drm_device *dev) { return 0; }
 
 static int nouveau_init_engine_ptrs(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_subsys *engine = &dev_priv->subsys;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_subsys *engine = &ndev->subsys;
 
-	switch (dev_priv->chipset & 0xf0) {
+	switch (ndev->chipset & 0xf0) {
 	case 0x00:
 		engine->instmem.init		= nv04_instmem_init;
 		engine->instmem.takedown	= nv04_instmem_takedown;
@@ -113,8 +113,8 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->pm.clocks_get		= nv04_pm_clocks_get;
 		engine->pm.clocks_pre		= nv04_pm_clocks_pre;
 		engine->pm.clocks_set		= nv04_pm_clocks_set;
-		if (dev_priv->chipset == 0x1a ||
-		    dev_priv->chipset == 0x1f)
+		if (ndev->chipset == 0x1a ||
+		    ndev->chipset == 0x1f)
 			engine->vram.init	= nv1a_fb_vram_init;
 		else
 			engine->vram.init	= nv10_fb_vram_init;
@@ -249,7 +249,7 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.put		= nv50_instmem_put;
 		engine->instmem.map		= nv50_instmem_map;
 		engine->instmem.unmap		= nv50_instmem_unmap;
-		if (dev_priv->chipset == 0x50)
+		if (ndev->chipset == 0x50)
 			engine->instmem.flush	= nv50_instmem_flush;
 		else
 			engine->instmem.flush	= nv84_instmem_flush;
@@ -271,7 +271,7 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->gpio.drive		= nv50_gpio_drive;
 		engine->gpio.sense		= nv50_gpio_sense;
 		engine->gpio.irq_enable		= nv50_gpio_irq_enable;
-		switch (dev_priv->chipset) {
+		switch (ndev->chipset) {
 		case 0x84:
 		case 0x86:
 		case 0x92:
@@ -294,7 +294,7 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		}
 		engine->pm.voltage_get		= nouveau_voltage_gpio_get;
 		engine->pm.voltage_set		= nouveau_voltage_gpio_set;
-		if (dev_priv->chipset >= 0x84)
+		if (ndev->chipset >= 0x84)
 			engine->pm.temp_get	= nv84_temp_get;
 		else
 			engine->pm.temp_get	= nv40_temp_get;
@@ -423,7 +423,7 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->vram.flags_valid	= nvc0_vram_flags_valid;
 		break;
 	default:
-		NV_ERROR(dev, "NV%02x unsupported\n", dev_priv->chipset);
+		NV_ERROR(dev, "NV%02x unsupported\n", ndev->chipset);
 		return 1;
 	}
 
@@ -443,9 +443,9 @@ static unsigned int
 nouveau_vga_set_decode(void *priv, bool state)
 {
 	struct drm_device *dev = priv;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
-	if (dev_priv->chipset >= 0x40)
+	if (ndev->chipset >= 0x40)
 		nv_wr32(dev, 0x88054, state);
 	else
 		nv_wr32(dev, 0x1854, state);
@@ -498,24 +498,24 @@ static bool nouveau_switcheroo_can_switch(struct pci_dev *pdev)
 static void
 nouveau_card_channel_fini(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
-	if (dev_priv->channel)
-		nouveau_channel_put_unlocked(&dev_priv->channel);
+	if (ndev->channel)
+		nouveau_channel_put_unlocked(&ndev->channel);
 }
 
 static int
 nouveau_card_channel_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_channel *chan;
 	int ret;
 
 	ret = nouveau_channel_alloc(dev, &chan, NULL, NvDmaFB, NvDmaTT);
-	dev_priv->channel = chan;
+	ndev->channel = chan;
 	if (ret)
 		return ret;
-	mutex_unlock(&dev_priv->channel->mutex);
+	mutex_unlock(&ndev->channel->mutex);
 
 	nouveau_bo_move_init(chan);
 	return 0;
@@ -530,7 +530,7 @@ static const struct vga_switcheroo_client_ops nouveau_switcheroo_ops = {
 int
 nouveau_card_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_subsys *engine;
 	int ret, e = 0;
 
@@ -541,11 +541,11 @@ nouveau_card_init(struct drm_device *dev)
 	ret = nouveau_init_engine_ptrs(dev);
 	if (ret)
 		goto out;
-	engine = &dev_priv->subsys;
-	spin_lock_init(&dev_priv->channels.lock);
-	spin_lock_init(&dev_priv->tile.lock);
-	spin_lock_init(&dev_priv->context_switch_lock);
-	spin_lock_init(&dev_priv->vm_lock);
+	engine = &ndev->subsys;
+	spin_lock_init(&ndev->channels.lock);
+	spin_lock_init(&ndev->tile.lock);
+	spin_lock_init(&ndev->context_switch_lock);
+	spin_lock_init(&ndev->vm_lock);
 
 	/* Make the CRTCs and I2C buses accessible */
 	ret = engine->display.early_init(dev);
@@ -561,7 +561,7 @@ nouveau_card_init(struct drm_device *dev)
 	 * nosnoop capability.  hopefully won't cause issues until a
 	 * better fix is found - assuming there is one...
 	 */
-	if (dev_priv->chipset == 0xc1) {
+	if (ndev->chipset == 0xc1) {
 		nv_mask(dev, 0x00088080, 0x00000800, 0x00000000);
 	}
 
@@ -605,15 +605,15 @@ nouveau_card_init(struct drm_device *dev)
 	if (ret)
 		goto out_ttmvram;
 
-	if (!dev_priv->noaccel) {
-		switch (dev_priv->card_type) {
+	if (!ndev->noaccel) {
+		switch (ndev->card_type) {
 		case NV_04:
 			nv04_fifo_create(dev);
 			break;
 		case NV_10:
 		case NV_20:
 		case NV_30:
-			if (dev_priv->chipset < 0x17)
+			if (ndev->chipset < 0x17)
 				nv10_fifo_create(dev);
 			else
 				nv17_fifo_create(dev);
@@ -622,7 +622,7 @@ nouveau_card_init(struct drm_device *dev)
 			nv40_fifo_create(dev);
 			break;
 		case NV_50:
-			if (dev_priv->chipset == 0x50)
+			if (ndev->chipset == 0x50)
 				nv50_fifo_create(dev);
 			else
 				nv84_fifo_create(dev);
@@ -638,7 +638,7 @@ nouveau_card_init(struct drm_device *dev)
 			break;
 		}
 
-		switch (dev_priv->card_type) {
+		switch (ndev->card_type) {
 		case NV_04:
 			nv04_fence_create(dev);
 			break;
@@ -647,7 +647,7 @@ nouveau_card_init(struct drm_device *dev)
 		case NV_30:
 		case NV_40:
 		case NV_50:
-			if (dev_priv->chipset < 0x84)
+			if (ndev->chipset < 0x84)
 				nv10_fence_create(dev);
 			else
 				nv84_fence_create(dev);
@@ -661,7 +661,7 @@ nouveau_card_init(struct drm_device *dev)
 			break;
 		}
 
-		switch (dev_priv->card_type) {
+		switch (ndev->card_type) {
 		case NV_04:
 		case NV_10:
 		case NV_20:
@@ -681,7 +681,7 @@ nouveau_card_init(struct drm_device *dev)
 			break;
 		}
 
-		switch (dev_priv->card_type) {
+		switch (ndev->card_type) {
 		case NV_04:
 			nv04_graph_create(dev);
 			break;
@@ -709,7 +709,7 @@ nouveau_card_init(struct drm_device *dev)
 			break;
 		}
 
-		switch (dev_priv->chipset) {
+		switch (ndev->chipset) {
 		case 0x84:
 		case 0x86:
 		case 0x92:
@@ -725,9 +725,9 @@ nouveau_card_init(struct drm_device *dev)
 			break;
 		}
 
-		switch (dev_priv->card_type) {
+		switch (ndev->card_type) {
 		case NV_50:
-			switch (dev_priv->chipset) {
+			switch (ndev->chipset) {
 			case 0xa3:
 			case 0xa5:
 			case 0xa8:
@@ -745,29 +745,29 @@ nouveau_card_init(struct drm_device *dev)
 			break;
 		}
 
-		if (dev_priv->chipset >= 0xa3 || dev_priv->chipset == 0x98) {
+		if (ndev->chipset >= 0xa3 || ndev->chipset == 0x98) {
 			nv84_bsp_create(dev);
 			nv84_vp_create(dev);
 			nv98_ppp_create(dev);
 		} else
-		if (dev_priv->chipset >= 0x84) {
+		if (ndev->chipset >= 0x84) {
 			nv50_mpeg_create(dev);
 			nv84_bsp_create(dev);
 			nv84_vp_create(dev);
 		} else
-		if (dev_priv->chipset >= 0x50) {
+		if (ndev->chipset >= 0x50) {
 			nv50_mpeg_create(dev);
 		} else
-		if (dev_priv->card_type == NV_40 ||
-		    dev_priv->chipset == 0x31 ||
-		    dev_priv->chipset == 0x34 ||
-		    dev_priv->chipset == 0x36) {
+		if (ndev->card_type == NV_40 ||
+		    ndev->chipset == 0x31 ||
+		    ndev->chipset == 0x34 ||
+		    ndev->chipset == 0x36) {
 			nv31_mpeg_create(dev);
 		}
 
 		for (e = 0; e < NVOBJ_ENGINE_NR; e++) {
-			if (dev_priv->engine[e]) {
-				ret = dev_priv->engine[e]->init(dev, e);
+			if (ndev->engine[e]) {
+				ret = ndev->engine[e]->init(dev, e);
 				if (ret)
 					goto out_engine;
 			}
@@ -785,7 +785,7 @@ nouveau_card_init(struct drm_device *dev)
 	nouveau_backlight_init(dev);
 	nouveau_pm_init(dev);
 
-	if (dev_priv->engine[NVOBJ_ENGINE_GR]) {
+	if (ndev->engine[NVOBJ_ENGINE_GR]) {
 		ret = nouveau_card_channel_init(dev);
 		if (ret)
 			goto out_pm;
@@ -810,12 +810,12 @@ out_pm:
 out_irq:
 	nouveau_irq_fini(dev);
 out_engine:
-	if (!dev_priv->noaccel) {
+	if (!ndev->noaccel) {
 		for (e = e - 1; e >= 0; e--) {
-			if (!dev_priv->engine[e])
+			if (!ndev->engine[e])
 				continue;
-			dev_priv->engine[e]->fini(dev, e, false);
-			dev_priv->engine[e]->destroy(dev,e );
+			ndev->engine[e]->fini(dev, e, false);
+			ndev->engine[e]->destroy(dev,e );
 		}
 	}
 	nouveau_mem_gart_fini(dev);
@@ -847,8 +847,8 @@ out:
 
 static void nouveau_card_takedown(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_subsys *engine = &dev_priv->subsys;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_subsys *engine = &ndev->subsys;
 	int e;
 
 	if (dev->mode_config.num_crtc) {
@@ -861,23 +861,23 @@ static void nouveau_card_takedown(struct drm_device *dev)
 	nouveau_backlight_exit(dev);
 	nouveau_display_destroy(dev);
 
-	if (!dev_priv->noaccel) {
+	if (!ndev->noaccel) {
 		for (e = NVOBJ_ENGINE_NR - 1; e >= 0; e--) {
-			if (dev_priv->engine[e]) {
-				dev_priv->engine[e]->fini(dev, e, false);
-				dev_priv->engine[e]->destroy(dev,e );
+			if (ndev->engine[e]) {
+				ndev->engine[e]->fini(dev, e, false);
+				ndev->engine[e]->destroy(dev,e );
 			}
 		}
 	}
 
-	if (dev_priv->vga_ram) {
-		nouveau_bo_unpin(dev_priv->vga_ram);
-		nouveau_bo_ref(NULL, &dev_priv->vga_ram);
+	if (ndev->vga_ram) {
+		nouveau_bo_unpin(ndev->vga_ram);
+		nouveau_bo_ref(NULL, &ndev->vga_ram);
 	}
 
 	mutex_lock(&dev->struct_mutex);
-	ttm_bo_clean_mm(&dev_priv->ttm.bdev, TTM_PL_VRAM);
-	ttm_bo_clean_mm(&dev_priv->ttm.bdev, TTM_PL_TT);
+	ttm_bo_clean_mm(&ndev->ttm.bdev, TTM_PL_VRAM);
+	ttm_bo_clean_mm(&ndev->ttm.bdev, TTM_PL_TT);
 	mutex_unlock(&dev->struct_mutex);
 	nouveau_mem_gart_fini(dev);
 	nouveau_mem_vram_fini(dev);
@@ -903,7 +903,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 int
 nouveau_open(struct drm_device *dev, struct drm_file *file_priv)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_fpriv *fpriv;
 	int ret;
 
@@ -914,7 +914,7 @@ nouveau_open(struct drm_device *dev, struct drm_file *file_priv)
 	spin_lock_init(&fpriv->lock);
 	INIT_LIST_HEAD(&fpriv->channels);
 
-	if (dev_priv->card_type == NV_50) {
+	if (ndev->card_type == NV_50) {
 		ret = nouveau_vm_new(dev, 0, (1ULL << 40), 0x0020000000ULL,
 				     &fpriv->vm);
 		if (ret) {
@@ -922,7 +922,7 @@ nouveau_open(struct drm_device *dev, struct drm_file *file_priv)
 			return ret;
 		}
 	} else
-	if (dev_priv->card_type >= NV_C0) {
+	if (ndev->card_type >= NV_C0) {
 		ret = nouveau_vm_new(dev, 0, (1ULL << 40), 0x0008000000ULL,
 				     &fpriv->vm);
 		if (ret) {
@@ -1008,45 +1008,45 @@ static struct apertures_struct *nouveau_get_apertures(struct drm_device *dev)
 
 static int nouveau_remove_conflicting_drivers(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	bool primary = false;
-	dev_priv->apertures = nouveau_get_apertures(dev);
-	if (!dev_priv->apertures)
+	ndev->apertures = nouveau_get_apertures(dev);
+	if (!ndev->apertures)
 		return -ENOMEM;
 
 #ifdef CONFIG_X86
 	primary = dev->pdev->resource[PCI_ROM_RESOURCE].flags & IORESOURCE_ROM_SHADOW;
 #endif
 
-	remove_conflicting_framebuffers(dev_priv->apertures, "nouveaufb", primary);
+	remove_conflicting_framebuffers(ndev->apertures, "nouveaufb", primary);
 	return 0;
 }
 
 int nouveau_load(struct drm_device *dev, unsigned long flags)
 {
-	struct drm_nouveau_private *dev_priv;
+	struct nouveau_device *ndev;
 	unsigned long long offset, length;
 	uint32_t reg0 = ~0, strap;
 	int ret;
 
-	dev_priv = kzalloc(sizeof(*dev_priv), GFP_KERNEL);
-	if (!dev_priv) {
+	ndev = kzalloc(sizeof(*ndev), GFP_KERNEL);
+	if (!ndev) {
 		ret = -ENOMEM;
 		goto err_out;
 	}
-	dev->dev_private = dev_priv;
-	dev_priv->dev = dev;
+	dev->dev_private = ndev;
+	ndev->dev = dev;
 
 	pci_set_master(dev->pdev);
 
-	dev_priv->flags = flags & NOUVEAU_FLAGS;
+	ndev->flags = flags & NOUVEAU_FLAGS;
 
 	NV_DEBUG(dev, "vendor: 0x%X device: 0x%X class: 0x%X\n",
 		 dev->pci_vendor, dev->pci_device, dev->pdev->class);
 
 	/* first up, map the start of mmio and determine the chipset */
-	dev_priv->mmio = ioremap(pci_resource_start(dev->pdev, 0), PAGE_SIZE);
-	if (dev_priv->mmio) {
+	ndev->mmio = ioremap(pci_resource_start(dev->pdev, 0), PAGE_SIZE);
+	if (ndev->mmio) {
 #ifdef __BIG_ENDIAN
 		/* put the card into big-endian mode if it's not */
 		if (nv_rd32(dev, NV03_PMC_BOOT_1) != 0x01000001)
@@ -1057,31 +1057,31 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 		/* determine chipset and derive architecture from it */
 		reg0 = nv_rd32(dev, NV03_PMC_BOOT_0);
 		if ((reg0 & 0x0f000000) > 0) {
-			dev_priv->chipset = (reg0 & 0xff00000) >> 20;
-			switch (dev_priv->chipset & 0xf0) {
+			ndev->chipset = (reg0 & 0xff00000) >> 20;
+			switch (ndev->chipset & 0xf0) {
 			case 0x10:
 			case 0x20:
 			case 0x30:
-				dev_priv->card_type = dev_priv->chipset & 0xf0;
+				ndev->card_type = ndev->chipset & 0xf0;
 				break;
 			case 0x40:
 			case 0x60:
-				dev_priv->card_type = NV_40;
+				ndev->card_type = NV_40;
 				break;
 			case 0x50:
 			case 0x80:
 			case 0x90:
 			case 0xa0:
-				dev_priv->card_type = NV_50;
+				ndev->card_type = NV_50;
 				break;
 			case 0xc0:
-				dev_priv->card_type = NV_C0;
+				ndev->card_type = NV_C0;
 				break;
 			case 0xd0:
-				dev_priv->card_type = NV_D0;
+				ndev->card_type = NV_D0;
 				break;
 			case 0xe0:
-				dev_priv->card_type = NV_E0;
+				ndev->card_type = NV_E0;
 				break;
 			default:
 				break;
@@ -1089,32 +1089,32 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 		} else
 		if ((reg0 & 0xff00fff0) == 0x20004000) {
 			if (reg0 & 0x00f00000)
-				dev_priv->chipset = 0x05;
+				ndev->chipset = 0x05;
 			else
-				dev_priv->chipset = 0x04;
-			dev_priv->card_type = NV_04;
+				ndev->chipset = 0x04;
+			ndev->card_type = NV_04;
 		}
 
-		iounmap(dev_priv->mmio);
+		iounmap(ndev->mmio);
 	}
 
-	if (!dev_priv->card_type) {
+	if (!ndev->card_type) {
 		NV_ERROR(dev, "unsupported chipset 0x%08x\n", reg0);
 		ret = -EINVAL;
 		goto err_priv;
 	}
 
 	NV_INFO(dev, "Detected an NV%02x generation card (0x%08x)\n",
-		     dev_priv->card_type, reg0);
+		     ndev->card_type, reg0);
 
 	/* map the mmio regs, limiting the amount to preserve vmap space */
 	offset = pci_resource_start(dev->pdev, 0);
 	length = pci_resource_len(dev->pdev, 0);
-	if (dev_priv->card_type < NV_E0)
+	if (ndev->card_type < NV_E0)
 		length = min(length, (unsigned long long)0x00800000);
 
-	dev_priv->mmio = ioremap(offset, length);
-	if (!dev_priv->mmio) {
+	ndev->mmio = ioremap(offset, length);
+	if (!ndev->mmio) {
 		NV_ERROR(dev, "Unable to initialize the mmio mapping. "
 			 "Please report your setup to " DRIVER_EMAIL "\n");
 		ret = -EINVAL;
@@ -1124,37 +1124,37 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 
 	/* determine frequency of timing crystal */
 	strap = nv_rd32(dev, 0x101000);
-	if ( dev_priv->chipset < 0x17 ||
-	    (dev_priv->chipset >= 0x20 && dev_priv->chipset <= 0x25))
+	if ( ndev->chipset < 0x17 ||
+	    (ndev->chipset >= 0x20 && ndev->chipset <= 0x25))
 		strap &= 0x00000040;
 	else
 		strap &= 0x00400040;
 
 	switch (strap) {
-	case 0x00000000: dev_priv->crystal = 13500; break;
-	case 0x00000040: dev_priv->crystal = 14318; break;
-	case 0x00400000: dev_priv->crystal = 27000; break;
-	case 0x00400040: dev_priv->crystal = 25000; break;
+	case 0x00000000: ndev->crystal = 13500; break;
+	case 0x00000040: ndev->crystal = 14318; break;
+	case 0x00400000: ndev->crystal = 27000; break;
+	case 0x00400040: ndev->crystal = 25000; break;
 	}
 
-	NV_DEBUG(dev, "crystal freq: %dKHz\n", dev_priv->crystal);
+	NV_DEBUG(dev, "crystal freq: %dKHz\n", ndev->crystal);
 
 	/* Determine whether we'll attempt acceleration or not, some
 	 * cards are disabled by default here due to them being known
 	 * non-functional, or never been tested due to lack of hw.
 	 */
-	dev_priv->noaccel = !!nouveau_noaccel;
+	ndev->noaccel = !!nouveau_noaccel;
 	if (nouveau_noaccel == -1) {
-		switch (dev_priv->chipset) {
+		switch (ndev->chipset) {
 		case 0xd9: /* known broken */
 		case 0xe4: /* needs binary driver firmware */
 		case 0xe7: /* needs binary driver firmware */
 			NV_INFO(dev, "acceleration disabled by default, pass "
 				     "noaccel=0 to force enable\n");
-			dev_priv->noaccel = true;
+			ndev->noaccel = true;
 			break;
 		default:
-			dev_priv->noaccel = false;
+			ndev->noaccel = false;
 			break;
 		}
 	}
@@ -1164,25 +1164,25 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 		goto err_mmio;
 
 	/* Map PRAMIN BAR, or on older cards, the aperture within BAR0 */
-	if (dev_priv->card_type >= NV_40) {
+	if (ndev->card_type >= NV_40) {
 		int ramin_bar = 2;
 		if (pci_resource_len(dev->pdev, ramin_bar) == 0)
 			ramin_bar = 3;
 
-		dev_priv->ramin_size = pci_resource_len(dev->pdev, ramin_bar);
-		dev_priv->ramin =
+		ndev->ramin_size = pci_resource_len(dev->pdev, ramin_bar);
+		ndev->ramin =
 			ioremap(pci_resource_start(dev->pdev, ramin_bar),
-				dev_priv->ramin_size);
-		if (!dev_priv->ramin) {
+				ndev->ramin_size);
+		if (!ndev->ramin) {
 			NV_ERROR(dev, "Failed to map PRAMIN BAR\n");
 			ret = -ENOMEM;
 			goto err_mmio;
 		}
 	} else {
-		dev_priv->ramin_size = 1 * 1024 * 1024;
-		dev_priv->ramin = ioremap(offset + NV_RAMIN,
-					  dev_priv->ramin_size);
-		if (!dev_priv->ramin) {
+		ndev->ramin_size = 1 * 1024 * 1024;
+		ndev->ramin = ioremap(offset + NV_RAMIN,
+					  ndev->ramin_size);
+		if (!ndev->ramin) {
 			NV_ERROR(dev, "Failed to map BAR0 PRAMIN.\n");
 			ret = -ENOMEM;
 			goto err_mmio;
@@ -1193,9 +1193,9 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 
 	/* Special flags */
 	if (dev->pci_device == 0x01a0)
-		dev_priv->flags |= NV_NFORCE;
+		ndev->flags |= NV_NFORCE;
 	else if (dev->pci_device == 0x01f0)
-		dev_priv->flags |= NV_NFORCE2;
+		ndev->flags |= NV_NFORCE2;
 
 	/* For kernel modesetting, init card now and bring up fbcon */
 	ret = nouveau_card_init(dev);
@@ -1205,11 +1205,11 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	return 0;
 
 err_ramin:
-	iounmap(dev_priv->ramin);
+	iounmap(ndev->ramin);
 err_mmio:
-	iounmap(dev_priv->mmio);
+	iounmap(ndev->mmio);
 err_priv:
-	kfree(dev_priv);
+	kfree(ndev);
 	dev->dev_private = NULL;
 err_out:
 	return ret;
@@ -1222,14 +1222,14 @@ void nouveau_lastclose(struct drm_device *dev)
 
 int nouveau_unload(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
 	nouveau_card_takedown(dev);
 
-	iounmap(dev_priv->mmio);
-	iounmap(dev_priv->ramin);
+	iounmap(ndev->mmio);
+	iounmap(ndev->ramin);
 
-	kfree(dev_priv);
+	kfree(ndev);
 	dev->dev_private = NULL;
 	return 0;
 }
@@ -1239,8 +1239,8 @@ bool
 nouveau_wait_eq(struct drm_device *dev, uint64_t timeout,
 		uint32_t reg, uint32_t mask, uint32_t val)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_timer_engine *ptimer = &dev_priv->subsys.timer;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_timer_engine *ptimer = &ndev->subsys.timer;
 	uint64_t start = ptimer->read(dev);
 
 	do {
@@ -1256,8 +1256,8 @@ bool
 nouveau_wait_ne(struct drm_device *dev, uint64_t timeout,
 		uint32_t reg, uint32_t mask, uint32_t val)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_timer_engine *ptimer = &dev_priv->subsys.timer;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_timer_engine *ptimer = &ndev->subsys.timer;
 	uint64_t start = ptimer->read(dev);
 
 	do {
@@ -1273,8 +1273,8 @@ bool
 nouveau_wait_cb(struct drm_device *dev, u64 timeout,
 		bool (*cond)(void *), void *data)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_timer_engine *ptimer = &dev_priv->subsys.timer;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_timer_engine *ptimer = &ndev->subsys.timer;
 	u64 start = ptimer->read(dev);
 
 	do {
@@ -1288,10 +1288,10 @@ nouveau_wait_cb(struct drm_device *dev, u64 timeout,
 /* Waits for PGRAPH to go completely idle */
 bool nouveau_wait_for_idle(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	uint32_t mask = ~0;
 
-	if (dev_priv->card_type == NV_40)
+	if (ndev->card_type == NV_40)
 		mask &= ~NV40_PGRAPH_STATUS_SYNC_STALL;
 
 	if (!nv_wait(dev, NV04_PGRAPH_STATUS, mask, 0)) {

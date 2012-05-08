@@ -350,7 +350,7 @@ calc_mem(struct drm_device *dev, struct nvc0_pm_clock *info, u32 freq)
 void *
 nvc0_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_pm_state *info;
 	int ret;
 
@@ -364,7 +364,7 @@ nvc0_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 	 * are always the same freq with the binary driver even when the
 	 * performance table says they should differ.
 	 */
-	if (dev_priv->chipset == 0xd9)
+	if (ndev->chipset == 0xd9)
 		perflvl->rop = 0;
 
 	if ((ret = calc_clk(dev, 0x00, &info->eng[0x00], perflvl->shader)) ||
@@ -459,8 +459,8 @@ static u32
 mclk_mrg(struct nouveau_mem_exec_func *exec, int mr)
 {
 	struct drm_device *dev = exec->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	if (dev_priv->vram_type != NV_MEM_TYPE_GDDR5) {
+	struct nouveau_device *ndev = nouveau_device(dev);
+	if (ndev->vram_type != NV_MEM_TYPE_GDDR5) {
 		if (mr <= 1)
 			return nv_rd32(dev, 0x10f300 + ((mr - 0) * 4));
 		return nv_rd32(dev, 0x10f320 + ((mr - 2) * 4));
@@ -478,16 +478,16 @@ static void
 mclk_mrs(struct nouveau_mem_exec_func *exec, int mr, u32 data)
 {
 	struct drm_device *dev = exec->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	if (dev_priv->vram_type != NV_MEM_TYPE_GDDR5) {
+	struct nouveau_device *ndev = nouveau_device(dev);
+	if (ndev->vram_type != NV_MEM_TYPE_GDDR5) {
 		if (mr <= 1) {
 			nv_wr32(dev, 0x10f300 + ((mr - 0) * 4), data);
-			if (dev_priv->vram_rank_B)
+			if (ndev->vram_rank_B)
 				nv_wr32(dev, 0x10f308 + ((mr - 0) * 4), data);
 		} else
 		if (mr <= 3) {
 			nv_wr32(dev, 0x10f320 + ((mr - 2) * 4), data);
-			if (dev_priv->vram_rank_B)
+			if (ndev->vram_rank_B)
 				nv_wr32(dev, 0x10f328 + ((mr - 2) * 4), data);
 		}
 	} else {
@@ -534,7 +534,7 @@ mclk_timing_set(struct nouveau_mem_exec_func *exec)
 static void
 prog_mem(struct drm_device *dev, struct nvc0_pm_state *info)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_mem_exec_func exec = {
 		.dev = dev,
 		.precharge = mclk_precharge,
@@ -549,14 +549,14 @@ prog_mem(struct drm_device *dev, struct nvc0_pm_state *info)
 		.priv = info
 	};
 
-	if (dev_priv->chipset < 0xd0)
+	if (ndev->chipset < 0xd0)
 		nv_wr32(dev, 0x611200, 0x00003300);
 	else
 		nv_wr32(dev, 0x62c000, 0x03030000);
 
 	nouveau_mem_exec(&exec, info->perflvl);
 
-	if (dev_priv->chipset < 0xd0)
+	if (ndev->chipset < 0xd0)
 		nv_wr32(dev, 0x611200, 0x00003300);
 	else
 		nv_wr32(dev, 0x62c000, 0x03030300);

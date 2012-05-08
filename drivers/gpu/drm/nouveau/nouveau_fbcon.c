@@ -55,7 +55,7 @@ nouveau_fbcon_fillrect(struct fb_info *info, const struct fb_fillrect *rect)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
 	struct drm_device *dev = nfbdev->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int ret;
 
 	if (info->state != FBINFO_STATE_RUNNING)
@@ -63,15 +63,15 @@ nouveau_fbcon_fillrect(struct fb_info *info, const struct fb_fillrect *rect)
 
 	ret = -ENODEV;
 	if (!in_interrupt() && !(info->flags & FBINFO_HWACCEL_DISABLED) &&
-	    mutex_trylock(&dev_priv->channel->mutex)) {
-		if (dev_priv->card_type < NV_50)
+	    mutex_trylock(&ndev->channel->mutex)) {
+		if (ndev->card_type < NV_50)
 			ret = nv04_fbcon_fillrect(info, rect);
 		else
-		if (dev_priv->card_type < NV_C0)
+		if (ndev->card_type < NV_C0)
 			ret = nv50_fbcon_fillrect(info, rect);
 		else
 			ret = nvc0_fbcon_fillrect(info, rect);
-		mutex_unlock(&dev_priv->channel->mutex);
+		mutex_unlock(&ndev->channel->mutex);
 	}
 
 	if (ret == 0)
@@ -87,7 +87,7 @@ nouveau_fbcon_copyarea(struct fb_info *info, const struct fb_copyarea *image)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
 	struct drm_device *dev = nfbdev->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int ret;
 
 	if (info->state != FBINFO_STATE_RUNNING)
@@ -95,15 +95,15 @@ nouveau_fbcon_copyarea(struct fb_info *info, const struct fb_copyarea *image)
 
 	ret = -ENODEV;
 	if (!in_interrupt() && !(info->flags & FBINFO_HWACCEL_DISABLED) &&
-	    mutex_trylock(&dev_priv->channel->mutex)) {
-		if (dev_priv->card_type < NV_50)
+	    mutex_trylock(&ndev->channel->mutex)) {
+		if (ndev->card_type < NV_50)
 			ret = nv04_fbcon_copyarea(info, image);
 		else
-		if (dev_priv->card_type < NV_C0)
+		if (ndev->card_type < NV_C0)
 			ret = nv50_fbcon_copyarea(info, image);
 		else
 			ret = nvc0_fbcon_copyarea(info, image);
-		mutex_unlock(&dev_priv->channel->mutex);
+		mutex_unlock(&ndev->channel->mutex);
 	}
 
 	if (ret == 0)
@@ -119,7 +119,7 @@ nouveau_fbcon_imageblit(struct fb_info *info, const struct fb_image *image)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
 	struct drm_device *dev = nfbdev->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int ret;
 
 	if (info->state != FBINFO_STATE_RUNNING)
@@ -127,15 +127,15 @@ nouveau_fbcon_imageblit(struct fb_info *info, const struct fb_image *image)
 
 	ret = -ENODEV;
 	if (!in_interrupt() && !(info->flags & FBINFO_HWACCEL_DISABLED) &&
-	    mutex_trylock(&dev_priv->channel->mutex)) {
-		if (dev_priv->card_type < NV_50)
+	    mutex_trylock(&ndev->channel->mutex)) {
+		if (ndev->card_type < NV_50)
 			ret = nv04_fbcon_imageblit(info, image);
 		else
-		if (dev_priv->card_type < NV_C0)
+		if (ndev->card_type < NV_C0)
 			ret = nv50_fbcon_imageblit(info, image);
 		else
 			ret = nvc0_fbcon_imageblit(info, image);
-		mutex_unlock(&dev_priv->channel->mutex);
+		mutex_unlock(&ndev->channel->mutex);
 	}
 
 	if (ret == 0)
@@ -151,8 +151,8 @@ nouveau_fbcon_sync(struct fb_info *info)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
 	struct drm_device *dev = nfbdev->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_channel *chan = dev_priv->channel;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_channel *chan = ndev->channel;
 	int ret;
 
 	if (!chan || !chan->accel_done || in_interrupt() ||
@@ -246,7 +246,7 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 		     struct drm_fb_helper_surface_size *sizes)
 {
 	struct drm_device *dev = nfbdev->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct fb_info *info;
 	struct drm_framebuffer *fb;
 	struct nouveau_framebuffer *nouveau_fb;
@@ -291,8 +291,8 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 		goto out;
 	}
 
-	chan = nouveau_nofbaccel ? NULL : dev_priv->channel;
-	if (chan && dev_priv->card_type >= NV_50) {
+	chan = nouveau_nofbaccel ? NULL : ndev->channel;
+	if (chan && ndev->card_type >= NV_50) {
 		ret = nouveau_bo_vma_add(nvbo, chan->vm, &nfbdev->nouveau_fb.vma);
 		if (ret) {
 			NV_ERROR(dev, "failed to map fb into chan: %d\n", ret);
@@ -345,7 +345,7 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 	drm_fb_helper_fill_var(info, &nfbdev->helper, sizes->fb_width, sizes->fb_height);
 
 	/* Set aperture base/size for vesafb takeover */
-	info->apertures = dev_priv->apertures;
+	info->apertures = ndev->apertures;
 	if (!info->apertures) {
 		ret = -ENOMEM;
 		goto out_unref;
@@ -355,12 +355,12 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 
 	mutex_unlock(&dev->struct_mutex);
 
-	if (dev_priv->channel && !nouveau_nofbaccel) {
+	if (ndev->channel && !nouveau_nofbaccel) {
 		ret = -ENODEV;
-		if (dev_priv->card_type < NV_50)
+		if (ndev->card_type < NV_50)
 			ret = nv04_fbcon_accel_init(info);
 		else
-		if (dev_priv->card_type < NV_C0)
+		if (ndev->card_type < NV_C0)
 			ret = nv50_fbcon_accel_init(info);
 		else
 			ret = nvc0_fbcon_accel_init(info);
@@ -406,8 +406,8 @@ nouveau_fbcon_find_or_create_single(struct drm_fb_helper *helper,
 void
 nouveau_fbcon_output_poll_changed(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	drm_fb_helper_hotplug_event(&dev_priv->nfbdev->helper);
+	struct nouveau_device *ndev = nouveau_device(dev);
+	drm_fb_helper_hotplug_event(&ndev->nfbdev->helper);
 }
 
 static int
@@ -453,7 +453,7 @@ static struct drm_fb_helper_funcs nouveau_fbcon_helper_funcs = {
 
 int nouveau_fbcon_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_fbdev *nfbdev;
 	int preferred_bpp;
 	int ret;
@@ -463,7 +463,7 @@ int nouveau_fbcon_init(struct drm_device *dev)
 		return -ENOMEM;
 
 	nfbdev->dev = dev;
-	dev_priv->nfbdev = nfbdev;
+	ndev->nfbdev = nfbdev;
 	nfbdev->helper.funcs = &nouveau_fbcon_helper_funcs;
 
 	ret = drm_fb_helper_init(dev, &nfbdev->helper,
@@ -475,9 +475,9 @@ int nouveau_fbcon_init(struct drm_device *dev)
 
 	drm_fb_helper_single_add_all_connectors(&nfbdev->helper);
 
-	if (dev_priv->vram_size <= 32 * 1024 * 1024)
+	if (ndev->vram_size <= 32 * 1024 * 1024)
 		preferred_bpp = 8;
-	else if (dev_priv->vram_size <= 64 * 1024 * 1024)
+	else if (ndev->vram_size <= 64 * 1024 * 1024)
 		preferred_bpp = 16;
 	else
 		preferred_bpp = 32;
@@ -488,37 +488,37 @@ int nouveau_fbcon_init(struct drm_device *dev)
 
 void nouveau_fbcon_fini(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
-	if (!dev_priv->nfbdev)
+	if (!ndev->nfbdev)
 		return;
 
-	nouveau_fbcon_destroy(dev, dev_priv->nfbdev);
-	kfree(dev_priv->nfbdev);
-	dev_priv->nfbdev = NULL;
+	nouveau_fbcon_destroy(dev, ndev->nfbdev);
+	kfree(ndev->nfbdev);
+	ndev->nfbdev = NULL;
 }
 
 void nouveau_fbcon_save_disable_accel(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
-	dev_priv->nfbdev->saved_flags = dev_priv->nfbdev->helper.fbdev->flags;
-	dev_priv->nfbdev->helper.fbdev->flags |= FBINFO_HWACCEL_DISABLED;
+	ndev->nfbdev->saved_flags = ndev->nfbdev->helper.fbdev->flags;
+	ndev->nfbdev->helper.fbdev->flags |= FBINFO_HWACCEL_DISABLED;
 }
 
 void nouveau_fbcon_restore_accel(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	dev_priv->nfbdev->helper.fbdev->flags = dev_priv->nfbdev->saved_flags;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	ndev->nfbdev->helper.fbdev->flags = ndev->nfbdev->saved_flags;
 }
 
 void nouveau_fbcon_set_suspend(struct drm_device *dev, int state)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	console_lock();
 	if (state == 0)
 		nouveau_fbcon_save_disable_accel(dev);
-	fb_set_suspend(dev_priv->nfbdev->helper.fbdev, state);
+	fb_set_suspend(ndev->nfbdev->helper.fbdev, state);
 	if (state == 1)
 		nouveau_fbcon_restore_accel(dev);
 	console_unlock();
@@ -526,6 +526,6 @@ void nouveau_fbcon_set_suspend(struct drm_device *dev, int state)
 
 void nouveau_fbcon_zfill_all(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	nouveau_fbcon_zfill(dev, dev_priv->nfbdev);
+	struct nouveau_device *ndev = nouveau_device(dev);
+	nouveau_fbcon_zfill(dev, ndev->nfbdev);
 }

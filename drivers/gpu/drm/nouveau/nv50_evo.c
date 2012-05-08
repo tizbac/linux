@@ -52,12 +52,12 @@ nv50_evo_channel_del(struct nouveau_channel **pevo)
 void
 nv50_evo_dmaobj_init(struct nouveau_gpuobj *obj, u32 memtype, u64 base, u64 size)
 {
-	struct drm_nouveau_private *dev_priv = obj->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(obj->dev);
 	u32 flags5;
 
-	if (dev_priv->chipset < 0xc0) {
+	if (ndev->chipset < 0xc0) {
 		/* not supported on 0x50, specified in format mthd */
-		if (dev_priv->chipset == 0x50)
+		if (ndev->chipset == 0x50)
 			memtype = 0;
 		flags5 = 0x00010000;
 	} else {
@@ -70,7 +70,7 @@ nv50_evo_dmaobj_init(struct nouveau_gpuobj *obj, u32 memtype, u64 base, u64 size
 	nv50_gpuobj_dma_init(obj, 0, 0x3d, base, size, NV_MEM_TARGET_VRAM,
 			     NV_MEM_ACCESS_RW, (memtype >> 8) & 0xff, 0);
 	nv_wo32(obj, 0x14, flags5);
-	dev_priv->subsys.instmem.flush(obj->dev);
+	ndev->subsys.instmem.flush(obj->dev);
 }
 
 int
@@ -238,7 +238,7 @@ nv50_evo_destroy(struct drm_device *dev)
 int
 nv50_evo_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv50_display *disp = nv50_display(dev);
 	struct nouveau_gpuobj *ramht = NULL;
 	struct nouveau_channel *evo;
@@ -300,24 +300,24 @@ nv50_evo_create(struct drm_device *dev)
 
 	/* create some default objects for the scanout memtypes we support */
 	ret = nv50_evo_dmaobj_new(disp->master, NvEvoVRAM, 0x0000,
-				  0, dev_priv->vram_size, NULL);
+				  0, ndev->vram_size, NULL);
 	if (ret)
 		goto err;
 
 	ret = nv50_evo_dmaobj_new(disp->master, NvEvoVRAM_LP, 0x80000000,
-				  0, dev_priv->vram_size, NULL);
+				  0, ndev->vram_size, NULL);
 	if (ret)
 		goto err;
 
 	ret = nv50_evo_dmaobj_new(disp->master, NvEvoFB32, 0x80000000 |
-				  (dev_priv->chipset < 0xc0 ? 0x7a00 : 0xfe00),
-				  0, dev_priv->vram_size, NULL);
+				  (ndev->chipset < 0xc0 ? 0x7a00 : 0xfe00),
+				  0, ndev->vram_size, NULL);
 	if (ret)
 		goto err;
 
 	ret = nv50_evo_dmaobj_new(disp->master, NvEvoFB16, 0x80000000 |
-				  (dev_priv->chipset < 0xc0 ? 0x7000 : 0xfe00),
-				  0, dev_priv->vram_size, NULL);
+				  (ndev->chipset < 0xc0 ? 0x7000 : 0xfe00),
+				  0, ndev->vram_size, NULL);
 	if (ret)
 		goto err;
 
@@ -352,21 +352,21 @@ nv50_evo_create(struct drm_device *dev)
 			goto err;
 
 		ret = nv50_evo_dmaobj_new(dispc->sync, NvEvoVRAM_LP, 0x80000000,
-					  0, dev_priv->vram_size, NULL);
+					  0, ndev->vram_size, NULL);
 		if (ret)
 			goto err;
 
 		ret = nv50_evo_dmaobj_new(dispc->sync, NvEvoFB32, 0x80000000 |
-					  (dev_priv->chipset < 0xc0 ?
+					  (ndev->chipset < 0xc0 ?
 					  0x7a00 : 0xfe00),
-					  0, dev_priv->vram_size, NULL);
+					  0, ndev->vram_size, NULL);
 		if (ret)
 			goto err;
 
 		ret = nv50_evo_dmaobj_new(dispc->sync, NvEvoFB16, 0x80000000 |
-					  (dev_priv->chipset < 0xc0 ?
+					  (ndev->chipset < 0xc0 ?
 					  0x7000 : 0xfe00),
-					  0, dev_priv->vram_size, NULL);
+					  0, ndev->vram_size, NULL);
 		if (ret)
 			goto err;
 

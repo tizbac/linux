@@ -660,7 +660,7 @@ enum nouveau_card_type {
 	NV_E0      = 0xe0,
 };
 
-struct drm_nouveau_private {
+struct nouveau_device {
 	struct drm_device *dev;
 	bool noaccel;
 
@@ -805,16 +805,16 @@ struct drm_nouveau_private {
 	struct apertures_struct *apertures;
 };
 
-static inline struct drm_nouveau_private *
-nouveau_private(struct drm_device *dev)
+static inline struct nouveau_device *
+nouveau_device(struct drm_device *dev)
 {
 	return dev->dev_private;
 }
 
-static inline struct drm_nouveau_private *
+static inline struct nouveau_device *
 nouveau_bdev(struct ttm_bo_device *bd)
 {
-	return container_of(bd, struct drm_nouveau_private, ttm.bdev);
+	return container_of(bd, struct nouveau_device, ttm.bdev);
 }
 
 static inline int
@@ -929,13 +929,13 @@ extern int  nouveau_channel_idle(struct nouveau_channel *chan);
 
 /* nouveau_gpuobj.c */
 #define NVOBJ_ENGINE_ADD(d, e, p) do {                                         \
-	struct drm_nouveau_private *dev_priv = (d)->dev_private;               \
-	dev_priv->engine[NVOBJ_ENGINE_##e] = (p);                                 \
+	struct nouveau_device *ndev = nouveau_device(d);                   \
+	ndev->engine[NVOBJ_ENGINE_##e] = (p);                              \
 } while (0)
 
 #define NVOBJ_ENGINE_DEL(d, e) do {                                            \
-	struct drm_nouveau_private *dev_priv = (d)->dev_private;               \
-	dev_priv->engine[NVOBJ_ENGINE_##e] = NULL;                                \
+	struct nouveau_device *ndev = nouveau_device(d);                   \
+	ndev->engine[NVOBJ_ENGINE_##e] = NULL;                             \
 } while (0)
 
 #define NVOBJ_CLASS(d, c, e) do {                                              \
@@ -1097,8 +1097,8 @@ int  nouveau_mxm_init(struct drm_device *dev);
 void nouveau_mxm_fini(struct drm_device *dev);
 
 /* nouveau_ttm.c */
-int nouveau_ttm_global_init(struct drm_nouveau_private *);
-void nouveau_ttm_global_release(struct drm_nouveau_private *);
+int nouveau_ttm_global_init(struct nouveau_device *);
+void nouveau_ttm_global_release(struct nouveau_device *);
 int nouveau_ttm_mmap(struct file *, struct vm_area_struct *);
 
 /* nouveau_hdmi.c */
@@ -1433,14 +1433,14 @@ static inline void nvchan_wr32(struct nouveau_channel *chan,
 /* register access */
 static inline u32 nv_rd32(struct drm_device *dev, unsigned reg)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	return ioread32_native(dev_priv->mmio + reg);
+	struct nouveau_device *ndev = nouveau_device(dev);
+	return ioread32_native(ndev->mmio + reg);
 }
 
 static inline void nv_wr32(struct drm_device *dev, unsigned reg, u32 val)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	iowrite32_native(val, dev_priv->mmio + reg);
+	struct nouveau_device *ndev = nouveau_device(dev);
+	iowrite32_native(val, ndev->mmio + reg);
 }
 
 static inline u32 nv_mask(struct drm_device *dev, u32 reg, u32 mask, u32 val)
@@ -1452,14 +1452,14 @@ static inline u32 nv_mask(struct drm_device *dev, u32 reg, u32 mask, u32 val)
 
 static inline u8 nv_rd08(struct drm_device *dev, unsigned reg)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	return ioread8(dev_priv->mmio + reg);
+	struct nouveau_device *ndev = nouveau_device(dev);
+	return ioread8(ndev->mmio + reg);
 }
 
 static inline void nv_wr08(struct drm_device *dev, unsigned reg, u8 val)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	iowrite8(val, dev_priv->mmio + reg);
+	struct nouveau_device *ndev = nouveau_device(dev);
+	iowrite8(val, ndev->mmio + reg);
 }
 
 #define nv_wait(dev, reg, mask, val) \
@@ -1472,14 +1472,14 @@ static inline void nv_wr08(struct drm_device *dev, unsigned reg, u8 val)
 /* PRAMIN access */
 static inline u32 nv_ri32(struct drm_device *dev, unsigned offset)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	return ioread32_native(dev_priv->ramin + offset);
+	struct nouveau_device *ndev = nouveau_device(dev);
+	return ioread32_native(ndev->ramin + offset);
 }
 
 static inline void nv_wi32(struct drm_device *dev, unsigned offset, u32 val)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	iowrite32_native(val, dev_priv->ramin + offset);
+	struct nouveau_device *ndev = nouveau_device(dev);
+	iowrite32_native(val, ndev->ramin + offset);
 }
 
 /* object access */
@@ -1552,10 +1552,10 @@ enum {
 static inline bool
 nv_two_heads(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	const int impl = dev->pci_device & 0x0ff0;
 
-	if (dev_priv->card_type >= NV_10 && impl != 0x0100 &&
+	if (ndev->card_type >= NV_10 && impl != 0x0100 &&
 	    impl != 0x0150 && impl != 0x01a0 && impl != 0x0200)
 		return true;
 
@@ -1571,10 +1571,10 @@ nv_gf4_disp_arch(struct drm_device *dev)
 static inline bool
 nv_two_reg_pll(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	const int impl = dev->pci_device & 0x0ff0;
 
-	if (impl == 0x0310 || impl == 0x0340 || dev_priv->card_type >= NV_40)
+	if (impl == 0x0310 || impl == 0x0340 || ndev->card_type >= NV_40)
 		return true;
 	return false;
 }
@@ -1591,8 +1591,8 @@ nv_match_device(struct drm_device *dev, unsigned device,
 static inline void *
 nv_engine(struct drm_device *dev, int engine)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	return (void *)dev_priv->engine[engine];
+	struct nouveau_device *ndev = nouveau_device(dev);
+	return (void *)ndev->engine[engine];
 }
 
 /* returns 1 if device is one of the nv4x using the 0x4497 object class,
@@ -1601,12 +1601,12 @@ nv_engine(struct drm_device *dev, int engine)
 static inline int
 nv44_graph_class(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
-	if ((dev_priv->chipset & 0xf0) == 0x60)
+	if ((ndev->chipset & 0xf0) == 0x60)
 		return 1;
 
-	return !(0x0baf & (1 << (dev_priv->chipset & 0x0f)));
+	return !(0x0baf & (1 << (ndev->chipset & 0x0f)));
 }
 
 /* memory type/access flags, do not match hardware values */

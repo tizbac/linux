@@ -60,8 +60,8 @@ int
 nvc0_vram_new(struct drm_device *dev, u64 size, u32 align, u32 ncmin,
 	      u32 type, struct nouveau_mem **pmem)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_mm *mm = &dev_priv->subsys.vram.mm;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_mm *mm = &ndev->subsys.vram.mm;
 	struct nouveau_mm_node *r;
 	struct nouveau_mem *mem;
 	int ret;
@@ -75,7 +75,7 @@ nvc0_vram_new(struct drm_device *dev, u64 size, u32 align, u32 ncmin,
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&mem->regions);
-	mem->dev = dev_priv->dev;
+	mem->dev = ndev->dev;
 	mem->memtype = (type & 0xff);
 	mem->size = size;
 
@@ -102,8 +102,8 @@ nvc0_vram_new(struct drm_device *dev, u64 size, u32 align, u32 ncmin,
 int
 nvc0_vram_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_vram_engine *vram = &dev_priv->subsys.vram;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_vram_engine *vram = &ndev->subsys.vram;
 	const u32 rsvd_head = ( 256 * 1024) >> 12; /* vga memory */
 	const u32 rsvd_tail = (1024 * 1024) >> 12; /* vbios etc */
 	u32 parts = nv_rd32(dev, 0x022438);
@@ -116,8 +116,8 @@ nvc0_vram_init(struct drm_device *dev)
 	NV_DEBUG(dev, "0x100800: 0x%08x\n", nv_rd32(dev, 0x100800));
 	NV_DEBUG(dev, "parts 0x%08x mask 0x%08x\n", parts, pmask);
 
-	dev_priv->vram_type = nouveau_mem_vbios_type(dev);
-	dev_priv->vram_rank_B = !!(nv_rd32(dev, 0x10f200) & 0x00000004);
+	ndev->vram_type = nouveau_mem_vbios_type(dev);
+	ndev->vram_rank_B = !!(nv_rd32(dev, 0x10f200) & 0x00000004);
 
 	/* read amount of vram attached to each memory controller */
 	for (part = 0; part < parts; part++) {
@@ -130,14 +130,14 @@ nvc0_vram_init(struct drm_device *dev)
 			}
 
 			NV_DEBUG(dev, "%d: mem_amount 0x%08x\n", part, psize);
-			dev_priv->vram_size += (u64)psize << 20;
+			ndev->vram_size += (u64)psize << 20;
 		}
 	}
 
 	/* if all controllers have the same amount attached, there's no holes */
 	if (uniform) {
 		offset = rsvd_head;
-		length = (dev_priv->vram_size >> 12) - rsvd_head - rsvd_tail;
+		length = (ndev->vram_size >> 12) - rsvd_head - rsvd_tail;
 		return nouveau_mm_init(&vram->mm, offset, length, 1);
 	}
 
@@ -148,7 +148,7 @@ nvc0_vram_init(struct drm_device *dev)
 
 	/* and the rest starting from (8GiB + common_size) */
 	offset = (0x0200000000ULL >> 12) + (bsize << 8);
-	length = (dev_priv->vram_size >> 12) - (bsize << 8) - rsvd_tail;
+	length = (ndev->vram_size >> 12) - (bsize << 8) - rsvd_tail;
 
 	ret = nouveau_mm_init(&vram->mm, offset, length, 0);
 	if (ret) {

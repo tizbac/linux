@@ -220,7 +220,7 @@ out:
 uint32_t nv17_dac_sample_load(struct drm_encoder *encoder)
 {
 	struct drm_device *dev = encoder->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct dcb_entry *dcb = nouveau_encoder(encoder)->dcb;
 	uint32_t sample, testval, regoffset = nv04_dac_output_offset(encoder);
 	uint32_t saved_powerctrl_2 = 0, saved_powerctrl_4 = 0, saved_routput,
@@ -231,13 +231,13 @@ uint32_t nv17_dac_sample_load(struct drm_encoder *encoder)
 	if (dcb->type == OUTPUT_TV) {
 		testval = RGB_TEST_DATA(0xa0, 0xa0, 0xa0);
 
-		if (dev_priv->vbios.tvdactestval)
-			testval = dev_priv->vbios.tvdactestval;
+		if (ndev->vbios.tvdactestval)
+			testval = ndev->vbios.tvdactestval;
 	} else {
 		testval = RGB_TEST_DATA(0x140, 0x140, 0x140); /* 0x94050140 */
 
-		if (dev_priv->vbios.dactestval)
-			testval = dev_priv->vbios.dactestval;
+		if (ndev->vbios.dactestval)
+			testval = ndev->vbios.dactestval;
 	}
 
 	saved_rtest_ctrl = NVReadRAMDAC(dev, 0, NV_PRAMDAC_TEST_CONTROL + regoffset);
@@ -270,7 +270,7 @@ uint32_t nv17_dac_sample_load(struct drm_encoder *encoder)
 	/* nv driver and nv31 use 0xfffffeee, nv34 and 6600 use 0xfffffece */
 	routput = (saved_routput & 0xfffffece) | head << 8;
 
-	if (dev_priv->card_type >= NV_40) {
+	if (ndev->card_type >= NV_40) {
 		if (dcb->type == OUTPUT_TV)
 			routput |= 0x1a << 16;
 		else
@@ -357,7 +357,7 @@ static void nv04_dac_mode_set(struct drm_encoder *encoder,
 			      struct drm_display_mode *adjusted_mode)
 {
 	struct drm_device *dev = encoder->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int head = nouveau_crtc(encoder->crtc)->index;
 
 	if (nv_gf4_disp_arch(dev)) {
@@ -383,7 +383,7 @@ static void nv04_dac_mode_set(struct drm_encoder *encoder,
 	}
 
 	/* This could use refinement for flatpanels, but it should work this way */
-	if (dev_priv->chipset < 0x44)
+	if (ndev->chipset < 0x44)
 		NVWriteRAMDAC(dev, 0, NV_PRAMDAC_TEST_CONTROL + nv04_dac_output_offset(encoder), 0xf0000000);
 	else
 		NVWriteRAMDAC(dev, 0, NV_PRAMDAC_TEST_CONTROL + nv04_dac_output_offset(encoder), 0x00100000);
@@ -406,11 +406,11 @@ static void nv04_dac_commit(struct drm_encoder *encoder)
 void nv04_dac_update_dacclk(struct drm_encoder *encoder, bool enable)
 {
 	struct drm_device *dev = encoder->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct dcb_entry *dcb = nouveau_encoder(encoder)->dcb;
 
 	if (nv_gf4_disp_arch(dev)) {
-		uint32_t *dac_users = &dev_priv->dac_users[ffs(dcb->or) - 1];
+		uint32_t *dac_users = &ndev->dac_users[ffs(dcb->or) - 1];
 		int dacclk_off = NV_PRAMDAC_DACCLK + nv04_dac_output_offset(encoder);
 		uint32_t dacclk = NVReadRAMDAC(dev, 0, dacclk_off);
 
@@ -431,11 +431,11 @@ void nv04_dac_update_dacclk(struct drm_encoder *encoder, bool enable)
  * someone else. */
 bool nv04_dac_in_use(struct drm_encoder *encoder)
 {
-	struct drm_nouveau_private *dev_priv = encoder->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct dcb_entry *dcb = nouveau_encoder(encoder)->dcb;
 
 	return nv_gf4_disp_arch(encoder->dev) &&
-		(dev_priv->dac_users[ffs(dcb->or) - 1] & ~(1 << dcb->index));
+		(ndev->dac_users[ffs(dcb->or) - 1] & ~(1 << dcb->index));
 }
 
 static void nv04_dac_dpms(struct drm_encoder *encoder, int mode)

@@ -64,8 +64,8 @@ nvc0_mfb_isr(struct drm_device *dev)
 static void
 nvc0_fb_destroy(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	struct nvc0_fb_priv *priv = pfb->priv;
 
 	nouveau_irq_unregister(dev, 25);
@@ -83,8 +83,8 @@ nvc0_fb_destroy(struct drm_device *dev)
 static int
 nvc0_fb_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	struct nvc0_fb_priv *priv;
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
@@ -112,16 +112,16 @@ nvc0_fb_create(struct drm_device *dev)
 int
 nvc0_fb_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_fb_priv *priv;
 	int ret;
 
-	if (!dev_priv->subsys.fb.priv) {
+	if (!ndev->subsys.fb.priv) {
 		ret = nvc0_fb_create(dev);
 		if (ret)
 			return ret;
 	}
-	priv = dev_priv->subsys.fb.priv;
+	priv = ndev->subsys.fb.priv;
 
 	nv_wr32(dev, 0x100c10, priv->r100c10 >> 8);
 	return 0;

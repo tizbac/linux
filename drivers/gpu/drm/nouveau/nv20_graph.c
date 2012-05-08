@@ -68,11 +68,11 @@ nv20_graph_unload_context(struct drm_device *dev)
 static void
 nv20_graph_rdi(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int i, writecount = 32;
 	uint32_t rdi_index = 0x2c80000;
 
-	if (dev_priv->chipset == 0x20) {
+	if (ndev->chipset == 0x20) {
 		rdi_index = 0x3d0000;
 		writecount = 15;
 	}
@@ -448,10 +448,10 @@ nv20_graph_context_del(struct nouveau_channel *chan, int engine)
 	struct nv20_graph_engine *pgraph = nv_engine(chan->dev, engine);
 	struct nouveau_gpuobj *grctx = chan->engctx[engine];
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	unsigned long flags;
 
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_mask(dev, NV04_PGRAPH_FIFO, 0x00000001, 0x00000000);
 
 	/* Unload the context if it's the currently active one */
@@ -459,7 +459,7 @@ nv20_graph_context_del(struct nouveau_channel *chan, int engine)
 		nv20_graph_unload_context(dev);
 
 	nv_mask(dev, NV04_PGRAPH_FIFO, 0x00000001, 0x00000001);
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 	/* Free the context resources */
 	nv_wo32(pgraph->ctxtab, chan->id * 4, 0);
@@ -471,8 +471,8 @@ nv20_graph_context_del(struct nouveau_channel *chan, int engine)
 static void
 nv20_graph_set_tile_region(struct drm_device *dev, int i)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_tile_reg *tile = &dev_priv->tile.reg[i];
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	nv_wr32(dev, NV20_PGRAPH_TLIMIT(i), tile->limit);
 	nv_wr32(dev, NV20_PGRAPH_TSIZE(i), tile->pitch);
@@ -485,7 +485,7 @@ nv20_graph_set_tile_region(struct drm_device *dev, int i)
 	nv_wr32(dev, NV10_PGRAPH_RDI_INDEX, 0x00EA0010 + 4 * i);
 	nv_wr32(dev, NV10_PGRAPH_RDI_DATA, tile->addr);
 
-	if (dev_priv->card_type == NV_20) {
+	if (ndev->card_type == NV_20) {
 		nv_wr32(dev, NV20_PGRAPH_ZCOMP(i), tile->zcomp);
 		nv_wr32(dev, NV10_PGRAPH_RDI_INDEX, 0x00ea0090 + 4 * i);
 		nv_wr32(dev, NV10_PGRAPH_RDI_DATA, tile->zcomp);
@@ -496,7 +496,7 @@ int
 nv20_graph_init(struct drm_device *dev, int engine)
 {
 	struct nv20_graph_engine *pgraph = nv_engine(dev, engine);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	uint32_t tmp, vramsz;
 	int i;
 
@@ -519,7 +519,7 @@ nv20_graph_init(struct drm_device *dev, int engine)
 	nv_wr32(dev, NV10_PGRAPH_DEBUG_4, 0x00000000);
 	nv_wr32(dev, 0x40009C           , 0x00000040);
 
-	if (dev_priv->chipset >= 0x25) {
+	if (ndev->chipset >= 0x25) {
 		nv_wr32(dev, 0x400890, 0x00a8cfff);
 		nv_wr32(dev, 0x400610, 0x304B1FB6);
 		nv_wr32(dev, 0x400B80, 0x1cbd3883);
@@ -584,7 +584,7 @@ int
 nv30_graph_init(struct drm_device *dev, int engine)
 {
 	struct nv20_graph_engine *pgraph = nv_engine(dev, engine);
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int i;
 
 	nv_wr32(dev, NV03_PMC_ENABLE,
@@ -616,7 +616,7 @@ nv30_graph_init(struct drm_device *dev, int engine)
 	nv_wr32(dev, 0x400ba4, 0x00231f3f);
 	nv_wr32(dev, 0x4008a4, 0x40000020);
 
-	if (dev_priv->chipset == 0x34) {
+	if (ndev->chipset == 0x34) {
 		nv_wr32(dev, NV10_PGRAPH_RDI_INDEX, 0x00EA0004);
 		nv_wr32(dev, NV10_PGRAPH_RDI_DATA , 0x00200201);
 		nv_wr32(dev, NV10_PGRAPH_RDI_INDEX, 0x00EA0008);
@@ -641,7 +641,7 @@ nv30_graph_init(struct drm_device *dev, int engine)
 	/* vramsz = pci_resource_len(dev->pdev, 0) - 1; */
 	nv_wr32(dev, 0x4009A4, nv_rd32(dev, NV04_PFB_CFG0));
 	nv_wr32(dev, 0x4009A8, nv_rd32(dev, NV04_PFB_CFG1));
-	if (dev_priv->chipset != 0x34) {
+	if (ndev->chipset != 0x34) {
 		nv_wr32(dev, 0x400750, 0x00EA0000);
 		nv_wr32(dev, 0x400754, nv_rd32(dev, NV04_PFB_CFG0));
 		nv_wr32(dev, 0x400750, 0x00EA0004);
@@ -720,7 +720,7 @@ nv20_graph_destroy(struct drm_device *dev, int engine)
 int
 nv20_graph_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv20_graph_engine *pgraph;
 	int ret;
 
@@ -736,9 +736,9 @@ nv20_graph_create(struct drm_device *dev)
 	pgraph->base.set_tile_region = nv20_graph_set_tile_region;
 
 	pgraph->grctx_user = 0x0028;
-	if (dev_priv->card_type == NV_20) {
+	if (ndev->card_type == NV_20) {
 		pgraph->base.init = nv20_graph_init;
-		switch (dev_priv->chipset) {
+		switch (ndev->chipset) {
 		case 0x20:
 			pgraph->grctx_init = nv20_graph_context_init;
 			pgraph->grctx_size = NV20_GRCTX_SIZE;
@@ -761,7 +761,7 @@ nv20_graph_create(struct drm_device *dev)
 		}
 	} else {
 		pgraph->base.init = nv30_graph_init;
-		switch (dev_priv->chipset) {
+		switch (ndev->chipset) {
 		case 0x30:
 		case 0x31:
 			pgraph->grctx_init = nv30_31_graph_context_init;
@@ -806,12 +806,12 @@ nv20_graph_create(struct drm_device *dev)
 	NVOBJ_CLASS(dev, 0x0072, GR); /* beta4 */
 	NVOBJ_CLASS(dev, 0x0019, GR); /* cliprect */
 	NVOBJ_CLASS(dev, 0x0044, GR); /* pattern */
-	if (dev_priv->card_type == NV_20) {
+	if (ndev->card_type == NV_20) {
 		NVOBJ_CLASS(dev, 0x009e, GR); /* swzsurf */
 		NVOBJ_CLASS(dev, 0x0096, GR); /* celcius */
 
 		/* kelvin */
-		if (dev_priv->chipset < 0x25)
+		if (ndev->chipset < 0x25)
 			NVOBJ_CLASS(dev, 0x0097, GR);
 		else
 			NVOBJ_CLASS(dev, 0x0597, GR);
@@ -822,13 +822,13 @@ nv20_graph_create(struct drm_device *dev)
 		NVOBJ_CLASS(dev, 0x039e, GR); /* swzsurf */
 
 		/* rankine */
-		if (0x00000003 & (1 << (dev_priv->chipset & 0x0f)))
+		if (0x00000003 & (1 << (ndev->chipset & 0x0f)))
 			NVOBJ_CLASS(dev, 0x0397, GR);
 		else
-		if (0x00000010 & (1 << (dev_priv->chipset & 0x0f)))
+		if (0x00000010 & (1 << (ndev->chipset & 0x0f)))
 			NVOBJ_CLASS(dev, 0x0697, GR);
 		else
-		if (0x000001e0 & (1 << (dev_priv->chipset & 0x0f)))
+		if (0x000001e0 & (1 << (ndev->chipset & 0x0f)))
 			NVOBJ_CLASS(dev, 0x0497, GR);
 	}
 

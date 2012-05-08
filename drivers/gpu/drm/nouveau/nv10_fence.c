@@ -161,18 +161,23 @@ nv10_fence_init(struct drm_device *dev, int engine)
 static void
 nv10_fence_destroy(struct drm_device *dev, int engine)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv10_fence_priv *priv = nv_engine(dev, engine);
 
+<<<<<<< HEAD
 	nouveau_bo_ref(NULL, &priv->bo);
 	dev_priv->engine[engine] = NULL;
+=======
+	nouveau_gpuobj_ref(NULL, &priv->mem);
+	ndev->engine[engine] = NULL;
+>>>>>>> 91bfb3f... drm/nouveau: rename drm_nouveau_private to nouveau_device
 	kfree(priv);
 }
 
 int
 nv10_fence_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv10_fence_priv *priv;
 	int ret = 0;
 
@@ -188,10 +193,10 @@ nv10_fence_create(struct drm_device *dev)
 	priv->base.emit = nv10_fence_emit;
 	priv->base.read = nv10_fence_read;
 	priv->base.sync = nv10_fence_sync;
-	dev_priv->engine[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
+	ndev->engine[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
 	spin_lock_init(&priv->lock);
 
-	if (dev_priv->chipset >= 0x17) {
+	if (ndev->chipset >= 0x17) {
 		ret = nouveau_bo_new(dev, 4096, 0x1000, TTM_PL_FLAG_VRAM,
 				     0, 0x0000, NULL, &priv->bo);
 		if (!ret) {

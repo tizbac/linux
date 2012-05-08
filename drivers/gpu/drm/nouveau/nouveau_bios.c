@@ -87,13 +87,13 @@ static void
 bios_shadow_prom(struct nvbios *bios)
 {
 	struct drm_device *dev = bios->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 pcireg, access;
 	u16 pcir;
 	int i;
 
 	/* enable access to rom */
-	if (dev_priv->card_type >= NV_50)
+	if (ndev->card_type >= NV_50)
 		pcireg = 0x088050;
 	else
 		pcireg = NV_PBUS_PCI_NV_20;
@@ -139,11 +139,11 @@ static void
 bios_shadow_pramin(struct nvbios *bios)
 {
 	struct drm_device *dev = bios->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 bar0 = 0;
 	int i;
 
-	if (dev_priv->card_type >= NV_50) {
+	if (ndev->card_type >= NV_50) {
 		u64 addr = (u64)(nv_rd32(dev, 0x619f04) & 0xffffff00) << 8;
 		if (!addr) {
 			addr  = (u64)nv_rd32(dev, 0x001700) << 16;
@@ -166,7 +166,7 @@ bios_shadow_pramin(struct nvbios *bios)
 	}
 
 out:
-	if (dev_priv->card_type >= NV_50)
+	if (ndev->card_type >= NV_50)
 		nv_wr32(dev, 0x001700, bar0);
 }
 
@@ -236,8 +236,8 @@ bios_shadow(struct drm_device *dev)
 		{ "PCIROM", bios_shadow_pci, true, 0, 0, NULL },
 		{}
 	};
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	struct methods *mthd, *best;
 	const struct firmware *fw;
 	char fname[32];
@@ -337,10 +337,10 @@ static void still_alive(void)
 static uint32_t
 munge_reg(struct nvbios *bios, uint32_t reg)
 {
-	struct drm_nouveau_private *dev_priv = bios->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(bios->dev);
 	struct dcb_entry *dcbent = bios->display.output;
 
-	if (dev_priv->card_type < NV_50)
+	if (ndev->card_type < NV_50)
 		return reg;
 
 	if (reg & 0x80000000) {
@@ -363,16 +363,16 @@ munge_reg(struct nvbios *bios, uint32_t reg)
 static int
 valid_reg(struct nvbios *bios, uint32_t reg)
 {
-	struct drm_nouveau_private *dev_priv = bios->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(bios->dev);
 	struct drm_device *dev = bios->dev;
 
 	/* C51 has misaligned regs on purpose. Marvellous */
 	if (reg & 0x2 ||
-	    (reg & 0x1 && dev_priv->vbios.chip_version != 0x51))
+	    (reg & 0x1 && ndev->vbios.chip_version != 0x51))
 		NV_ERROR(dev, "======= misaligned reg 0x%08X =======\n", reg);
 
 	/* warn on C51 regs that haven't been verified accessible in tracing */
-	if (reg & 0x1 && dev_priv->vbios.chip_version == 0x51 &&
+	if (reg & 0x1 && ndev->vbios.chip_version == 0x51 &&
 	    reg != 0x130d && reg != 0x1311 && reg != 0x60081d)
 		NV_WARN(dev, "=== C51 misaligned reg 0x%08X not verified ===\n",
 			reg);
@@ -388,7 +388,7 @@ valid_reg(struct nvbios *bios, uint32_t reg)
 static bool
 valid_idx_port(struct nvbios *bios, uint16_t port)
 {
-	struct drm_nouveau_private *dev_priv = bios->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(bios->dev);
 	struct drm_device *dev = bios->dev;
 
 	/*
@@ -396,7 +396,7 @@ valid_idx_port(struct nvbios *bios, uint16_t port)
 	 * updating so that the correct mmio range (PRMCIO, PRMDIO, PRMVIO) is
 	 * used for the port in question
 	 */
-	if (dev_priv->card_type < NV_50) {
+	if (ndev->card_type < NV_50) {
 		if (port == NV_CIO_CRX__COLOR)
 			return true;
 		if (port == NV_VIO_SRX)
@@ -464,7 +464,7 @@ bios_rd32(struct nvbios *bios, uint32_t reg)
 static void
 bios_wr32(struct nvbios *bios, uint32_t reg, uint32_t data)
 {
-	struct drm_nouveau_private *dev_priv = bios->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(bios->dev);
 
 	reg = munge_reg(bios, reg);
 	if (!valid_reg(bios, reg))
@@ -477,7 +477,7 @@ bios_wr32(struct nvbios *bios, uint32_t reg, uint32_t data)
 	LOG_OLD_VALUE(bios_rd32(bios, reg));
 	BIOSLOG(bios, "	Write: Reg: 0x%08X, Data: 0x%08X\n", reg, data);
 
-	if (dev_priv->vbios.execute) {
+	if (ndev->vbios.execute) {
 		still_alive();
 		nv_wr32(bios->dev, reg, data);
 	}
@@ -486,14 +486,14 @@ bios_wr32(struct nvbios *bios, uint32_t reg, uint32_t data)
 static uint8_t
 bios_idxprt_rd(struct nvbios *bios, uint16_t port, uint8_t index)
 {
-	struct drm_nouveau_private *dev_priv = bios->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(bios->dev);
 	struct drm_device *dev = bios->dev;
 	uint8_t data;
 
 	if (!valid_idx_port(bios, port))
 		return 0;
 
-	if (dev_priv->card_type < NV_50) {
+	if (ndev->card_type < NV_50) {
 		if (port == NV_VIO_SRX)
 			data = NVReadVgaSeq(dev, bios->state.crtchead, index);
 		else	/* assume NV_CIO_CRX__COLOR */
@@ -514,7 +514,7 @@ bios_idxprt_rd(struct nvbios *bios, uint16_t port, uint8_t index)
 static void
 bios_idxprt_wr(struct nvbios *bios, uint16_t port, uint8_t index, uint8_t data)
 {
-	struct drm_nouveau_private *dev_priv = bios->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(bios->dev);
 	struct drm_device *dev = bios->dev;
 
 	if (!valid_idx_port(bios, port))
@@ -536,7 +536,7 @@ bios_idxprt_wr(struct nvbios *bios, uint16_t port, uint8_t index, uint8_t data)
 		      "Head: 0x%02X, Data: 0x%02X\n",
 		port, index, bios->state.crtchead, data);
 
-	if (bios->execute && dev_priv->card_type < NV_50) {
+	if (bios->execute && ndev->card_type < NV_50) {
 		still_alive();
 		if (port == NV_VIO_SRX)
 			NVWriteVgaSeq(dev, bios->state.crtchead, index, data);
@@ -686,7 +686,7 @@ io_condition_met(struct nvbios *bios, uint16_t offset, uint8_t cond)
 static int
 nv50_pll_set(struct drm_device *dev, uint32_t reg, uint32_t clk)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_pll_vals pll;
 	struct pll_lims pll_limits;
 	u32 ctrl, mask, coef;
@@ -709,7 +709,7 @@ nv50_pll_set(struct drm_device *dev, uint32_t reg, uint32_t clk)
 		ctrl |= (pll.log2P << 22);
 	}
 
-	if (!dev_priv->vbios.execute)
+	if (!ndev->vbios.execute)
 		return 0;
 
 	nv_mask(dev, reg + 0, mask, ctrl);
@@ -721,13 +721,13 @@ static int
 setPLL(struct nvbios *bios, uint32_t reg, uint32_t clk)
 {
 	struct drm_device *dev = bios->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	/* clk in kHz */
 	struct pll_lims pll_lim;
 	struct nouveau_pll_vals pllvals;
 	int ret;
 
-	if (dev_priv->card_type >= NV_50)
+	if (ndev->card_type >= NV_50)
 		return nv50_pll_set(dev, reg, clk);
 
 	/* high regs (such as in the mac g5 table) are not -= 4 */
@@ -749,8 +749,8 @@ setPLL(struct nvbios *bios, uint32_t reg, uint32_t clk)
 
 static int dcb_entry_idx_from_crtchead(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 
 	/*
 	 * For the results of this function to be correct, CR44 must have been
@@ -774,8 +774,8 @@ static struct nouveau_i2c_chan *
 init_i2c_device_find(struct drm_device *dev, int i2c_index)
 {
 	if (i2c_index == 0xff) {
-		struct drm_nouveau_private *dev_priv = dev->dev_private;
-		struct dcb_table *dcb = &dev_priv->vbios.dcb;
+		struct nouveau_device *ndev = nouveau_device(dev);
+		struct dcb_table *dcb = &ndev->vbios.dcb;
 		/* note: dcb_entry_idx_from_crtchead needs pre-script set-up */
 		int idx = dcb_entry_idx_from_crtchead(dev);
 
@@ -800,8 +800,8 @@ get_tmds_index_reg(struct drm_device *dev, uint8_t mlv)
 	 * 0x6808b0 address, and then flip the offset by 8.
 	 */
 
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	const int pramdac_offset[13] = {
 		0, 0, 0x8, 0, 0x2000, 0, 0, 0, 0x2008, 0, 0, 0, 0x2000 };
 	const uint32_t pramdac_table[4] = {
@@ -2347,9 +2347,9 @@ static int
 nv10_init_compute_mem(struct nvbios *bios)
 {
 	struct drm_device *dev = bios->dev;
-	struct drm_nouveau_private *dev_priv = bios->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(bios->dev);
 	const int mem_width[] = { 0x10, 0x00, 0x20 };
-	const int mem_width_count = (dev_priv->chipset >= 0x17 ? 3 : 2);
+	const int mem_width_count = (ndev->chipset >= 0x17 ? 3 : 2);
 	uint32_t patt = 0xdeadbeef;
 	struct io_mapping *fb;
 	int i, j, k;
@@ -2409,8 +2409,8 @@ static int
 nv20_init_compute_mem(struct nvbios *bios)
 {
 	struct drm_device *dev = bios->dev;
-	struct drm_nouveau_private *dev_priv = bios->dev->dev_private;
-	uint32_t mask = (dev_priv->chipset >= 0x25 ? 0x300 : 0x900);
+	struct nouveau_device *ndev = nouveau_device(bios->dev);
+	uint32_t mask = (ndev->chipset >= 0x25 ? 0x300 : 0x900);
 	uint32_t amount, off;
 	struct io_mapping *fb;
 
@@ -2478,19 +2478,19 @@ init_compute_mem(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 
 	/* no iexec->execute check by design */
 
-	struct drm_nouveau_private *dev_priv = bios->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(bios->dev);
 	int ret;
 
-	if (dev_priv->chipset >= 0x40 ||
-	    dev_priv->chipset == 0x1a ||
-	    dev_priv->chipset == 0x1f)
+	if (ndev->chipset >= 0x40 ||
+	    ndev->chipset == 0x1a ||
+	    ndev->chipset == 0x1f)
 		ret = 0;
-	else if (dev_priv->chipset >= 0x20 &&
-		 dev_priv->chipset != 0x34)
+	else if (ndev->chipset >= 0x20 &&
+		 ndev->chipset != 0x34)
 		ret = nv20_init_compute_mem(bios);
-	else if (dev_priv->chipset >= 0x10)
+	else if (ndev->chipset >= 0x10)
 		ret = nv10_init_compute_mem(bios);
-	else if (dev_priv->chipset >= 0x5)
+	else if (ndev->chipset >= 0x5)
 		ret = nv05_init_compute_mem(bios);
 	else
 		ret = nv04_init_compute_mem(bios);
@@ -2670,7 +2670,7 @@ init_io(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 	 * Assign ((IOVAL("crtc port") & "mask") | "data") to "crtc port"
 	 */
 
-	struct drm_nouveau_private *dev_priv = bios->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(bios->dev);
 	uint16_t crtcport = ROM16(bios->data[offset + 1]);
 	uint8_t mask = bios->data[offset + 3];
 	uint8_t data = bios->data[offset + 4];
@@ -2685,7 +2685,7 @@ init_io(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 	 * I have no idea what this does, but NVIDIA do this magic sequence
 	 * in the places where this INIT_IO happens..
 	 */
-	if (dev_priv->card_type >= NV_50 && crtcport == 0x3c3 && data == 1) {
+	if (ndev->card_type >= NV_50 && crtcport == 0x3c3 && data == 1) {
 		int i;
 
 		bios_wr32(bios, 0x614100, (bios_rd32(
@@ -3766,8 +3766,8 @@ static void
 run_digital_op_script(struct drm_device *dev, uint16_t scriptptr,
 		      struct dcb_entry *dcbent, int head, bool dl)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	struct init_exec iexec = {true, false};
 
 	NV_TRACE(dev, "0x%04X: Parsing digital output script table\n",
@@ -3783,8 +3783,8 @@ run_digital_op_script(struct drm_device *dev, uint16_t scriptptr,
 
 static int call_lvds_manufacturer_script(struct drm_device *dev, struct dcb_entry *dcbent, int head, enum LVDS_script script)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	uint8_t sub = bios->data[bios->fp.xlated_entry + script] + (bios->fp.link_c_increment && dcbent->or & OUTPUT_C ? 1 : 0);
 	uint16_t scriptofs = ROM16(bios->data[bios->init_script_tbls_ptr + sub * 2]);
 
@@ -3820,8 +3820,8 @@ static int run_lvds_table(struct drm_device *dev, struct dcb_entry *dcbent, int 
 	 * conf byte. These tables are similar to the TMDS tables, consisting
 	 * of a list of pxclks and script pointers.
 	 */
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	unsigned int outputset = (dcbent->or == 4) ? 1 : 0;
 	uint16_t scriptptr = 0, clktable;
 
@@ -3889,8 +3889,8 @@ int call_lvds_script(struct drm_device *dev, struct dcb_entry *dcbent, int head,
 	 * This acts as the demux
 	 */
 
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	uint8_t lvds_ver = bios->data[bios->fp.lvdsmanufacturerpointer];
 	uint32_t sel_clk_binding, sel_clk;
 	int ret;
@@ -3991,7 +3991,7 @@ static int parse_lvds_manufacturer_table_header(struct drm_device *dev, struct n
 static int
 get_fp_strap(struct drm_device *dev, struct nvbios *bios)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
 	/*
 	 * The fp strap is normally dictated by the "User Strap" in
@@ -4005,7 +4005,7 @@ get_fp_strap(struct drm_device *dev, struct nvbios *bios)
 	if (bios->major_version < 5 && bios->data[0x48] & 0x4)
 		return NVReadVgaCrtc5758(dev, 0, 0xf) & 0xf;
 
-	if (dev_priv->card_type >= NV_50)
+	if (ndev->card_type >= NV_50)
 		return (bios_rd32(bios, NV_PEXTDEV_BOOT_0) >> 24) & 0xf;
 	else
 		return (bios_rd32(bios, NV_PEXTDEV_BOOT_0) >> 16) & 0xf;
@@ -4119,8 +4119,8 @@ static int parse_fp_mode_table(struct drm_device *dev, struct nvbios *bios)
 
 bool nouveau_bios_fp_mode(struct drm_device *dev, struct drm_display_mode *mode)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	uint8_t *mode_entry = &bios->data[bios->fp.mode_ptr];
 
 	if (!mode)	/* just checking whether we can produce a mode */
@@ -4190,8 +4190,8 @@ int nouveau_bios_parse_lvds_table(struct drm_device *dev, int pxclk, bool *dl, b
 	 * requiring tests against the native-mode pixel clock, cannot be done
 	 * until later, when this function should be called with non-zero pxclk
 	 */
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	int fpstrapping = get_fp_strap(dev, bios), lvdsmanufacturerindex = 0;
 	struct lvdstableheader lth;
 	uint16_t lvdsofs;
@@ -4349,8 +4349,8 @@ nouveau_bios_run_display_table(struct drm_device *dev, u16 type, int pclk,
 	 * offset + 5   (16 bits): pointer to first output script table
 	 */
 
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	uint8_t *table = &bios->data[bios->display.script_table_ptr];
 	uint8_t *otable = NULL;
 	uint16_t script;
@@ -4505,8 +4505,8 @@ int run_tmds_table(struct drm_device *dev, struct dcb_entry *dcbent, int head, i
 	 * ffs(or) == 3, use the second.
 	 */
 
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	int cv = bios->chip_version;
 	uint16_t clktable = 0, scriptptr;
 	uint32_t sel_clk_binding, sel_clk;
@@ -4595,15 +4595,15 @@ static struct pll_mapping nv84_pll_mapping[] = {
 u32
 get_pll_register(struct drm_device *dev, enum pll_types type)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	struct pll_mapping *map;
 	int i;
 
-	if (dev_priv->card_type < NV_40)
+	if (ndev->card_type < NV_40)
 		map = nv04_pll_mapping;
 	else
-	if (dev_priv->card_type < NV_50)
+	if (ndev->card_type < NV_50)
 		map = nv40_pll_mapping;
 	else {
 		u8 *plim = &bios->data[bios->pll_limit_tbl_ptr];
@@ -4618,7 +4618,7 @@ get_pll_register(struct drm_device *dev, enum pll_types type)
 			return 0;
 		}
 
-		if (dev_priv->chipset == 0x50)
+		if (ndev->chipset == 0x50)
 			map = nv50_pll_mapping;
 		else
 			map = nv84_pll_mapping;
@@ -4651,8 +4651,8 @@ int get_pll_limits(struct drm_device *dev, uint32_t limit_match, struct pll_lims
 	 * from the limits tables.
 	 */
 
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	int cv = bios->chip_version, pllindex = 0;
 	uint8_t pll_lim_ver = 0, headerlen = 0, recordlen = 0, entries = 0;
 	uint32_t crystal_strap_mask, crystal_straps;
@@ -4771,7 +4771,7 @@ int get_pll_limits(struct drm_device *dev, uint32_t limit_match, struct pll_lims
 				break;
 			}
 
-		if ((dev_priv->card_type >= NV_50) && (pllindex == 0)) {
+		if ((ndev->card_type >= NV_50) && (pllindex == 0)) {
 			NV_ERROR(dev, "Register 0x%08x not found in PLL "
 				 "limits table", pll_lim->reg);
 			return -ENOENT;
@@ -5347,8 +5347,8 @@ struct bit_table {
 int
 bit_table(struct drm_device *dev, u8 id, struct bit_entry *bit)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	u8 entries, *entry;
 
 	if (bios->type != NVBIOS_BIT)
@@ -5627,11 +5627,11 @@ static uint16_t findstr(uint8_t *data, int n, const uint8_t *str, int len)
 void *
 dcb_table(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u8 *dcb = NULL;
 
-	if (dev_priv->card_type > NV_04)
-		dcb = ROMPTR(dev, dev_priv->vbios.data[0x36]);
+	if (ndev->card_type > NV_04)
+		dcb = ROMPTR(dev, ndev->vbios.data[0x36]);
 	if (!dcb) {
 		NV_WARNONCE(dev, "No DCB data found in VBIOS\n");
 		return NULL;
@@ -6002,8 +6002,8 @@ void merge_like_dcb_entries(struct drm_device *dev, struct dcb_table *dcb)
 static bool
 apply_dcb_encoder_quirks(struct drm_device *dev, int idx, u32 *conn, u32 *conf)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct dcb_table *dcb = &dev_priv->vbios.dcb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct dcb_table *dcb = &ndev->vbios.dcb;
 
 	/* Dell Precision M6300
 	 *   DCB entry 2: 02025312 00000010
@@ -6128,8 +6128,8 @@ fabricate_dcb_encoder_table(struct drm_device *dev, struct nvbios *bios)
 static int
 parse_dcb_entry(struct drm_device *dev, void *data, int idx, u8 *outp)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct dcb_table *dcb = &dev_priv->vbios.dcb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct dcb_table *dcb = &ndev->vbios.dcb;
 	u32 conf = (dcb->version >= 0x20) ? ROM32(outp[4]) : ROM32(outp[6]);
 	u32 conn = ROM32(outp[0]);
 	bool ret;
@@ -6324,8 +6324,8 @@ static int load_nv17_hw_sequencer_ucode(struct drm_device *dev,
 
 uint8_t *nouveau_bios_embedded_edid(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	const uint8_t edid_sig[] = {
 			0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00 };
 	uint16_t offset = 0;
@@ -6357,8 +6357,8 @@ void
 nouveau_bios_run_init_table(struct drm_device *dev, uint16_t table,
 			    struct dcb_entry *dcbent, int crtc)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	struct init_exec iexec = { true, false };
 
 	spin_lock_bh(&bios->lock);
@@ -6372,8 +6372,8 @@ nouveau_bios_run_init_table(struct drm_device *dev, uint16_t table,
 void
 nouveau_bios_init_exec(struct drm_device *dev, uint16_t table)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	struct init_exec iexec = { true, false };
 
 	parse_init_table(bios, table, &iexec);
@@ -6381,8 +6381,8 @@ nouveau_bios_init_exec(struct drm_device *dev, uint16_t table)
 
 static bool NVInitVBIOS(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 
 	memset(bios, 0, sizeof(struct nvbios));
 	spin_lock_init(&bios->lock);
@@ -6393,8 +6393,8 @@ static bool NVInitVBIOS(struct drm_device *dev)
 
 static int nouveau_parse_vbios_struct(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	const uint8_t bit_signature[] = { 0xff, 0xb8, 'B', 'I', 'T' };
 	const uint8_t bmp_signature[] = { 0xff, 0x7f, 'N', 'V', 0x0 };
 	int offset;
@@ -6424,8 +6424,8 @@ static int nouveau_parse_vbios_struct(struct drm_device *dev)
 int
 nouveau_run_vbios_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	int i, ret = 0;
 
 	/* Reset the BIOS head to 0. */
@@ -6454,7 +6454,7 @@ nouveau_run_vbios_init(struct drm_device *dev)
 		parse_init_table(bios, bios->some_script_ptr, &iexec);
 	}
 
-	if (dev_priv->card_type >= NV_50) {
+	if (ndev->card_type >= NV_50) {
 		for (i = 0; i < bios->dcb.entries; i++) {
 			nouveau_bios_run_display_table(dev, 0, 0,
 						       &bios->dcb.entry[i], -1);
@@ -6467,10 +6467,10 @@ nouveau_run_vbios_init(struct drm_device *dev)
 static bool
 nouveau_bios_posted(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	unsigned htotal;
 
-	if (dev_priv->card_type >= NV_50) {
+	if (ndev->card_type >= NV_50) {
 		if (NVReadVgaCrtc(dev, 0, 0x00) == 0 &&
 		    NVReadVgaCrtc(dev, 0, 0x1a) == 0)
 			return false;
@@ -6489,8 +6489,8 @@ nouveau_bios_posted(struct drm_device *dev)
 int
 nouveau_bios_init(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nvbios *bios = &ndev->vbios;
 	int ret;
 
 	if (!NVInitVBIOS(dev))
@@ -6548,10 +6548,10 @@ nouveau_bios_init(struct drm_device *dev)
 void
 nouveau_bios_takedown(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
 	nouveau_mxm_fini(dev);
 	nouveau_i2c_fini(dev);
 
-	kfree(dev_priv->vbios.data);
+	kfree(ndev->vbios.data);
 }

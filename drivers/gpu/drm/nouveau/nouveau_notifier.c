@@ -34,7 +34,7 @@ int
 nouveau_notifier_init_channel(struct nouveau_channel *chan)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_bo *ntfy = NULL;
 	uint32_t flags, ttmpl;
 	int ret;
@@ -59,7 +59,7 @@ nouveau_notifier_init_channel(struct nouveau_channel *chan)
 	if (ret)
 		goto out_err;
 
-	if (dev_priv->card_type >= NV_50) {
+	if (ndev->card_type >= NV_50) {
 		ret = nouveau_bo_vma_add(ntfy, chan->vm, &chan->notifier_vma);
 		if (ret)
 			goto out_err;
@@ -112,7 +112,7 @@ nouveau_notifier_alloc(struct nouveau_channel *chan, uint32_t handle,
 		       uint32_t *b_offset)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_gpuobj *nobj = NULL;
 	struct drm_mm_node *mem;
 	uint64_t offset;
@@ -127,7 +127,7 @@ nouveau_notifier_alloc(struct nouveau_channel *chan, uint32_t handle,
 		return -ENOMEM;
 	}
 
-	if (dev_priv->card_type < NV_50) {
+	if (ndev->card_type < NV_50) {
 		if (chan->notifier_bo->bo.mem.mem_type == TTM_PL_VRAM)
 			target = NV_MEM_TARGET_VRAM;
 		else

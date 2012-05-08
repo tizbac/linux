@@ -730,14 +730,14 @@ static int
 nv10_graph_load_context(struct nouveau_channel *chan)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct graph_state *pgraph_ctx = chan->engctx[NVOBJ_ENGINE_GR];
 	uint32_t tmp;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(nv10_graph_ctx_regs); i++)
 		nv_wr32(dev, nv10_graph_ctx_regs[i], pgraph_ctx->nv10[i]);
-	if (dev_priv->chipset >= 0x17) {
+	if (ndev->chipset >= 0x17) {
 		for (i = 0; i < ARRAY_SIZE(nv17_graph_ctx_regs); i++)
 			nv_wr32(dev, nv17_graph_ctx_regs[i],
 						pgraph_ctx->nv17[i]);
@@ -758,7 +758,7 @@ nv10_graph_load_context(struct nouveau_channel *chan)
 static int
 nv10_graph_unload_context(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_channel *chan;
 	struct graph_state *ctx;
 	uint32_t tmp;
@@ -772,7 +772,7 @@ nv10_graph_unload_context(struct drm_device *dev)
 	for (i = 0; i < ARRAY_SIZE(nv10_graph_ctx_regs); i++)
 		ctx->nv10[i] = nv_rd32(dev, nv10_graph_ctx_regs[i]);
 
-	if (dev_priv->chipset >= 0x17) {
+	if (ndev->chipset >= 0x17) {
 		for (i = 0; i < ARRAY_SIZE(nv17_graph_ctx_regs); i++)
 			ctx->nv17[i] = nv_rd32(dev, nv17_graph_ctx_regs[i]);
 	}
@@ -789,7 +789,7 @@ nv10_graph_unload_context(struct drm_device *dev)
 static void
 nv10_graph_context_switch(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_channel *chan = NULL;
 	int chid;
 
@@ -800,7 +800,7 @@ nv10_graph_context_switch(struct drm_device *dev)
 
 	/* Load context for next channel */
 	chid = (nv_rd32(dev, NV04_PGRAPH_TRAPPED_ADDR) >> 20) & 0x1f;
-	chan = dev_priv->channels.ptr[chid];
+	chan = ndev->channels.ptr[chid];
 	if (chan && chan->engctx[NVOBJ_ENGINE_GR])
 		nv10_graph_load_context(chan);
 }
@@ -820,7 +820,7 @@ nv10_graph_context_switch(struct drm_device *dev)
 struct nouveau_channel *
 nv10_graph_channel(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int chid = 31;
 
 	if (nv_rd32(dev, NV10_PGRAPH_CTX_CONTROL) & 0x00010000)
@@ -829,14 +829,14 @@ nv10_graph_channel(struct drm_device *dev)
 	if (chid >= 31)
 		return NULL;
 
-	return dev_priv->channels.ptr[chid];
+	return ndev->channels.ptr[chid];
 }
 
 static int
 nv10_graph_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct graph_state *pgraph_ctx;
 
 	NV_DEBUG(dev, "nv10_graph_context_create %d\n", chan->id);
@@ -853,7 +853,7 @@ nv10_graph_context_new(struct nouveau_channel *chan, int engine)
 	NV_WRITE_CTX(0x00400e14, 0x00001000);
 	NV_WRITE_CTX(0x00400e30, 0x00080008);
 	NV_WRITE_CTX(0x00400e34, 0x00080008);
-	if (dev_priv->chipset >= 0x17) {
+	if (ndev->chipset >= 0x17) {
 		/* is it really needed ??? */
 		NV17_WRITE_CTX(NV10_PGRAPH_DEBUG_4,
 					nv_rd32(dev, NV10_PGRAPH_DEBUG_4));
@@ -873,11 +873,11 @@ static void
 nv10_graph_context_del(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct graph_state *pgraph_ctx = chan->engctx[engine];
 	unsigned long flags;
 
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_mask(dev, NV04_PGRAPH_FIFO, 0x00000001, 0x00000000);
 
 	/* Unload the context if it's the currently active one */
@@ -885,7 +885,7 @@ nv10_graph_context_del(struct nouveau_channel *chan, int engine)
 		nv10_graph_unload_context(dev);
 
 	nv_mask(dev, NV04_PGRAPH_FIFO, 0x00000001, 0x00000001);
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 	/* Free the context resources */
 	chan->engctx[engine] = NULL;
@@ -895,8 +895,8 @@ nv10_graph_context_del(struct nouveau_channel *chan, int engine)
 static void
 nv10_graph_set_tile_region(struct drm_device *dev, int i)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_tile_reg *tile = &dev_priv->tile.reg[i];
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	nv_wr32(dev, NV10_PGRAPH_TLIMIT(i), tile->limit);
 	nv_wr32(dev, NV10_PGRAPH_TSIZE(i), tile->pitch);
@@ -906,7 +906,7 @@ nv10_graph_set_tile_region(struct drm_device *dev, int i)
 static int
 nv10_graph_init(struct drm_device *dev, int engine)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 tmp;
 	int i;
 
@@ -926,7 +926,7 @@ nv10_graph_init(struct drm_device *dev, int engine)
 	nv_wr32(dev, NV04_PGRAPH_DEBUG_3, 0x55DE0830 |
 				      (1<<29) |
 				      (1<<31));
-	if (dev_priv->chipset >= 0x17) {
+	if (ndev->chipset >= 0x17) {
 		nv_wr32(dev, NV10_PGRAPH_DEBUG_4, 0x1f000000);
 		nv_wr32(dev, 0x400a10, 0x3ff3fb6);
 		nv_wr32(dev, 0x400838, 0x2f8684);
@@ -1134,7 +1134,7 @@ nv10_graph_destroy(struct drm_device *dev, int engine)
 int
 nv10_graph_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv10_graph_engine *pgraph;
 
 	pgraph = kzalloc(sizeof(*pgraph), GFP_KERNEL);
@@ -1171,10 +1171,10 @@ nv10_graph_create(struct drm_device *dev)
 	NVOBJ_CLASS(dev, 0x0095, GR); /* multitex_tri */
 
 	/* celcius */
-	if (dev_priv->chipset <= 0x10) {
+	if (ndev->chipset <= 0x10) {
 		NVOBJ_CLASS(dev, 0x0056, GR);
 	} else
-	if (dev_priv->chipset < 0x17 || dev_priv->chipset == 0x1a) {
+	if (ndev->chipset < 0x17 || ndev->chipset == 0x1a) {
 		NVOBJ_CLASS(dev, 0x0096, GR);
 	} else {
 		NVOBJ_CLASS(dev, 0x0099, GR);

@@ -131,7 +131,7 @@ nouveau_gem_new(struct drm_device *dev, int size, int align, uint32_t domain,
 		uint32_t tile_mode, uint32_t tile_flags,
 		struct nouveau_bo **pnvbo)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_bo *nvbo;
 	u32 flags = 0;
 	int ret;
@@ -155,7 +155,7 @@ nouveau_gem_new(struct drm_device *dev, int size, int align, uint32_t domain,
 	 */
 	nvbo->valid_domains = NOUVEAU_GEM_DOMAIN_VRAM |
 			      NOUVEAU_GEM_DOMAIN_GART;
-	if (dev_priv->card_type >= NV_50)
+	if (ndev->card_type >= NV_50)
 		nvbo->valid_domains &= domain;
 
 	nvbo->gem = drm_gem_object_alloc(dev, nvbo->bo.mem.size);
@@ -202,15 +202,15 @@ int
 nouveau_gem_ioctl_new(struct drm_device *dev, void *data,
 		      struct drm_file *file_priv)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_nouveau_gem_new *req = data;
 	struct nouveau_bo *nvbo = NULL;
 	int ret = 0;
 
-	if (unlikely(dev_priv->ttm.bdev.dev_mapping == NULL))
-		dev_priv->ttm.bdev.dev_mapping = dev_priv->dev->dev_mapping;
+	if (unlikely(ndev->ttm.bdev.dev_mapping == NULL))
+		ndev->ttm.bdev.dev_mapping = ndev->dev->dev_mapping;
 
-	if (!dev_priv->subsys.vram.flags_valid(dev, req->info.tile_flags)) {
+	if (!ndev->subsys.vram.flags_valid(dev, req->info.tile_flags)) {
 		NV_ERROR(dev, "bad page flags: 0x%08x\n", req->info.tile_flags);
 		return -EINVAL;
 	}
@@ -314,12 +314,12 @@ validate_init(struct nouveau_channel *chan, struct drm_file *file_priv,
 	      int nr_buffers, struct validate_op *op)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	uint32_t sequence;
 	int trycnt = 0;
 	int ret, i;
 
-	sequence = atomic_add_return(1, &dev_priv->ttm.validate_sequence);
+	sequence = atomic_add_return(1, &ndev->ttm.validate_sequence);
 retry:
 	if (++trycnt > 100000) {
 		NV_ERROR(dev, "%s failed and gave up.\n", __func__);
@@ -407,7 +407,7 @@ static int
 validate_list(struct nouveau_channel *chan, struct list_head *list,
 	      struct drm_nouveau_gem_pushbuf_bo *pbbo, uint64_t user_pbbo_ptr)
 {
-	struct drm_nouveau_private *dev_priv = chan->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(chan->dev);
 	struct drm_nouveau_gem_pushbuf_bo __user *upbbo =
 				(void __force __user *)(uintptr_t)user_pbbo_ptr;
 	struct drm_device *dev = chan->dev;
@@ -444,7 +444,7 @@ validate_list(struct nouveau_channel *chan, struct list_head *list,
 			return ret;
 		}
 
-		if (dev_priv->card_type < NV_50) {
+		if (ndev->card_type < NV_50) {
 			if (nvbo->bo.offset == b->presumed.offset &&
 			    ((nvbo->bo.mem.mem_type == TTM_PL_VRAM &&
 			      b->presumed.domain & NOUVEAU_GEM_DOMAIN_VRAM) ||
@@ -629,7 +629,7 @@ int
 nouveau_gem_ioctl_pushbuf(struct drm_device *dev, void *data,
 			  struct drm_file *file_priv)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_nouveau_gem_pushbuf *req = data;
 	struct drm_nouveau_gem_pushbuf_push *push;
 	struct drm_nouveau_gem_pushbuf_bo *bo;
@@ -642,8 +642,8 @@ nouveau_gem_ioctl_pushbuf(struct drm_device *dev, void *data,
 	if (IS_ERR(chan))
 		return PTR_ERR(chan);
 
-	req->vram_available = dev_priv->fb_aper_free;
-	req->gart_available = dev_priv->gart_info.aper_free;
+	req->vram_available = ndev->fb_aper_free;
+	req->gart_available = ndev->gart_info.aper_free;
 	if (unlikely(req->nr_push == 0))
 		goto out_next;
 
@@ -723,7 +723,7 @@ nouveau_gem_ioctl_pushbuf(struct drm_device *dev, void *data,
 				      push[i].length);
 		}
 	} else
-	if (dev_priv->chipset >= 0x25) {
+	if (ndev->chipset >= 0x25) {
 		ret = RING_SPACE(chan, req->nr_push * 2);
 		if (ret) {
 			NV_ERROR(dev, "cal_space: %d\n", ret);
@@ -799,7 +799,7 @@ out_next:
 		req->suffix0 = 0x00000000;
 		req->suffix1 = 0x00000000;
 	} else
-	if (dev_priv->chipset >= 0x25) {
+	if (ndev->chipset >= 0x25) {
 		req->suffix0 = 0x00020000;
 		req->suffix1 = 0x00000000;
 	} else {

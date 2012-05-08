@@ -50,7 +50,7 @@ static int
 nvc0_software_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_software_priv *psw = nv_engine(dev, NVOBJ_ENGINE_SW);
 	struct nvc0_software_chan *pch;
 	int ret = 0, i;
@@ -65,7 +65,7 @@ nvc0_software_context_new(struct nouveau_channel *chan, int engine)
 	/* map display semaphore buffers into channel's vm */
 	for (i = 0; !ret && i < dev->mode_config.num_crtc; i++) {
 		struct nouveau_bo *bo;
-		if (dev_priv->card_type >= NV_D0)
+		if (ndev->card_type >= NV_D0)
 			bo = nvd0_display_crtc_sema(dev, i);
 		else
 			bo = nv50_display(dev)->crtc[i].sem.bo;
@@ -82,17 +82,17 @@ static void
 nvc0_software_context_del(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_software_chan *pch = chan->engctx[engine];
 	int i;
 
-	if (dev_priv->card_type >= NV_D0) {
+	if (ndev->card_type >= NV_D0) {
 		for (i = 0; i < dev->mode_config.num_crtc; i++) {
 			struct nouveau_bo *bo = nvd0_display_crtc_sema(dev, i);
 			nouveau_bo_vma_del(bo, &pch->dispc_vma[i]);
 		}
 	} else
-	if (dev_priv->card_type >= NV_50) {
+	if (ndev->card_type >= NV_50) {
 		struct nv50_display *disp = nv50_display(dev);
 		for (i = 0; i < dev->mode_config.num_crtc; i++) {
 			struct nv50_display_crtc *dispc = &disp->crtc[i];

@@ -49,9 +49,9 @@ static u32 read_clk(struct drm_device *, enum clk_src);
 static u32
 read_div(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 
-	switch (dev_priv->chipset) {
+	switch (ndev->chipset) {
 	case 0x50: /* it exists, but only has bit 31, not the dividers.. */
 	case 0x84:
 	case 0x86:
@@ -70,12 +70,12 @@ read_div(struct drm_device *dev)
 static u32
 read_pll_src(struct drm_device *dev, u32 base)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 coef, ref = read_clk(dev, clk_src_crystal);
 	u32 rsel = nv_rd32(dev, 0x00e18c);
 	int P, N, M, id;
 
-	switch (dev_priv->chipset) {
+	switch (ndev->chipset) {
 	case 0x50:
 	case 0xa0:
 		switch (base) {
@@ -171,7 +171,7 @@ read_pll_ref(struct drm_device *dev, u32 base)
 static u32
 read_pll(struct drm_device *dev, u32 base)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 mast = nv_rd32(dev, 0x00c040);
 	u32 ctrl = nv_rd32(dev, base + 0);
 	u32 coef = nv_rd32(dev, base + 4);
@@ -181,7 +181,7 @@ read_pll(struct drm_device *dev, u32 base)
 
 	if (base == 0x004028 && (mast & 0x00100000)) {
 		/* wtf, appears to only disable post-divider on nva0 */
-		if (dev_priv->chipset != 0xa0)
+		if (ndev->chipset != 0xa0)
 			return read_clk(dev, clk_src_dom6);
 	}
 
@@ -205,13 +205,13 @@ read_pll(struct drm_device *dev, u32 base)
 static u32
 read_clk(struct drm_device *dev, enum clk_src src)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 mast = nv_rd32(dev, 0x00c040);
 	u32 P = 0;
 
 	switch (src) {
 	case clk_src_crystal:
-		return dev_priv->crystal;
+		return ndev->crystal;
 	case clk_src_href:
 		return 100000; /* PCIE reference clock */
 	case clk_src_hclk:
@@ -266,7 +266,7 @@ read_clk(struct drm_device *dev, enum clk_src src)
 		break;
 	case clk_src_vdec:
 		P = (read_div(dev) & 0x00000700) >> 8;
-		switch (dev_priv->chipset) {
+		switch (ndev->chipset) {
 		case 0x84:
 		case 0x86:
 		case 0x92:
@@ -275,7 +275,7 @@ read_clk(struct drm_device *dev, enum clk_src src)
 		case 0xa0:
 			switch (mast & 0x00000c00) {
 			case 0x00000000:
-				if (dev_priv->chipset == 0xa0) /* wtf?? */
+				if (ndev->chipset == 0xa0) /* wtf?? */
 					return read_clk(dev, clk_src_nvclk) >> P;
 				return read_clk(dev, clk_src_crystal) >> P;
 			case 0x00000400:
@@ -303,7 +303,7 @@ read_clk(struct drm_device *dev, enum clk_src src)
 		}
 		break;
 	case clk_src_dom6:
-		switch (dev_priv->chipset) {
+		switch (ndev->chipset) {
 		case 0x50:
 		case 0xa0:
 			return read_pll(dev, 0x00e810) >> 2;
@@ -336,15 +336,15 @@ read_clk(struct drm_device *dev, enum clk_src src)
 int
 nv50_pm_clocks_get(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	if (dev_priv->chipset == 0xaa ||
-	    dev_priv->chipset == 0xac)
+	struct nouveau_device *ndev = nouveau_device(dev);
+	if (ndev->chipset == 0xaa ||
+	    ndev->chipset == 0xac)
 		return 0;
 
 	perflvl->core   = read_clk(dev, clk_src_nvclk);
 	perflvl->shader = read_clk(dev, clk_src_sclk);
 	perflvl->memory = read_clk(dev, clk_src_mclk);
-	if (dev_priv->chipset != 0x50) {
+	if (ndev->chipset != 0x50) {
 		perflvl->vdec = read_clk(dev, clk_src_vdec);
 		perflvl->dom6 = read_clk(dev, clk_src_dom6);
 	}
@@ -471,17 +471,17 @@ mclk_mrg(struct nouveau_mem_exec_func *exec, int mr)
 static void
 mclk_mrs(struct nouveau_mem_exec_func *exec, int mr, u32 data)
 {
-	struct drm_nouveau_private *dev_priv = exec->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(exec->dev);
 	struct nv50_pm_state *info = exec->priv;
 	struct hwsq_ucode *hwsq = &info->mclk_hwsq;
 
 	if (mr <= 1) {
-		if (dev_priv->vram_rank_B)
+		if (ndev->vram_rank_B)
 			hwsq_wr32(hwsq, 0x1002c8 + ((mr - 0) * 4), data);
 		hwsq_wr32(hwsq, 0x1002c0 + ((mr - 0) * 4), data);
 	} else
 	if (mr <= 3) {
-		if (dev_priv->vram_rank_B)
+		if (ndev->vram_rank_B)
 			hwsq_wr32(hwsq, 0x1002e8 + ((mr - 2) * 4), data);
 		hwsq_wr32(hwsq, 0x1002e0 + ((mr - 2) * 4), data);
 	}
@@ -526,7 +526,7 @@ static int
 calc_mclk(struct drm_device *dev, struct nouveau_pm_level *perflvl,
 	  struct nv50_pm_state *info)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 crtc_mask = nv50_display_active_crtcs(dev);
 	struct nouveau_mem_exec_func exec = {
 		.dev = dev,
@@ -567,7 +567,7 @@ calc_mclk(struct drm_device *dev, struct nouveau_pm_level *perflvl,
 		hwsq_op5f(hwsq, crtc_mask, 0x00); /* wait for scanout */
 		hwsq_op5f(hwsq, crtc_mask, 0x01); /* wait for vblank */
 	}
-	if (dev_priv->chipset >= 0x92)
+	if (ndev->chipset >= 0x92)
 		hwsq_wr32(hwsq, 0x611200, 0x00003300); /* disable scanout */
 	hwsq_setf(hwsq, 0x10, 0); /* disable bus access */
 	hwsq_op5f(hwsq, 0x00, 0x01); /* no idea :s */
@@ -578,7 +578,7 @@ calc_mclk(struct drm_device *dev, struct nouveau_pm_level *perflvl,
 
 	hwsq_setf(hwsq, 0x10, 1); /* enable bus access */
 	hwsq_op5f(hwsq, 0x00, 0x00); /* no idea, reverse of 0x00, 0x01? */
-	if (dev_priv->chipset >= 0x92)
+	if (ndev->chipset >= 0x92)
 		hwsq_wr32(hwsq, 0x611200, 0x00003330); /* enable scanout */
 	hwsq_fini(hwsq);
 	return 0;
@@ -587,7 +587,7 @@ calc_mclk(struct drm_device *dev, struct nouveau_pm_level *perflvl,
 void *
 nv50_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv50_pm_state *info;
 	struct hwsq_ucode *hwsq;
 	struct pll_lims pll;
@@ -595,8 +595,8 @@ nv50_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 	int clk, ret = -EINVAL;
 	int N, M, P1, P2;
 
-	if (dev_priv->chipset == 0xaa ||
-	    dev_priv->chipset == 0xac)
+	if (ndev->chipset == 0xaa ||
+	    ndev->chipset == 0xac)
 		return ERR_PTR(-ENODEV);
 
 	info = kmalloc(sizeof(*info), GFP_KERNEL);
@@ -645,7 +645,7 @@ nv50_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 		clk = calc_div(perflvl->core, perflvl->vdec, &P1);
 
 		/* see how close we can get using xpll/hclk as a source */
-		if (dev_priv->chipset != 0x98)
+		if (ndev->chipset != 0x98)
 			out = read_pll(dev, 0x004030);
 		else
 			out = read_clk(dev, clk_src_hclkm3d2);
@@ -654,7 +654,7 @@ nv50_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 		/* select whichever gets us closest */
 		if (abs((int)perflvl->vdec - clk) <=
 		    abs((int)perflvl->vdec - out)) {
-			if (dev_priv->chipset != 0x98)
+			if (ndev->chipset != 0x98)
 				mast |= 0x00000c00;
 			divs |= P1 << 8;
 		} else {
@@ -682,7 +682,7 @@ nv50_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 	}
 
 	/* vdec/dom6: complete switch to new clocks */
-	switch (dev_priv->chipset) {
+	switch (ndev->chipset) {
 	case 0x92:
 	case 0x94:
 	case 0x96:
@@ -698,7 +698,7 @@ nv50_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 	/* core/shader: make sure sclk/nvclk are disconnected from their
 	 * PLLs (nvclk to dom6, sclk to hclk)
 	 */
-	if (dev_priv->chipset < 0x92)
+	if (ndev->chipset < 0x92)
 		mast = (mast & ~0x001000b0) | 0x00100080;
 	else
 		mast = (mast & ~0x000000b3) | 0x00000081;
@@ -752,11 +752,11 @@ error:
 static int
 prog_hwsq(struct drm_device *dev, struct hwsq_ucode *hwsq)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 hwsq_data, hwsq_kick;
 	int i;
 
-	if (dev_priv->chipset < 0x94) {
+	if (ndev->chipset < 0x94) {
 		hwsq_data = 0x001400;
 		hwsq_kick = 0x00000003;
 	} else {
@@ -766,7 +766,7 @@ prog_hwsq(struct drm_device *dev, struct hwsq_ucode *hwsq)
 	/* upload hwsq ucode */
 	nv_mask(dev, 0x001098, 0x00000008, 0x00000000);
 	nv_wr32(dev, 0x001304, 0x00000000);
-	if (dev_priv->chipset >= 0x92)
+	if (ndev->chipset >= 0x92)
 		nv_wr32(dev, 0x001318, 0x00000000);
 	for (i = 0; i < hwsq->len / 4; i++)
 		nv_wr32(dev, hwsq_data + (i * 4), hwsq->ptr.u32[i]);

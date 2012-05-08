@@ -43,7 +43,7 @@ static int
 nv98_crypt_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv98_crypt_priv *priv = nv_engine(dev, engine);
 	struct nv98_crypt_chan *cctx;
 	int ret;
@@ -65,7 +65,7 @@ nv98_crypt_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(chan->ramin, 0xac, 0x00000000);
 	nv_wo32(chan->ramin, 0xb0, 0x00000000);
 	nv_wo32(chan->ramin, 0xb4, 0x00000000);
-	dev_priv->subsys.instmem.flush(dev);
+	ndev->subsys.instmem.flush(dev);
 
 error:
 	if (ret)

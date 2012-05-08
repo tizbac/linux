@@ -72,8 +72,8 @@ struct nvd0_display {
 static struct nvd0_display *
 nvd0_display(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	return dev_priv->subsys.display.priv;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	return ndev->subsys.display.priv;
 }
 
 static struct drm_crtc *
@@ -363,7 +363,7 @@ nvd0_display_flip_next(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 static int
 nvd0_crtc_set_dither(struct nouveau_crtc *nv_crtc, bool update)
 {
-	struct drm_nouveau_private *dev_priv = nv_crtc->base.dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(nv_crtc->base.dev);
 	struct drm_device *dev = nv_crtc->base.dev;
 	struct nouveau_connector *nv_connector;
 	struct drm_connector *connector;
@@ -386,7 +386,7 @@ nvd0_crtc_set_dither(struct nouveau_crtc *nv_crtc, bool update)
 		mode |= nv_connector->dithering_depth;
 	}
 
-	if (dev_priv->card_type < NV_E0)
+	if (ndev->card_type < NV_E0)
 		mthd = 0x0490 + (nv_crtc->index * 0x0300);
 	else
 		mthd = 0x04a0 + (nv_crtc->index * 0x0300);
@@ -1439,11 +1439,11 @@ nvd0_sor_mode_set(struct drm_encoder *encoder, struct drm_display_mode *umode,
 		  struct drm_display_mode *mode)
 {
 	struct drm_device *dev = encoder->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(encoder->crtc);
 	struct nouveau_connector *nv_connector;
-	struct nvbios *bios = &dev_priv->vbios;
+	struct nvbios *bios = &ndev->vbios;
 	u32 mode_ctrl = (1 << nv_crtc->index);
 	u32 syncs, magic, *push;
 	u32 or_config;
@@ -1598,7 +1598,7 @@ nvd0_sor_create(struct drm_connector *connector, struct dcb_entry *dcbe)
 static struct dcb_entry *
 lookup_dcb(struct drm_device *dev, int id, u32 mc)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int type, or, i, link = -1;
 
 	if (id < 4) {
@@ -1620,8 +1620,8 @@ lookup_dcb(struct drm_device *dev, int id, u32 mc)
 		or = id - 4;
 	}
 
-	for (i = 0; i < dev_priv->vbios.dcb.entries; i++) {
-		struct dcb_entry *dcb = &dev_priv->vbios.dcb.entry[i];
+	for (i = 0; i < ndev->vbios.dcb.entries; i++) {
+		struct dcb_entry *dcb = &ndev->vbios.dcb.entry[i];
 		if (dcb->type == type && (dcb->or & (1 << or)) &&
 		    (link < 0 || link == !(dcb->sorconf.link & 1)))
 			return dcb;
@@ -1942,7 +1942,7 @@ error:
 void
 nvd0_display_destroy(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvd0_display *disp = nvd0_display(dev);
 	struct pci_dev *pdev = dev->pdev;
 	int i;
@@ -1957,16 +1957,16 @@ nvd0_display_destroy(struct drm_device *dev)
 	nouveau_bo_ref(NULL, &disp->sync);
 	nouveau_irq_unregister(dev, 26);
 
-	dev_priv->subsys.display.priv = NULL;
+	ndev->subsys.display.priv = NULL;
 	kfree(disp);
 }
 
 int
 nvd0_display_create(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
-	struct dcb_table *dcb = &dev_priv->vbios.dcb;
+	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
+	struct dcb_table *dcb = &ndev->vbios.dcb;
 	struct drm_connector *connector, *tmp;
 	struct pci_dev *pdev = dev->pdev;
 	struct nvd0_display *disp;
@@ -1976,7 +1976,7 @@ nvd0_display_create(struct drm_device *dev)
 	disp = kzalloc(sizeof(*disp), GFP_KERNEL);
 	if (!disp)
 		return -ENOMEM;
-	dev_priv->subsys.display.priv = disp;
+	ndev->subsys.display.priv = disp;
 
 	/* create crtc objects to represent the hw heads */
 	crtcs = nv_rd32(dev, 0x022448);
@@ -2075,7 +2075,7 @@ nvd0_display_create(struct drm_device *dev)
 
 		nv_wo32(disp->mem, dmao + 0x20, 0x00000049);
 		nv_wo32(disp->mem, dmao + 0x24, 0x00000000);
-		nv_wo32(disp->mem, dmao + 0x28, (dev_priv->vram_size - 1) >> 8);
+		nv_wo32(disp->mem, dmao + 0x28, (ndev->vram_size - 1) >> 8);
 		nv_wo32(disp->mem, dmao + 0x2c, 0x00000000);
 		nv_wo32(disp->mem, dmao + 0x30, 0x00000000);
 		nv_wo32(disp->mem, dmao + 0x34, 0x00000000);
@@ -2085,7 +2085,7 @@ nvd0_display_create(struct drm_device *dev)
 
 		nv_wo32(disp->mem, dmao + 0x40, 0x00000009);
 		nv_wo32(disp->mem, dmao + 0x44, 0x00000000);
-		nv_wo32(disp->mem, dmao + 0x48, (dev_priv->vram_size - 1) >> 8);
+		nv_wo32(disp->mem, dmao + 0x48, (ndev->vram_size - 1) >> 8);
 		nv_wo32(disp->mem, dmao + 0x4c, 0x00000000);
 		nv_wo32(disp->mem, dmao + 0x50, 0x00000000);
 		nv_wo32(disp->mem, dmao + 0x54, 0x00000000);
@@ -2095,7 +2095,7 @@ nvd0_display_create(struct drm_device *dev)
 
 		nv_wo32(disp->mem, dmao + 0x60, 0x0fe00009);
 		nv_wo32(disp->mem, dmao + 0x64, 0x00000000);
-		nv_wo32(disp->mem, dmao + 0x68, (dev_priv->vram_size - 1) >> 8);
+		nv_wo32(disp->mem, dmao + 0x68, (ndev->vram_size - 1) >> 8);
 		nv_wo32(disp->mem, dmao + 0x6c, 0x00000000);
 		nv_wo32(disp->mem, dmao + 0x70, 0x00000000);
 		nv_wo32(disp->mem, dmao + 0x74, 0x00000000);

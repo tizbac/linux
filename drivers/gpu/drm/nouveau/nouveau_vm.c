@@ -339,7 +339,7 @@ int
 nouveau_vm_new(struct drm_device *dev, u64 offset, u64 length, u64 mm_offset,
 	       struct nouveau_vm **pvm)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_vm *vm;
 	u64 mm_length = (offset + length) - mm_offset;
 	u32 block, pgt_bits;
@@ -349,7 +349,7 @@ nouveau_vm_new(struct drm_device *dev, u64 offset, u64 length, u64 mm_offset,
 	if (!vm)
 		return -ENOMEM;
 
-	if (dev_priv->card_type == NV_50) {
+	if (ndev->card_type == NV_50) {
 		vm->map_pgt = nv50_vm_map_pgt;
 		vm->map = nv50_vm_map;
 		vm->map_sg = nv50_vm_map_sg;
@@ -364,7 +364,7 @@ nouveau_vm_new(struct drm_device *dev, u64 offset, u64 length, u64 mm_offset,
 			block = length;
 
 	} else
-	if (dev_priv->card_type >= NV_C0) {
+	if (ndev->card_type >= NV_C0) {
 		vm->map_pgt = nvc0_vm_map_pgt;
 		vm->map = nvc0_vm_map;
 		vm->map_sg = nvc0_vm_map_sg;

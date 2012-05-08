@@ -42,17 +42,17 @@ read_vco(struct drm_device *dev, int clk)
 static u32
 read_clk(struct drm_device *dev, int clk, bool ignore_en)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 sctl, sdiv, sclk;
 
 	/* refclk for the 0xe8xx plls is a fixed frequency */
 	if (clk >= 0x40) {
-		if (dev_priv->chipset == 0xaf) {
+		if (ndev->chipset == 0xaf) {
 			/* no joke.. seriously.. sigh.. */
 			return nv_rd32(dev, 0x00471c) * 1000;
 		}
 
-		return dev_priv->crystal;
+		return ndev->crystal;
 	}
 
 	sctl = nv_rd32(dev, 0x4120 + (clk * 4));
@@ -61,7 +61,7 @@ read_clk(struct drm_device *dev, int clk, bool ignore_en)
 
 	switch (sctl & 0x00003000) {
 	case 0x00000000:
-		return dev_priv->crystal;
+		return ndev->crystal;
 	case 0x00002000:
 		if (sctl & 0x00000040)
 			return 108000;
@@ -361,15 +361,15 @@ mclk_mrg(struct nouveau_mem_exec_func *exec, int mr)
 static void
 mclk_mrs(struct nouveau_mem_exec_func *exec, int mr, u32 data)
 {
-	struct drm_nouveau_private *dev_priv = exec->dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(exec->dev);
 
 	if (mr <= 1) {
-		if (dev_priv->vram_rank_B)
+		if (ndev->vram_rank_B)
 			nv_wr32(exec->dev, 0x1002c8 + ((mr - 0) * 4), data);
 		nv_wr32(exec->dev, 0x1002c0 + ((mr - 0) * 4), data);
 	} else
 	if (mr <= 3) {
-		if (dev_priv->vram_rank_B)
+		if (ndev->vram_rank_B)
 			nv_wr32(exec->dev, 0x1002e8 + ((mr - 2) * 4), data);
 		nv_wr32(exec->dev, 0x1002e0 + ((mr - 2) * 4), data);
 	}
@@ -554,13 +554,13 @@ prog_mem(struct drm_device *dev, struct nva3_pm_state *info)
 int
 nva3_pm_clocks_set(struct drm_device *dev, void *pre_state)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nva3_pm_state *info = pre_state;
 	unsigned long flags;
 	int ret = -EAGAIN;
 
 	/* prevent any new grctx switches from starting */
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_wr32(dev, 0x400324, 0x00000000);
 	nv_wr32(dev, 0x400328, 0x0050001c); /* wait flag 0x1c */
 	/* wait for any pending grctx switches to complete */
@@ -594,7 +594,7 @@ cleanup:
 	/* unblock it if necessary */
 	if (nv_rd32(dev, 0x400308) == 0x0050001c)
 		nv_mask(dev, 0x400824, 0x10000000, 0x10000000);
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 	kfree(info);
 	return ret;
 }

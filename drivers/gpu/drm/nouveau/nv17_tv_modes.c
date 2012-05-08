@@ -543,10 +543,10 @@ void nv17_tv_update_rescaler(struct drm_encoder *encoder)
 void nv17_ctv_update_rescaler(struct drm_encoder *encoder)
 {
 	struct drm_device *dev = encoder->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv17_tv_encoder *tv_enc = to_tv_enc(encoder);
 	int head = nouveau_crtc(encoder->crtc)->index;
-	struct nv04_crtc_reg *regs = &dev_priv->mode_reg.crtc_reg[head];
+	struct nv04_crtc_reg *regs = &ndev->mode_reg.crtc_reg[head];
 	struct drm_display_mode *crtc_mode = &encoder->crtc->mode;
 	struct drm_display_mode *output_mode =
 		&get_tv_norm(encoder)->ctv_enc_mode.mode;

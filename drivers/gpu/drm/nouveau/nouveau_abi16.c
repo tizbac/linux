@@ -32,12 +32,12 @@
 int
 nouveau_abi16_ioctl_getparam(ABI16_IOCTL_ARGS)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_nouveau_getparam *getparam = data;
 
 	switch (getparam->param) {
 	case NOUVEAU_GETPARAM_CHIPSET_ID:
-		getparam->value = dev_priv->chipset;
+		getparam->value = ndev->chipset;
 		break;
 	case NOUVEAU_GETPARAM_PCI_VENDOR:
 		getparam->value = dev->pci_vendor;
@@ -55,16 +55,16 @@ nouveau_abi16_ioctl_getparam(ABI16_IOCTL_ARGS)
 			getparam->value = 2;
 		break;
 	case NOUVEAU_GETPARAM_FB_SIZE:
-		getparam->value = dev_priv->fb_available_size;
+		getparam->value = ndev->fb_available_size;
 		break;
 	case NOUVEAU_GETPARAM_AGP_SIZE:
-		getparam->value = dev_priv->gart_info.aper_size;
+		getparam->value = ndev->gart_info.aper_size;
 		break;
 	case NOUVEAU_GETPARAM_VM_VRAM_BASE:
 		getparam->value = 0; /* deprecated */
 		break;
 	case NOUVEAU_GETPARAM_PTIMER_TIME:
-		getparam->value = dev_priv->subsys.timer.read(dev);
+		getparam->value = ndev->subsys.timer.read(dev);
 		break;
 	case NOUVEAU_GETPARAM_HAS_BO_USAGE:
 		getparam->value = 1;
@@ -76,7 +76,7 @@ nouveau_abi16_ioctl_getparam(ABI16_IOCTL_ARGS)
 		/* NV40 and NV50 versions are quite different, but register
 		 * address is the same. User is supposed to know the card
 		 * family anyway... */
-		if (dev_priv->chipset >= 0x40) {
+		if (ndev->chipset >= 0x40) {
 			getparam->value = nv_rd32(dev, NV40_PMC_GRAPH_UNITS);
 			break;
 		}
@@ -98,12 +98,12 @@ nouveau_abi16_ioctl_setparam(ABI16_IOCTL_ARGS)
 int
 nouveau_abi16_ioctl_channel_alloc(ABI16_IOCTL_ARGS)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_nouveau_channel_alloc *init = data;
 	struct nouveau_channel *chan;
 	int ret;
 
-	if (!dev_priv->engine[NVOBJ_ENGINE_GR])
+	if (!ndev->engine[NVOBJ_ENGINE_GR])
 		return -ENODEV;
 
 	if (init->fb_ctxdma_handle == ~0 || init->tt_ctxdma_handle == ~0)
@@ -128,7 +128,7 @@ nouveau_abi16_ioctl_channel_alloc(ABI16_IOCTL_ARGS)
 		init->pushbuf_domains = NOUVEAU_GEM_DOMAIN_VRAM;
 	}
 
-	if (dev_priv->card_type < NV_C0) {
+	if (ndev->card_type < NV_C0) {
 		init->subchan[0].handle = 0x00000000;
 		init->subchan[0].grclass = 0x0000;
 		init->subchan[1].handle = NvSw;
@@ -206,13 +206,13 @@ out:
 int
 nouveau_abi16_ioctl_notifierobj_alloc(ABI16_IOCTL_ARGS)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_nouveau_notifierobj_alloc *na = data;
 	struct nouveau_channel *chan;
 	int ret;
 
 	/* completely unnecessary for these chipsets... */
-	if (unlikely(dev_priv->card_type >= NV_C0))
+	if (unlikely(ndev->card_type >= NV_C0))
 		return -EINVAL;
 
 	chan = nouveau_channel_get(file_priv, na->channel);
