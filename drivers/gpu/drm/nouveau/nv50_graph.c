@@ -34,7 +34,7 @@
 #include "nv50_evo.h"
 
 struct nv50_graph_engine {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 	u32 ctxprog[512];
 	u32 ctxprog_size;
 	u32 grctx_size;
@@ -164,7 +164,7 @@ nv50_graph_context_new(struct nouveau_channel *chan, int engine)
 	nv50_grctx_fill(dev, grctx);
 	nv_wo32(grctx, 0x00000, chan->ramin->vinst >> 12);
 
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 	atomic_inc(&chan->vm->engref[NVOBJ_ENGINE_GR]);
 	chan->engctx[NVOBJ_ENGINE_GR] = grctx;
@@ -181,7 +181,7 @@ nv50_graph_context_del(struct nouveau_channel *chan, int engine)
 
 	for (i = hdr; i < hdr + 24; i += 4)
 		nv_wo32(chan->ramin, i, 0);
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 	atomic_dec(&chan->vm->engref[engine]);
 	nouveau_gpuobj_ref(NULL, &grctx);
@@ -207,7 +207,7 @@ nv50_graph_object_new(struct nouveau_channel *chan, int engine,
 	nv_wo32(obj, 0x04, 0x00000000);
 	nv_wo32(obj, 0x08, 0x00000000);
 	nv_wo32(obj, 0x0c, 0x00000000);
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 	ret = nouveau_ramht_insert(chan, handle, obj);
 	nouveau_gpuobj_ref(NULL, &obj);
@@ -224,7 +224,7 @@ static void
 nv84_graph_tlb_flush(struct drm_device *dev, int engine)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_timer_engine *ptimer = &dev_priv->engine.timer;
+	struct nouveau_timer_engine *ptimer = &dev_priv->subsys.timer;
 	bool idle, timeout = false;
 	unsigned long flags;
 	u64 start;

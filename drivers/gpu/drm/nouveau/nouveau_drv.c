@@ -176,7 +176,7 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 {
 	struct drm_device *dev = pci_get_drvdata(pdev);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->engine.instmem;
+	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
 	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
 	struct nouveau_channel *chan;
 	struct drm_crtc *crtc;
@@ -224,10 +224,10 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 	}
 
 	for (e = NVOBJ_ENGINE_NR - 1; e >= 0; e--) {
-		if (!dev_priv->eng[e])
+		if (!dev_priv->engine[e])
 			continue;
 
-		ret = dev_priv->eng[e]->fini(dev, e, true);
+		ret = dev_priv->engine[e]->fini(dev, e, true);
 		if (ret) {
 			NV_ERROR(dev, "... engine %d failed: %d\n", e, ret);
 			goto out_abort;
@@ -260,8 +260,8 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 out_abort:
 	NV_INFO(dev, "Re-enabling acceleration..\n");
 	for (e = e + 1; e < NVOBJ_ENGINE_NR; e++) {
-		if (dev_priv->eng[e])
-			dev_priv->eng[e]->init(dev, e);
+		if (dev_priv->engine[e])
+			dev_priv->engine[e]->init(dev, e);
 	}
 	return ret;
 }
@@ -272,7 +272,7 @@ nouveau_pci_resume(struct pci_dev *pdev)
 	struct drm_device *dev = pci_get_drvdata(pdev);
 	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_engine *engine = &dev_priv->engine;
+	struct nouveau_subsys *engine = &dev_priv->subsys;
 	struct drm_crtc *crtc;
 	int ret, i;
 
@@ -315,8 +315,8 @@ nouveau_pci_resume(struct pci_dev *pdev)
 	engine->timer.init(dev);
 	engine->fb.init(dev);
 	for (i = 0; i < NVOBJ_ENGINE_NR; i++) {
-		if (dev_priv->eng[i])
-			dev_priv->eng[i]->init(dev, i);
+		if (dev_priv->engine[i])
+			dev_priv->engine[i]->init(dev, i);
 	}
 
 	nouveau_irq_postinstall(dev);

@@ -58,7 +58,7 @@ int
 nouveau_gpio_drive(struct drm_device *dev, int idx, int line, int dir, int out)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
+	struct nouveau_gpio_engine *pgpio = &dev_priv->subsys.gpio;
 
 	return pgpio->drive ? pgpio->drive(dev, line, dir, out) : -ENODEV;
 }
@@ -67,7 +67,7 @@ int
 nouveau_gpio_sense(struct drm_device *dev, int idx, int line)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
+	struct nouveau_gpio_engine *pgpio = &dev_priv->subsys.gpio;
 
 	return pgpio->sense ? pgpio->sense(dev, line) : -ENODEV;
 }
@@ -178,7 +178,7 @@ int
 nouveau_gpio_irq(struct drm_device *dev, int idx, u8 tag, u8 line, bool on)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
+	struct nouveau_gpio_engine *pgpio = &dev_priv->subsys.gpio;
 	struct gpio_func gpio;
 	int ret;
 
@@ -210,7 +210,7 @@ nouveau_gpio_isr_bh(struct work_struct *work)
 	struct gpio_isr *isr = container_of(work, struct gpio_isr, work);
 	struct drm_device *dev = isr->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
+	struct nouveau_gpio_engine *pgpio = &dev_priv->subsys.gpio;
 	unsigned long flags;
 	int state;
 
@@ -227,7 +227,7 @@ void
 nouveau_gpio_isr(struct drm_device *dev, int idx, u32 line_mask)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
+	struct nouveau_gpio_engine *pgpio = &dev_priv->subsys.gpio;
 	struct gpio_isr *isr;
 
 	if (idx != 0)
@@ -250,7 +250,7 @@ nouveau_gpio_isr_add(struct drm_device *dev, int idx, u8 tag, u8 line,
 		     void (*handler)(void *, int), void *data)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
+	struct nouveau_gpio_engine *pgpio = &dev_priv->subsys.gpio;
 	struct gpio_isr *isr;
 	unsigned long flags;
 	int ret;
@@ -282,7 +282,7 @@ nouveau_gpio_isr_del(struct drm_device *dev, int idx, u8 tag, u8 line,
 		     void (*handler)(void *, int), void *data)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
+	struct nouveau_gpio_engine *pgpio = &dev_priv->subsys.gpio;
 	struct gpio_isr *isr, *tmp;
 	struct gpio_func func;
 	unsigned long flags;
@@ -312,7 +312,7 @@ int
 nouveau_gpio_create(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
+	struct nouveau_gpio_engine *pgpio = &dev_priv->subsys.gpio;
 
 	INIT_LIST_HEAD(&pgpio->isr);
 	spin_lock_init(&pgpio->lock);
@@ -324,7 +324,7 @@ void
 nouveau_gpio_destroy(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
+	struct nouveau_gpio_engine *pgpio = &dev_priv->subsys.gpio;
 
 	nouveau_gpio_fini(dev);
 	BUG_ON(!list_empty(&pgpio->isr));
@@ -334,7 +334,7 @@ int
 nouveau_gpio_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
+	struct nouveau_gpio_engine *pgpio = &dev_priv->subsys.gpio;
 	int ret = 0;
 
 	if (pgpio->init)
@@ -347,7 +347,7 @@ void
 nouveau_gpio_fini(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
+	struct nouveau_gpio_engine *pgpio = &dev_priv->subsys.gpio;
 
 	if (pgpio->fini)
 		pgpio->fini(dev);

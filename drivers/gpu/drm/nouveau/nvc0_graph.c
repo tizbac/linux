@@ -118,7 +118,7 @@ nvc0_graph_construct_context(struct nouveau_channel *chan)
 		nv_wo32(grch->grctx, 0x20, 0);
 		nv_wo32(grch->grctx, 0x28, 0);
 		nv_wo32(grch->grctx, 0x2c, 0);
-		dev_priv->engine.instmem.flush(dev);
+		dev_priv->subsys.instmem.flush(dev);
 	}
 
 	ret = nvc0_grctx_generate(chan);
@@ -251,7 +251,7 @@ nvc0_graph_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct drm_device *dev = chan->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->engine.instmem;
+	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
 	struct nvc0_graph_priv *priv = nv_engine(dev, engine);
 	struct nvc0_graph_chan *grch;
 	struct nouveau_gpuobj *grctx;

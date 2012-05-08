@@ -31,7 +31,7 @@
 #include "nvc0_copy.fuc.h"
 
 struct nvc0_copy_engine {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 	u32 irq;
 	u32 pmc;
 	u32 fuc;
@@ -56,7 +56,7 @@ nvc0_copy_context_new(struct nouveau_channel *chan, int engine)
 
 	nv_wo32(ramin, pcopy->ctx + 0, lower_32_bits(ctx->linst));
 	nv_wo32(ramin, pcopy->ctx + 4, upper_32_bits(ctx->linst));
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 	chan->engctx[engine] = ctx;
 	return 0;

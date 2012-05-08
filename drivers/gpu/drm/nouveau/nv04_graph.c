@@ -31,7 +31,7 @@
 #include "nouveau_ramht.h"
 
 struct nv04_graph_engine {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 };
 
 static uint32_t nv04_graph_ctx_regs[] = {

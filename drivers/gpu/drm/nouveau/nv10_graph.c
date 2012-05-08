@@ -29,7 +29,7 @@
 #include "nouveau_util.h"
 
 struct nv10_graph_engine {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 };
 
 struct pipe_state {

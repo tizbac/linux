@@ -39,7 +39,7 @@ static int
 nouveau_pwmfan_get(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct gpio_func gpio;
 	u32 divs, duty;
 	int ret;
@@ -67,7 +67,7 @@ static int
 nouveau_pwmfan_set(struct drm_device *dev, int percent)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct gpio_func gpio;
 	u32 divs, duty;
 	int ret;
@@ -103,7 +103,7 @@ nouveau_pm_perflvl_aux(struct drm_device *dev, struct nouveau_pm_level *perflvl,
 		       struct nouveau_pm_level *a, struct nouveau_pm_level *b)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	int ret;
 
 	/*XXX: not on all boards, we should control based on temperature
@@ -135,7 +135,7 @@ static int
 nouveau_pm_perflvl_set(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	void *state;
 	int ret;
 
@@ -172,7 +172,7 @@ void
 nouveau_pm_trigger(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_profile *profile = NULL;
 	struct nouveau_pm_level *perflvl = NULL;
 	int ret;
@@ -194,7 +194,7 @@ nouveau_pm_trigger(struct drm_device *dev)
 
 	/* change perflvl, if necessary */
 	if (perflvl != pm->cur) {
-		struct nouveau_timer_engine *ptimer = &dev_priv->engine.timer;
+		struct nouveau_timer_engine *ptimer = &dev_priv->subsys.timer;
 		u64 time0 = ptimer->read(dev);
 
 		NV_INFO(dev, "setting performance level: %d", perflvl->id);
@@ -211,7 +211,7 @@ static struct nouveau_pm_profile *
 profile_find(struct drm_device *dev, const char *string)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_profile *profile;
 
 	list_for_each_entry(profile, &pm->profiles, head) {
@@ -226,7 +226,7 @@ static int
 nouveau_pm_profile_set(struct drm_device *dev, const char *profile)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_profile *ac = NULL, *dc = NULL;
 	char string[16], *cur = string, *ptr;
 
@@ -280,7 +280,7 @@ static int
 nouveau_pm_perflvl_get(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	int ret;
 
 	memset(perflvl, 0, sizeof(*perflvl));
@@ -363,7 +363,7 @@ nouveau_pm_get_perflvl(struct device *d, struct device_attribute *a, char *buf)
 {
 	struct drm_device *dev = pci_get_drvdata(to_pci_dev(d));
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_level cur;
 	int len = PAGE_SIZE, ret;
 	char *ptr = buf;
@@ -399,7 +399,7 @@ static int
 nouveau_sysfs_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct device *d = &dev->pdev->dev;
 	int ret, i;
 
@@ -433,7 +433,7 @@ static void
 nouveau_sysfs_fini(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct device *d = &dev->pdev->dev;
 	int i;
 
@@ -454,7 +454,7 @@ nouveau_hwmon_show_temp(struct device *d, struct device_attribute *a, char *buf)
 {
 	struct drm_device *dev = dev_get_drvdata(d);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", pm->temp_get(dev)*1000);
 }
@@ -466,7 +466,7 @@ nouveau_hwmon_max_temp(struct device *d, struct device_attribute *a, char *buf)
 {
 	struct drm_device *dev = dev_get_drvdata(d);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_threshold_temp *temp = &pm->threshold_temp;
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", temp->down_clock*1000);
@@ -477,7 +477,7 @@ nouveau_hwmon_set_max_temp(struct device *d, struct device_attribute *a,
 {
 	struct drm_device *dev = dev_get_drvdata(d);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_threshold_temp *temp = &pm->threshold_temp;
 	long value;
 
@@ -500,7 +500,7 @@ nouveau_hwmon_critical_temp(struct device *d, struct device_attribute *a,
 {
 	struct drm_device *dev = dev_get_drvdata(d);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_threshold_temp *temp = &pm->threshold_temp;
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", temp->critical*1000);
@@ -512,7 +512,7 @@ nouveau_hwmon_set_critical_temp(struct device *d, struct device_attribute *a,
 {
 	struct drm_device *dev = dev_get_drvdata(d);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_threshold_temp *temp = &pm->threshold_temp;
 	long value;
 
@@ -554,7 +554,7 @@ nouveau_hwmon_show_fan0_input(struct device *d, struct device_attribute *attr,
 {
 	struct drm_device *dev = dev_get_drvdata(d);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_timer_engine *ptimer = &dev_priv->engine.timer;
+	struct nouveau_timer_engine *ptimer = &dev_priv->subsys.timer;
 	struct gpio_func gpio;
 	u32 cycles, cur, prev;
 	u64 start;
@@ -606,7 +606,7 @@ nouveau_hwmon_set_pwm0(struct device *d, struct device_attribute *a,
 {
 	struct drm_device *dev = dev_get_drvdata(d);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	int ret = -ENODEV;
 	long value;
 
@@ -638,7 +638,7 @@ nouveau_hwmon_get_pwm0_min(struct device *d,
 {
 	struct drm_device *dev = dev_get_drvdata(d);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 
 	return sprintf(buf, "%i\n", pm->fan.min_duty);
 }
@@ -649,7 +649,7 @@ nouveau_hwmon_set_pwm0_min(struct device *d, struct device_attribute *a,
 {
 	struct drm_device *dev = dev_get_drvdata(d);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	long value;
 
 	if (kstrtol(buf, 10, &value) == -EINVAL)
@@ -679,7 +679,7 @@ nouveau_hwmon_get_pwm0_max(struct device *d,
 {
 	struct drm_device *dev = dev_get_drvdata(d);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 
 	return sprintf(buf, "%i\n", pm->fan.max_duty);
 }
@@ -690,7 +690,7 @@ nouveau_hwmon_set_pwm0_max(struct device *d, struct device_attribute *a,
 {
 	struct drm_device *dev = dev_get_drvdata(d);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	long value;
 
 	if (kstrtol(buf, 10, &value) == -EINVAL)
@@ -748,7 +748,7 @@ static int
 nouveau_hwmon_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 #if defined(CONFIG_HWMON) || (defined(MODULE) && defined(CONFIG_HWMON_MODULE))
 	struct device *hwmon_dev;
 	int ret = 0;
@@ -811,7 +811,7 @@ nouveau_hwmon_fini(struct drm_device *dev)
 {
 #if defined(CONFIG_HWMON) || (defined(MODULE) && defined(CONFIG_HWMON_MODULE))
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 
 	if (pm->hwmon) {
 		sysfs_remove_group(&dev->pdev->dev.kobj, &hwmon_attrgroup);
@@ -830,7 +830,7 @@ static int
 nouveau_pm_acpi_event(struct notifier_block *nb, unsigned long val, void *data)
 {
 	struct drm_nouveau_private *dev_priv =
-		container_of(nb, struct drm_nouveau_private, engine.pm.acpi_nb);
+		container_of(nb, struct drm_nouveau_private, subsys.pm.acpi_nb);
 	struct drm_device *dev = dev_priv->dev;
 	struct acpi_bus_event *entry = (struct acpi_bus_event *)data;
 
@@ -849,7 +849,7 @@ int
 nouveau_pm_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	char info[256];
 	int ret, i;
 
@@ -910,7 +910,7 @@ void
 nouveau_pm_fini(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_profile *profile, *tmp;
 
 	list_for_each_entry_safe(profile, tmp, &pm->profiles, head) {
@@ -936,7 +936,7 @@ void
 nouveau_pm_resume(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_level *perflvl;
 
 	if (!pm->cur || pm->cur == &pm->boot)

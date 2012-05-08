@@ -40,7 +40,7 @@ struct nve0_graph_fuc {
 };
 
 struct nve0_graph_priv {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 
 	struct nve0_graph_fuc fuc409c;
 	struct nve0_graph_fuc fuc409d;

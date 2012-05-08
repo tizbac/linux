@@ -52,7 +52,7 @@ nv10_mem_update_tile_region(struct drm_device *dev,
 			    uint32_t size, uint32_t pitch, uint32_t flags)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
+	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
 	int i = tile - dev_priv->tile.reg, j;
 	unsigned long save;
 
@@ -72,8 +72,8 @@ nv10_mem_update_tile_region(struct drm_device *dev,
 
 	pfb->set_tile_region(dev, i);
 	for (j = 0; j < NVOBJ_ENGINE_NR; j++) {
-		if (dev_priv->eng[j] && dev_priv->eng[j]->set_tile_region)
-			dev_priv->eng[j]->set_tile_region(dev, i);
+		if (dev_priv->engine[j] && dev_priv->engine[j]->set_tile_region)
+			dev_priv->engine[j]->set_tile_region(dev, i);
 	}
 
 	nv04_fifo_cache_pull(dev, true);
@@ -123,7 +123,7 @@ nv10_mem_set_tiling(struct drm_device *dev, uint32_t addr, uint32_t size,
 		    uint32_t pitch, uint32_t flags)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
+	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
 	struct nouveau_tile_reg *tile, *found = NULL;
 	int i;
 
@@ -821,7 +821,7 @@ nouveau_mem_timing_calc(struct drm_device *dev, u32 freq,
 			struct nouveau_pm_memtiming *t)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_memtiming *boot = &pm->boot.timing;
 	struct nouveau_pm_tbl_entry *e;
 	u8 ver, len, *ptr, *ramcfg;
@@ -1123,7 +1123,7 @@ nouveau_vram_manager_del(struct ttm_mem_type_manager *man,
 			 struct ttm_mem_reg *mem)
 {
 	struct drm_nouveau_private *dev_priv = nouveau_bdev(man->bdev);
-	struct nouveau_vram_engine *vram = &dev_priv->engine.vram;
+	struct nouveau_vram_engine *vram = &dev_priv->subsys.vram;
 	struct drm_device *dev = dev_priv->dev;
 
 	nouveau_mem_node_cleanup(mem->mm_node);
@@ -1137,7 +1137,7 @@ nouveau_vram_manager_new(struct ttm_mem_type_manager *man,
 			 struct ttm_mem_reg *mem)
 {
 	struct drm_nouveau_private *dev_priv = nouveau_bdev(man->bdev);
-	struct nouveau_vram_engine *vram = &dev_priv->engine.vram;
+	struct nouveau_vram_engine *vram = &dev_priv->subsys.vram;
 	struct drm_device *dev = dev_priv->dev;
 	struct nouveau_bo *nvbo = nouveau_bo(bo);
 	struct nouveau_mem *node;

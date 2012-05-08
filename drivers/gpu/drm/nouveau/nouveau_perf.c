@@ -204,7 +204,7 @@ legacy_perf_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvbios *bios = &dev_priv->vbios;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	char *perf, *entry, *bmp = &bios->data[bios->offset];
 	int headerlen, use_straps;
 
@@ -258,7 +258,7 @@ nouveau_perf_voltage(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 	/* boards using voltage table version <0x40 store the voltage
 	 * level directly in the perflvl entry as a multiple of 10mV
 	 */
-	if (dev_priv->engine.pm.voltage.version < 0x40) {
+	if (dev_priv->subsys.pm.voltage.version < 0x40) {
 		perflvl->volt_min = id * 10000;
 		perflvl->volt_max = perflvl->volt_min;
 		return;
@@ -290,7 +290,7 @@ void
 nouveau_perf_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nvbios *bios = &dev_priv->vbios;
 	u8 *perf, ver, hdr, cnt, len;
 	int ret, vid, i = -1;

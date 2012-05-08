@@ -31,7 +31,7 @@
 #include "nva3_copy.fuc.h"
 
 struct nva3_copy_engine {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 };
 
 static int
@@ -56,7 +56,7 @@ nva3_copy_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(ramin, 0xcc, 0x00000000);
 	nv_wo32(ramin, 0xd0, 0x00000000);
 	nv_wo32(ramin, 0xd4, 0x00000000);
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 	atomic_inc(&chan->vm->engref[engine]);
 	chan->engctx[engine] = ctx;

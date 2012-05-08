@@ -97,7 +97,7 @@ nv84_fifo_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(chan->ramin, 0x00, chan->id);
 	nv_wo32(chan->ramin, 0x04, fctx->ramfc->vinst >> 8);
 
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
 	nv_wr32(dev, 0x002600 + (chan->id * 4), 0x80000000 | instance);
@@ -221,7 +221,7 @@ nv84_fifo_create(struct drm_device *dev)
 	priv->base.base.context_del = nv84_fifo_context_del;
 	priv->base.base.tlb_flush = nv50_fifo_tlb_flush;
 	priv->base.channels = 127;
-	dev_priv->eng[NVOBJ_ENGINE_FIFO] = &priv->base.base;
+	dev_priv->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
 
 	ret = nouveau_gpuobj_new(dev, NULL, priv->base.channels * 4, 0x1000,
 				 NVOBJ_FLAG_ZERO_ALLOC, &priv->playlist[0]);

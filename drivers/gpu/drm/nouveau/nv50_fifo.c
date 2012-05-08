@@ -57,7 +57,7 @@ nv50_fifo_playlist_update(struct drm_device *dev)
 			nv_wo32(cur, p++ * 4, i);
 	}
 
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 	nv_wr32(dev, 0x0032f4, cur->vinst >> 12);
 	nv_wr32(dev, 0x0032ec, p);
@@ -104,7 +104,7 @@ nv50_fifo_context_new(struct nouveau_channel *chan, int engine)
 				   (4 << 24) /* SEARCH_FULL */ |
 				   (chan->ramht->gpuobj->cinst >> 4));
 
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
 	nv_wr32(dev, 0x002600 + (chan->id * 4), 0x80000000 | instance);
@@ -252,7 +252,7 @@ nv50_fifo_destroy(struct drm_device *dev, int engine)
 	nouveau_gpuobj_ref(NULL, &priv->playlist[0]);
 	nouveau_gpuobj_ref(NULL, &priv->playlist[1]);
 
-	dev_priv->eng[engine] = NULL;
+	dev_priv->engine[engine] = NULL;
 	kfree(priv);
 }
 
@@ -274,7 +274,7 @@ nv50_fifo_create(struct drm_device *dev)
 	priv->base.base.context_del = nv50_fifo_context_del;
 	priv->base.base.tlb_flush = nv50_fifo_tlb_flush;
 	priv->base.channels = 127;
-	dev_priv->eng[NVOBJ_ENGINE_FIFO] = &priv->base.base;
+	dev_priv->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
 
 	ret = nouveau_gpuobj_new(dev, NULL, priv->base.channels * 4, 0x1000,
 				 NVOBJ_FLAG_ZERO_ALLOC, &priv->playlist[0]);

@@ -165,7 +165,7 @@ nv10_fence_destroy(struct drm_device *dev, int engine)
 	struct nv10_fence_priv *priv = nv_engine(dev, engine);
 
 	nouveau_bo_ref(NULL, &priv->bo);
-	dev_priv->eng[engine] = NULL;
+	dev_priv->engine[engine] = NULL;
 	kfree(priv);
 }
 
@@ -188,7 +188,7 @@ nv10_fence_create(struct drm_device *dev)
 	priv->base.emit = nv10_fence_emit;
 	priv->base.read = nv10_fence_read;
 	priv->base.sync = nv10_fence_sync;
-	dev_priv->eng[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
+	dev_priv->engine[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
 	spin_lock_init(&priv->lock);
 
 	if (dev_priv->chipset >= 0x17) {

@@ -49,7 +49,7 @@ static int nouveau_stub_init(struct drm_device *dev) { return 0; }
 static int nouveau_init_engine_ptrs(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_engine *engine = &dev_priv->engine;
+	struct nouveau_subsys *engine = &dev_priv->subsys;
 
 	switch (dev_priv->chipset & 0xf0) {
 	case 0x00:
@@ -531,7 +531,7 @@ int
 nouveau_card_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_engine *engine;
+	struct nouveau_subsys *engine;
 	int ret, e = 0;
 
 	vga_client_register(dev->pdev, dev, NULL, nouveau_vga_set_decode);
@@ -541,7 +541,7 @@ nouveau_card_init(struct drm_device *dev)
 	ret = nouveau_init_engine_ptrs(dev);
 	if (ret)
 		goto out;
-	engine = &dev_priv->engine;
+	engine = &dev_priv->subsys;
 	spin_lock_init(&dev_priv->channels.lock);
 	spin_lock_init(&dev_priv->tile.lock);
 	spin_lock_init(&dev_priv->context_switch_lock);
@@ -766,8 +766,8 @@ nouveau_card_init(struct drm_device *dev)
 		}
 
 		for (e = 0; e < NVOBJ_ENGINE_NR; e++) {
-			if (dev_priv->eng[e]) {
-				ret = dev_priv->eng[e]->init(dev, e);
+			if (dev_priv->engine[e]) {
+				ret = dev_priv->engine[e]->init(dev, e);
 				if (ret)
 					goto out_engine;
 			}
@@ -785,7 +785,7 @@ nouveau_card_init(struct drm_device *dev)
 	nouveau_backlight_init(dev);
 	nouveau_pm_init(dev);
 
-	if (dev_priv->eng[NVOBJ_ENGINE_GR]) {
+	if (dev_priv->engine[NVOBJ_ENGINE_GR]) {
 		ret = nouveau_card_channel_init(dev);
 		if (ret)
 			goto out_pm;
@@ -812,10 +812,10 @@ out_irq:
 out_engine:
 	if (!dev_priv->noaccel) {
 		for (e = e - 1; e >= 0; e--) {
-			if (!dev_priv->eng[e])
+			if (!dev_priv->engine[e])
 				continue;
-			dev_priv->eng[e]->fini(dev, e, false);
-			dev_priv->eng[e]->destroy(dev,e );
+			dev_priv->engine[e]->fini(dev, e, false);
+			dev_priv->engine[e]->destroy(dev,e );
 		}
 	}
 	nouveau_mem_gart_fini(dev);
@@ -848,7 +848,7 @@ out:
 static void nouveau_card_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_engine *engine = &dev_priv->engine;
+	struct nouveau_subsys *engine = &dev_priv->subsys;
 	int e;
 
 	if (dev->mode_config.num_crtc) {
@@ -863,9 +863,9 @@ static void nouveau_card_takedown(struct drm_device *dev)
 
 	if (!dev_priv->noaccel) {
 		for (e = NVOBJ_ENGINE_NR - 1; e >= 0; e--) {
-			if (dev_priv->eng[e]) {
-				dev_priv->eng[e]->fini(dev, e, false);
-				dev_priv->eng[e]->destroy(dev,e );
+			if (dev_priv->engine[e]) {
+				dev_priv->engine[e]->fini(dev, e, false);
+				dev_priv->engine[e]->destroy(dev,e );
 			}
 		}
 	}
@@ -1240,7 +1240,7 @@ nouveau_wait_eq(struct drm_device *dev, uint64_t timeout,
 		uint32_t reg, uint32_t mask, uint32_t val)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_timer_engine *ptimer = &dev_priv->engine.timer;
+	struct nouveau_timer_engine *ptimer = &dev_priv->subsys.timer;
 	uint64_t start = ptimer->read(dev);
 
 	do {
@@ -1257,7 +1257,7 @@ nouveau_wait_ne(struct drm_device *dev, uint64_t timeout,
 		uint32_t reg, uint32_t mask, uint32_t val)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_timer_engine *ptimer = &dev_priv->engine.timer;
+	struct nouveau_timer_engine *ptimer = &dev_priv->subsys.timer;
 	uint64_t start = ptimer->read(dev);
 
 	do {
@@ -1274,7 +1274,7 @@ nouveau_wait_cb(struct drm_device *dev, u64 timeout,
 		bool (*cond)(void *), void *data)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_timer_engine *ptimer = &dev_priv->engine.timer;
+	struct nouveau_timer_engine *ptimer = &dev_priv->subsys.timer;
 	u64 start = ptimer->read(dev);
 
 	do {

@@ -136,7 +136,7 @@ nv50_instmem_init(struct drm_device *dev)
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
-	dev_priv->engine.instmem.priv = priv;
+	dev_priv->subsys.instmem.priv = priv;
 
 	/* Save state, will restore at takedown. */
 	for (i = 0x1700; i <= 0x1710; i += 4)
@@ -181,7 +181,7 @@ nv50_instmem_init(struct drm_device *dev)
 	nv_wr32(dev, 0x001704, 0x40000000 | (chan->ramin->vinst >> 12));
 	nv_wr32(dev, 0x00170c, 0x80000000 | (priv->bar3_dmaobj->cinst >> 4));
 
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 	dev_priv->ramin_available = true;
 
 	tmp = nv_ro32(chan->ramin, 0);
@@ -233,7 +233,7 @@ void
 nv50_instmem_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nv50_instmem_priv *priv = dev_priv->engine.instmem.priv;
+	struct nv50_instmem_priv *priv = dev_priv->subsys.instmem.priv;
 	struct nouveau_channel *chan = dev_priv->channels.ptr[0];
 	int i;
 
@@ -262,7 +262,7 @@ nv50_instmem_takedown(struct drm_device *dev)
 	if (drm_mm_initialized(&dev_priv->ramin_heap))
 		drm_mm_takedown(&dev_priv->ramin_heap);
 
-	dev_priv->engine.instmem.priv = NULL;
+	dev_priv->subsys.instmem.priv = NULL;
 	kfree(priv);
 }
 
@@ -279,7 +279,7 @@ void
 nv50_instmem_resume(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nv50_instmem_priv *priv = dev_priv->engine.instmem.priv;
+	struct nv50_instmem_priv *priv = dev_priv->subsys.instmem.priv;
 	struct nouveau_channel *chan = dev_priv->channels.ptr[0];
 	int i;
 
@@ -311,7 +311,7 @@ nv50_instmem_get(struct nouveau_gpuobj *gpuobj, struct nouveau_channel *chan,
 {
 	struct drm_device *dev = gpuobj->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_vram_engine *vram = &dev_priv->engine.vram;
+	struct nouveau_vram_engine *vram = &dev_priv->subsys.vram;
 	struct nv50_gpuobj_node *node = NULL;
 	int ret;
 
@@ -358,7 +358,7 @@ nv50_instmem_put(struct nouveau_gpuobj *gpuobj)
 {
 	struct drm_device *dev = gpuobj->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_vram_engine *vram = &dev_priv->engine.vram;
+	struct nouveau_vram_engine *vram = &dev_priv->subsys.vram;
 	struct nv50_gpuobj_node *node;
 
 	node = gpuobj->node;

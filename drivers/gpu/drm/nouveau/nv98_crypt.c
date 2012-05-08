@@ -32,7 +32,7 @@
 #include "nv98_crypt.fuc.h"
 
 struct nv98_crypt_priv {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 };
 
 struct nv98_crypt_chan {
@@ -65,7 +65,7 @@ nv98_crypt_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(chan->ramin, 0xac, 0x00000000);
 	nv_wo32(chan->ramin, 0xb0, 0x00000000);
 	nv_wo32(chan->ramin, 0xb4, 0x00000000);
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 error:
 	if (ret)

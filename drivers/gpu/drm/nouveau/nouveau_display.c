@@ -213,7 +213,7 @@ int
 nouveau_display_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_display_engine *disp = &dev_priv->engine.display;
+	struct nouveau_display_engine *disp = &dev_priv->subsys.display;
 	struct drm_connector *connector;
 	int ret;
 
@@ -246,7 +246,7 @@ void
 nouveau_display_fini(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_display_engine *disp = &dev_priv->engine.display;
+	struct nouveau_display_engine *disp = &dev_priv->subsys.display;
 	struct drm_connector *connector;
 
 	/* disable hotplug interrupts */
@@ -263,7 +263,7 @@ int
 nouveau_display_create(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_display_engine *disp = &dev_priv->engine.display;
+	struct nouveau_display_engine *disp = &dev_priv->subsys.display;
 	int ret, gen;
 
 	drm_mode_config_init(dev);
@@ -349,7 +349,7 @@ void
 nouveau_display_destroy(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_display_engine *disp = &dev_priv->engine.display;
+	struct nouveau_display_engine *disp = &dev_priv->subsys.display;
 
 	drm_vblank_cleanup(dev);
 

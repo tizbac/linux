@@ -146,7 +146,7 @@ void
 nv50_vm_flush(struct nouveau_vm *vm)
 {
 	struct drm_nouveau_private *dev_priv = vm->dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->engine.instmem;
+	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
 	int i;
 
 	pinstmem->flush(vm->dev);
@@ -159,7 +159,7 @@ nv50_vm_flush(struct nouveau_vm *vm)
 
 	for (i = 0; i < NVOBJ_ENGINE_NR; i++) {
 		if (atomic_read(&vm->engref[i]))
-			dev_priv->eng[i]->tlb_flush(vm->dev, i);
+			dev_priv->engine[i]->tlb_flush(vm->dev, i);
 	}
 }
 

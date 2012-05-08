@@ -65,7 +65,7 @@ static void
 nvc0_fb_destroy(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
+	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
 	struct nvc0_fb_priv *priv = pfb->priv;
 
 	nouveau_irq_unregister(dev, 25);
@@ -84,7 +84,7 @@ static int
 nvc0_fb_create(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
+	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
 	struct nvc0_fb_priv *priv;
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
@@ -116,12 +116,12 @@ nvc0_fb_init(struct drm_device *dev)
 	struct nvc0_fb_priv *priv;
 	int ret;
 
-	if (!dev_priv->engine.fb.priv) {
+	if (!dev_priv->subsys.fb.priv) {
 		ret = nvc0_fb_create(dev);
 		if (ret)
 			return ret;
 	}
-	priv = dev_priv->engine.fb.priv;
+	priv = dev_priv->subsys.fb.priv;
 
 	nv_wr32(dev, 0x100c10, priv->r100c10 >> 8);
 	return 0;

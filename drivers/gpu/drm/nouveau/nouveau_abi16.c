@@ -64,7 +64,7 @@ nouveau_abi16_ioctl_getparam(ABI16_IOCTL_ARGS)
 		getparam->value = 0; /* deprecated */
 		break;
 	case NOUVEAU_GETPARAM_PTIMER_TIME:
-		getparam->value = dev_priv->engine.timer.read(dev);
+		getparam->value = dev_priv->subsys.timer.read(dev);
 		break;
 	case NOUVEAU_GETPARAM_HAS_BO_USAGE:
 		getparam->value = 1;
@@ -103,7 +103,7 @@ nouveau_abi16_ioctl_channel_alloc(ABI16_IOCTL_ARGS)
 	struct nouveau_channel *chan;
 	int ret;
 
-	if (!dev_priv->eng[NVOBJ_ENGINE_GR])
+	if (!dev_priv->engine[NVOBJ_ENGINE_GR])
 		return -ENODEV;
 
 	if (init->fb_ctxdma_handle == ~0 || init->tt_ctxdma_handle == ~0)

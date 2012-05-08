@@ -51,7 +51,7 @@ void
 nv50_vram_del(struct drm_device *dev, struct nouveau_mem **pmem)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_mm *mm = &dev_priv->engine.vram.mm;
+	struct nouveau_mm *mm = &dev_priv->subsys.vram.mm;
 	struct nouveau_mm_node *this;
 	struct nouveau_mem *mem;
 
@@ -82,7 +82,7 @@ nv50_vram_new(struct drm_device *dev, u64 size, u32 align, u32 size_nc,
 	      u32 memtype, struct nouveau_mem **pmem)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_mm *mm = &dev_priv->engine.vram.mm;
+	struct nouveau_mm *mm = &dev_priv->subsys.vram.mm;
 	struct nouveau_mm_node *r;
 	struct nouveau_mem *mem;
 	int comp = (memtype & 0x300) >> 8;
@@ -102,7 +102,7 @@ nv50_vram_new(struct drm_device *dev, u64 size, u32 align, u32 size_nc,
 	mutex_lock(&mm->mutex);
 	if (comp) {
 		if (align == 16) {
-			struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
+			struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
 			int n = (size >> 4) * comp;
 
 			mem->tag = drm_mm_search_free(&pfb->tag_heap, n, 0, 0);
@@ -186,7 +186,7 @@ int
 nv50_vram_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_vram_engine *vram = &dev_priv->engine.vram;
+	struct nouveau_vram_engine *vram = &dev_priv->subsys.vram;
 	const u32 rsvd_head = ( 256 * 1024) >> 12; /* vga memory */
 	const u32 rsvd_tail = (1024 * 1024) >> 12; /* vbios etc */
 	u32 pfb714 = nv_rd32(dev, 0x100714);
@@ -231,7 +231,7 @@ void
 nv50_vram_fini(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_vram_engine *vram = &dev_priv->engine.vram;
+	struct nouveau_vram_engine *vram = &dev_priv->subsys.vram;
 
 	nouveau_mm_fini(&vram->mm);
 }

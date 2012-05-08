@@ -27,7 +27,7 @@
 #include "nouveau_ramht.h"
 
 struct nv50_mpeg_engine {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 };
 
 static inline u32
@@ -68,7 +68,7 @@ nv50_mpeg_context_new(struct nouveau_channel *chan, int engine)
 
 	nv_wo32(ctx, 0x70, 0x00801ec1);
 	nv_wo32(ctx, 0x7c, 0x0000037c);
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 	chan->engctx[engine] = ctx;
 	return 0;
@@ -107,7 +107,7 @@ nv50_mpeg_object_new(struct nouveau_channel *chan, int engine,
 	nv_wo32(obj, 0x04, 0x00000000);
 	nv_wo32(obj, 0x08, 0x00000000);
 	nv_wo32(obj, 0x0c, 0x00000000);
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 	ret = nouveau_ramht_insert(chan, handle, obj);
 	nouveau_gpuobj_ref(NULL, &obj);

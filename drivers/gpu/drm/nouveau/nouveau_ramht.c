@@ -86,7 +86,7 @@ nouveau_ramht_insert(struct nouveau_channel *chan, u32 handle,
 {
 	struct drm_device *dev = chan->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *instmem = &dev_priv->engine.instmem;
+	struct nouveau_instmem_engine *instmem = &dev_priv->subsys.instmem;
 	struct nouveau_ramht_entry *entry;
 	struct nouveau_gpuobj *ramht = chan->ramht->gpuobj;
 	unsigned long flags;
@@ -185,7 +185,7 @@ nouveau_ramht_remove_hash(struct nouveau_channel *chan, u32 handle)
 {
 	struct drm_device *dev = chan->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *instmem = &dev_priv->engine.instmem;
+	struct nouveau_instmem_engine *instmem = &dev_priv->subsys.instmem;
 	struct nouveau_gpuobj *ramht = chan->ramht->gpuobj;
 	unsigned long flags;
 	u32 co, ho;

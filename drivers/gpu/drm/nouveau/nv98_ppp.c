@@ -29,7 +29,7 @@
 #include "nouveau_ramht.h"
 
 struct nv98_ppp_engine {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 };
 
 static int

@@ -112,7 +112,7 @@ nv04_fence_destroy(struct drm_device *dev, int engine)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nv04_fence_priv *priv = nv_engine(dev, engine);
 
-	dev_priv->eng[engine] = NULL;
+	dev_priv->engine[engine] = NULL;
 	kfree(priv);
 }
 
@@ -135,6 +135,6 @@ nv04_fence_create(struct drm_device *dev)
 	priv->base.emit = nv04_fence_emit;
 	priv->base.sync = nv04_fence_sync;
 	priv->base.read = nv04_fence_read;
-	dev_priv->eng[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
+	dev_priv->engine[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
 	return ret;
 }

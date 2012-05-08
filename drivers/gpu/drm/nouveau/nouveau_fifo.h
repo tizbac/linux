@@ -2,7 +2,7 @@
 #define __NOUVEAU_FIFO_H__
 
 struct nouveau_fifo_priv {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 	u32 channels;
 };
 

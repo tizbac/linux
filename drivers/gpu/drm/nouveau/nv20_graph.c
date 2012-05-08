@@ -25,7 +25,7 @@
  */
 
 struct nv20_graph_engine {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 	struct nouveau_gpuobj *ctxtab;
 	void (*grctx_init)(struct nouveau_gpuobj *);
 	u32 grctx_size;

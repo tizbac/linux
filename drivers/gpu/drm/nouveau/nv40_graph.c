@@ -31,7 +31,7 @@
 #include "nouveau_ramht.h"
 
 struct nv40_graph_engine {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 	u32 grctx_size;
 };
 
@@ -178,7 +178,7 @@ nv40_graph_init(struct drm_device *dev, int engine)
 {
 	struct nv40_graph_engine *pgraph = nv_engine(dev, engine);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
+	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
 	uint32_t vramsz;
 	int i, j;
 

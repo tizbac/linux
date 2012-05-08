@@ -133,7 +133,7 @@ int
 nv50_display_sync(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_timer_engine *ptimer = &dev_priv->engine.timer;
+	struct nouveau_timer_engine *ptimer = &dev_priv->subsys.timer;
 	struct nv50_display *disp = nv50_display(dev);
 	struct nouveau_channel *evo = disp->master;
 	u64 start;
@@ -356,7 +356,7 @@ nv50_display_create(struct drm_device *dev)
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
-	dev_priv->engine.display.priv = priv;
+	dev_priv->subsys.display.priv = priv;
 
 	/* Create CRTC objects */
 	for (i = 0; i < 2; i++) {

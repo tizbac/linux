@@ -47,7 +47,7 @@ void
 nvc0_instmem_resume(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvc0_instmem_priv *priv = dev_priv->engine.instmem.priv;
+	struct nvc0_instmem_priv *priv = dev_priv->subsys.instmem.priv;
 
 	nv_mask(dev, 0x100c80, 0x00000001, 0x00000000);
 	nv_wr32(dev, 0x001704, 0x80000000 | priv->bar1->ramin->vinst >> 12);
@@ -116,7 +116,7 @@ int
 nvc0_instmem_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->engine.instmem;
+	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
 	struct pci_dev *pdev = dev->pdev;
 	struct nvc0_instmem_priv *priv;
 	struct nouveau_vm *vm = NULL;
@@ -196,7 +196,7 @@ void
 nvc0_instmem_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvc0_instmem_priv *priv = dev_priv->engine.instmem.priv;
+	struct nvc0_instmem_priv *priv = dev_priv->subsys.instmem.priv;
 	struct nouveau_vm *vm = NULL;
 
 	nvc0_instmem_suspend(dev);
@@ -217,7 +217,7 @@ nvc0_instmem_takedown(struct drm_device *dev)
 	nouveau_gpuobj_ref(NULL, &dev_priv->bar3_vm->pgt[0].obj[0]);
 	nouveau_vm_ref(NULL, &dev_priv->bar3_vm, NULL);
 
-	dev_priv->engine.instmem.priv = NULL;
+	dev_priv->subsys.instmem.priv = NULL;
 	kfree(priv);
 }
 

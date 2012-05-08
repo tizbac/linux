@@ -13,7 +13,7 @@ static void
 nv50_fb_destroy(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
+	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
 	struct nv50_fb_priv *priv = pfb->priv;
 
 	if (drm_mm_initialized(&pfb->tag_heap))
@@ -33,7 +33,7 @@ static int
 nv50_fb_create(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
+	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
 	struct nv50_fb_priv *priv;
 	u32 tagmem;
 	int ret;
@@ -74,12 +74,12 @@ nv50_fb_init(struct drm_device *dev)
 	struct nv50_fb_priv *priv;
 	int ret;
 
-	if (!dev_priv->engine.fb.priv) {
+	if (!dev_priv->subsys.fb.priv) {
 		ret = nv50_fb_create(dev);
 		if (ret)
 			return ret;
 	}
-	priv = dev_priv->engine.fb.priv;
+	priv = dev_priv->subsys.fb.priv;
 
 	/* Not a clue what this is exactly.  Without pointing it at a
 	 * scratch page, VRAM->GART blits with M2MF (as in DDX DFS)

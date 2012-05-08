@@ -79,7 +79,7 @@ int
 nv30_fb_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
+	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
 	int i, j;
 
 	pfb->num_tiles = NV10_PFB_TILE__SIZE;

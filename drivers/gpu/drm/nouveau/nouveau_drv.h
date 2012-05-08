@@ -292,7 +292,7 @@ struct nouveau_channel {
 	} debugfs;
 };
 
-struct nouveau_exec_engine {
+struct nouveau_engine {
 	void (*destroy)(struct drm_device *, int engine);
 	int  (*init)(struct drm_device *, int engine);
 	int  (*fini)(struct drm_device *, int engine, bool suspend);
@@ -549,7 +549,7 @@ struct nouveau_vram_engine {
 	bool (*flags_valid)(struct drm_device *, u32 tile_flags);
 };
 
-struct nouveau_engine {
+struct nouveau_subsys {
 	struct nouveau_instmem_engine instmem;
 	struct nouveau_mc_engine      mc;
 	struct nouveau_timer_engine   timer;
@@ -679,7 +679,7 @@ struct drm_nouveau_private {
 	u32 ramin_base;
 	bool ramin_available;
 	struct drm_mm ramin_heap;
-	struct nouveau_exec_engine *eng[NVOBJ_ENGINE_NR];
+	struct nouveau_engine *engine[NVOBJ_ENGINE_NR];
 	struct list_head gpuobj_list;
 	struct list_head classes;
 
@@ -712,7 +712,7 @@ struct drm_nouveau_private {
 		struct nouveau_channel *ptr[NOUVEAU_MAX_CHANNEL_NR];
 	} channels;
 
-	struct nouveau_engine engine;
+	struct nouveau_subsys subsys;
 	struct nouveau_channel *channel;
 
 	/* For PFIFO and PGRAPH. */
@@ -930,12 +930,12 @@ extern int  nouveau_channel_idle(struct nouveau_channel *chan);
 /* nouveau_gpuobj.c */
 #define NVOBJ_ENGINE_ADD(d, e, p) do {                                         \
 	struct drm_nouveau_private *dev_priv = (d)->dev_private;               \
-	dev_priv->eng[NVOBJ_ENGINE_##e] = (p);                                 \
+	dev_priv->engine[NVOBJ_ENGINE_##e] = (p);                                 \
 } while (0)
 
 #define NVOBJ_ENGINE_DEL(d, e) do {                                            \
 	struct drm_nouveau_private *dev_priv = (d)->dev_private;               \
-	dev_priv->eng[NVOBJ_ENGINE_##e] = NULL;                                \
+	dev_priv->engine[NVOBJ_ENGINE_##e] = NULL;                                \
 } while (0)
 
 #define NVOBJ_CLASS(d, c, e) do {                                              \
@@ -1592,7 +1592,7 @@ static inline void *
 nv_engine(struct drm_device *dev, int engine)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	return (void *)dev_priv->eng[engine];
+	return (void *)dev_priv->engine[engine];
 }
 
 /* returns 1 if device is one of the nv4x using the 0x4497 object class,

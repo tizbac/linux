@@ -2,7 +2,7 @@
 #define __NOUVEAU_SOFTWARE_H__
 
 struct nouveau_software_priv {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 	struct list_head vblank;
 	spinlock_t peephole_lock;
 };

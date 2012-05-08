@@ -73,7 +73,7 @@ static struct nvd0_display *
 nvd0_display(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	return dev_priv->engine.display.priv;
+	return dev_priv->subsys.display.priv;
 }
 
 static struct drm_crtc *
@@ -1957,7 +1957,7 @@ nvd0_display_destroy(struct drm_device *dev)
 	nouveau_bo_ref(NULL, &disp->sync);
 	nouveau_irq_unregister(dev, 26);
 
-	dev_priv->engine.display.priv = NULL;
+	dev_priv->subsys.display.priv = NULL;
 	kfree(disp);
 }
 
@@ -1965,7 +1965,7 @@ int
 nvd0_display_create(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->engine.instmem;
+	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
 	struct dcb_table *dcb = &dev_priv->vbios.dcb;
 	struct drm_connector *connector, *tmp;
 	struct pci_dev *pdev = dev->pdev;
@@ -1976,7 +1976,7 @@ nvd0_display_create(struct drm_device *dev)
 	disp = kzalloc(sizeof(*disp), GFP_KERNEL);
 	if (!disp)
 		return -ENOMEM;
-	dev_priv->engine.display.priv = disp;
+	dev_priv->subsys.display.priv = disp;
 
 	/* create crtc objects to represent the hw heads */
 	crtcs = nv_rd32(dev, 0x022448);

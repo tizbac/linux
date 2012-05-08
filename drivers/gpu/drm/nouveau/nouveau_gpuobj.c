@@ -141,7 +141,7 @@ nouveau_gpuobj_new(struct drm_device *dev, struct nouveau_channel *chan,
 		   struct nouveau_gpuobj **gpuobj_ret)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *instmem = &dev_priv->engine.instmem;
+	struct nouveau_instmem_engine *instmem = &dev_priv->subsys.instmem;
 	struct nouveau_gpuobj *gpuobj;
 	struct drm_mm_node *ramin = NULL;
 	int ret, i;
@@ -249,7 +249,7 @@ nouveau_gpuobj_del(struct kref *ref)
 		container_of(ref, struct nouveau_gpuobj, refcount);
 	struct drm_device *dev = gpuobj->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_instmem_engine *instmem = &dev_priv->engine.instmem;
+	struct nouveau_instmem_engine *instmem = &dev_priv->subsys.instmem;
 	int i;
 
 	NV_DEBUG(dev, "gpuobj %p\n", gpuobj);
@@ -322,7 +322,7 @@ nouveau_gpuobj_new_fake(struct drm_device *dev, u32 pinst, u64 vinst,
 	if (gpuobj->flags & NVOBJ_FLAG_ZERO_ALLOC) {
 		for (i = 0; i < gpuobj->size; i += 4)
 			nv_wo32(gpuobj, i, 0);
-		dev_priv->engine.instmem.flush(dev);
+		dev_priv->subsys.instmem.flush(dev);
 	}
 
 	spin_lock(&dev_priv->ramin_lock);
@@ -338,7 +338,7 @@ nv50_gpuobj_dma_init(struct nouveau_gpuobj *obj, u32 offset, int class,
 		     u32 type, u32 comp)
 {
 	struct drm_nouveau_private *dev_priv = obj->dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->engine.instmem;
+	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
 	u32 flags0;
 
 	flags0  = (comp << 29) | (type << 22) | class;
@@ -494,7 +494,7 @@ nouveau_gpuobj_gr_new(struct nouveau_channel *chan, u32 handle, int class)
 	NV_DEBUG(dev, "ch%d class=0x%04x\n", chan->id, class);
 
 	list_for_each_entry(oc, &dev_priv->classes, head) {
-		struct nouveau_exec_engine *eng = dev_priv->eng[oc->engine];
+		struct nouveau_engine *eng = dev_priv->engine[oc->engine];
 
 		if (oc->id != class)
 			continue;
@@ -755,7 +755,7 @@ nouveau_gpuobj_resume(struct drm_device *dev)
 		gpuobj->suspend = NULL;
 	}
 
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 }
 
 u32

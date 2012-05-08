@@ -7,7 +7,7 @@ static struct drm_mm_node *
 nv20_fb_alloc_tag(struct drm_device *dev, uint32_t size)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
+	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
 	struct drm_mm_node *mem;
 	int ret;
 
@@ -118,7 +118,7 @@ int
 nv20_fb_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
+	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
 	int i;
 
 	if (dev_priv->chipset >= 0x25)
@@ -138,7 +138,7 @@ void
 nv20_fb_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
+	struct nouveau_fb_engine *pfb = &dev_priv->subsys.fb;
 	int i;
 
 	for (i = 0; i < pfb->num_tiles; i++)

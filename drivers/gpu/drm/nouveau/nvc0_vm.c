@@ -103,7 +103,7 @@ void
 nvc0_vm_flush(struct nouveau_vm *vm)
 {
 	struct drm_nouveau_private *dev_priv = vm->dev->dev_private;
-	struct nouveau_instmem_engine *pinstmem = &dev_priv->engine.instmem;
+	struct nouveau_instmem_engine *pinstmem = &dev_priv->subsys.instmem;
 	struct drm_device *dev = vm->dev;
 	struct nouveau_vm_pgd *vpgd;
 	unsigned long flags;

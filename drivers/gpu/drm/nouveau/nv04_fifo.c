@@ -478,7 +478,7 @@ nv04_fifo_destroy(struct drm_device *dev, int engine)
 
 	nouveau_irq_unregister(dev, 8);
 
-	dev_priv->eng[engine] = NULL;
+	dev_priv->engine[engine] = NULL;
 	kfree(priv);
 }
 
@@ -499,7 +499,7 @@ nv04_fifo_create(struct drm_device *dev)
 	priv->base.base.context_del = nv04_fifo_context_del;
 	priv->base.channels = 15;
 	priv->ramfc_desc = nv04_ramfc;
-	dev_priv->eng[NVOBJ_ENGINE_FIFO] = &priv->base.base;
+	dev_priv->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
 
 	nouveau_irq_register(dev, 8, nv04_fifo_isr);
 	return 0;

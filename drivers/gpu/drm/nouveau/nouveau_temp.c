@@ -33,7 +33,7 @@ static void
 nouveau_temp_vbios_parse(struct drm_device *dev, u8 *temp)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_temp_sensor_constants *sensor = &pm->sensor_constants;
 	struct nouveau_pm_threshold_temp *temps = &pm->threshold_temp;
 	int i, headerlen, recordlen, entries;
@@ -186,7 +186,7 @@ static int
 nv40_sensor_setup(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_temp_sensor_constants *sensor = &pm->sensor_constants;
 	s32 offset = sensor->offset_mult / sensor->offset_div;
 	s32 sensor_calibration;
@@ -214,7 +214,7 @@ int
 nv40_temp_get(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_temp_sensor_constants *sensor = &pm->sensor_constants;
 	int offset = sensor->offset_mult / sensor->offset_div;
 	int core_temp;
@@ -244,7 +244,7 @@ void
 nouveau_temp_safety_checks(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
+	struct nouveau_pm_engine *pm = &dev_priv->subsys.pm;
 	struct nouveau_pm_threshold_temp *temps = &pm->threshold_temp;
 
 	if (temps->critical > 120)

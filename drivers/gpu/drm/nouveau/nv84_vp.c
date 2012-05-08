@@ -34,7 +34,7 @@
  */
 
 struct nv84_vp_engine {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 };
 
 static int

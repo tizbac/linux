@@ -407,7 +407,7 @@ nouveau_connector_set_property(struct drm_connector *connector,
 			       struct drm_property *property, uint64_t value)
 {
 	struct drm_nouveau_private *dev_priv = connector->dev->dev_private;
-	struct nouveau_display_engine *disp = &dev_priv->engine.display;
+	struct nouveau_display_engine *disp = &dev_priv->subsys.display;
 	struct nouveau_connector *nv_connector = nouveau_connector(connector);
 	struct nouveau_encoder *nv_encoder = nv_connector->detected_encoder;
 	struct drm_encoder *encoder = to_drm_encoder(nv_encoder);
@@ -900,7 +900,7 @@ nouveau_connector_create(struct drm_device *dev, int index)
 {
 	const struct drm_connector_funcs *funcs = &nouveau_connector_funcs;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_display_engine *disp = &dev_priv->engine.display;
+	struct nouveau_display_engine *disp = &dev_priv->subsys.display;
 	struct nouveau_connector *nv_connector = NULL;
 	struct drm_connector *connector;
 	int type, ret = 0;

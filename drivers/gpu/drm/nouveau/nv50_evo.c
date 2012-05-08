@@ -70,7 +70,7 @@ nv50_evo_dmaobj_init(struct nouveau_gpuobj *obj, u32 memtype, u64 base, u64 size
 	nv50_gpuobj_dma_init(obj, 0, 0x3d, base, size, NV_MEM_TARGET_VRAM,
 			     NV_MEM_ACCESS_RW, (memtype >> 8) & 0xff, 0);
 	nv_wo32(obj, 0x14, flags5);
-	dev_priv->engine.instmem.flush(obj->dev);
+	dev_priv->subsys.instmem.flush(obj->dev);
 }
 
 int

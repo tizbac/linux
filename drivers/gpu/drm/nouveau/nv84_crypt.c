@@ -29,7 +29,7 @@
 #include "nouveau_ramht.h"
 
 struct nv84_crypt_engine {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 };
 
 static int
@@ -54,7 +54,7 @@ nv84_crypt_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(ramin, 0xac, 0);
 	nv_wo32(ramin, 0xb0, 0);
 	nv_wo32(ramin, 0xb4, 0);
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 	atomic_inc(&chan->vm->engref[engine]);
 	chan->engctx[engine] = ctx;
@@ -104,7 +104,7 @@ nv84_crypt_object_new(struct nouveau_channel *chan, int engine,
 	obj->class  = class;
 
 	nv_wo32(obj, 0x00, class);
-	dev_priv->engine.instmem.flush(dev);
+	dev_priv->subsys.instmem.flush(dev);
 
 	ret = nouveau_ramht_insert(chan, handle, obj);
 	nouveau_gpuobj_ref(NULL, &obj);

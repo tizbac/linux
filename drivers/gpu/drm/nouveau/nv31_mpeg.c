@@ -28,7 +28,7 @@
 #include "nouveau_ramht.h"
 
 struct nv31_mpeg_engine {
-	struct nouveau_exec_engine base;
+	struct nouveau_engine base;
 	atomic_t refcount;
 };
 
@@ -138,7 +138,7 @@ nv31_mpeg_init(struct drm_device *dev, int engine)
 	nv_wr32(dev, 0x00b0e0, 0x00000020); /* nvidia: rd 0x01, wr 0x20 */
 	nv_wr32(dev, 0x00b0e8, 0x00000020); /* nvidia: rd 0x01, wr 0x20 */
 
-	for (i = 0; i < dev_priv->engine.fb.num_tiles; i++)
+	for (i = 0; i < dev_priv->subsys.fb.num_tiles; i++)
 		pmpeg->base.set_tile_region(dev, i);
 
 	/* PMPEG init */
