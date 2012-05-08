@@ -32,37 +32,36 @@
 #include "nouveau_encoder.h"
 #include "nouveau_connector.h"
 
-static void nv04_vblank_crtc0_isr(struct drm_device *);
-static void nv04_vblank_crtc1_isr(struct drm_device *);
+static void nv04_vblank_crtc0_isr(struct nouveau_device *);
+static void nv04_vblank_crtc1_isr(struct nouveau_device *);
 
 static void
-nv04_display_store_initial_head_owner(struct drm_device *dev)
+nv04_display_store_initial_head_owner(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 
 	if (ndev->chipset != 0x11) {
-		ndev->crtc_owner = NVReadVgaCrtc(dev, 0, NV_CIO_CRE_44);
+		ndev->crtc_owner = NVReadVgaCrtc(ndev, 0, NV_CIO_CRE_44);
 		return;
 	}
 
 	/* reading CR44 is broken on nv11, so we attempt to infer it */
-	if (nv_rd32(dev, NV_PBUS_DEBUG_1) & (1 << 28))	/* heads tied, restore both */
+	if (nv_rd32(ndev, NV_PBUS_DEBUG_1) & (1 << 28))	/* heads tied, restore both */
 		ndev->crtc_owner = 0x4;
 	else {
-		uint8_t slaved_on_A, slaved_on_B;
+		u8 slaved_on_A, slaved_on_B;
 		bool tvA = false;
 		bool tvB = false;
 
-		slaved_on_B = NVReadVgaCrtc(dev, 1, NV_CIO_CRE_PIXEL_INDEX) &
+		slaved_on_B = NVReadVgaCrtc(ndev, 1, NV_CIO_CRE_PIXEL_INDEX) &
 									0x80;
 		if (slaved_on_B)
-			tvB = !(NVReadVgaCrtc(dev, 1, NV_CIO_CRE_LCD__INDEX) &
+			tvB = !(NVReadVgaCrtc(ndev, 1, NV_CIO_CRE_LCD__INDEX) &
 					MASK(NV_CIO_CRE_LCD_LCD_SELECT));
 
-		slaved_on_A = NVReadVgaCrtc(dev, 0, NV_CIO_CRE_PIXEL_INDEX) &
+		slaved_on_A = NVReadVgaCrtc(ndev, 0, NV_CIO_CRE_PIXEL_INDEX) &
 									0x80;
 		if (slaved_on_A)
-			tvA = !(NVReadVgaCrtc(dev, 0, NV_CIO_CRE_LCD__INDEX) &
+			tvA = !(NVReadVgaCrtc(ndev, 0, NV_CIO_CRE_LCD__INDEX) &
 					MASK(NV_CIO_CRE_LCD_LCD_SELECT));
 
 		if (slaved_on_A && !tvA)
@@ -79,68 +78,66 @@ nv04_display_store_initial_head_owner(struct drm_device *dev)
 }
 
 int
-nv04_display_early_init(struct drm_device *dev)
+nv04_display_early_init(struct nouveau_device *ndev)
 {
 	/* Make the I2C buses accessible. */
-	if (!nv_gf4_disp_arch(dev)) {
-		uint32_t pmc_enable = nv_rd32(dev, NV03_PMC_ENABLE);
+	if (!nv_gf4_disp_arch(ndev)) {
+		u32 pmc_enable = nv_rd32(ndev, NV03_PMC_ENABLE);
 
 		if (!(pmc_enable & 1))
-			nv_wr32(dev, NV03_PMC_ENABLE, pmc_enable | 1);
+			nv_wr32(ndev, NV03_PMC_ENABLE, pmc_enable | 1);
 	}
 
 	/* Unlock the VGA CRTCs. */
-	NVLockVgaCrtcs(dev, false);
+	NVLockVgaCrtcs(ndev, false);
 
 	/* Make sure the CRTCs aren't in slaved mode. */
-	if (nv_two_heads(dev)) {
-		nv04_display_store_initial_head_owner(dev);
-		NVSetOwner(dev, 0);
+	if (nv_two_heads(ndev)) {
+		nv04_display_store_initial_head_owner(ndev);
+		NVSetOwner(ndev, 0);
 	}
 
 	/* ensure vblank interrupts are off, they can't be enabled until
 	 * drm_vblank has been initialised
 	 */
-	NVWriteCRTC(dev, 0, NV_PCRTC_INTR_EN_0, 0);
-	if (nv_two_heads(dev))
-		NVWriteCRTC(dev, 1, NV_PCRTC_INTR_EN_0, 0);
+	NVWriteCRTC(ndev, 0, NV_PCRTC_INTR_EN_0, 0);
+	if (nv_two_heads(ndev))
+		NVWriteCRTC(ndev, 1, NV_PCRTC_INTR_EN_0, 0);
 
 	return 0;
 }
 
 void
-nv04_display_late_takedown(struct drm_device *dev)
+nv04_display_late_takedown(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 
-	if (nv_two_heads(dev))
-		NVSetOwner(dev, ndev->crtc_owner);
+	if (nv_two_heads(ndev))
+		NVSetOwner(ndev, ndev->crtc_owner);
 
-	NVLockVgaCrtcs(dev, true);
+	NVLockVgaCrtcs(ndev, true);
 }
 
 int
-nv04_display_create(struct drm_device *dev)
+nv04_display_create(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct dcb_table *dcb = &ndev->vbios.dcb;
 	struct drm_connector *connector, *ct;
 	struct drm_encoder *encoder;
 	struct drm_crtc *crtc;
 	int i, ret;
 
-	NV_DEBUG_KMS(dev, "\n");
+	NV_DEBUG_KMS(ndev, "\n");
 
-	nouveau_hw_save_vga_fonts(dev, 1);
+	nouveau_hw_save_vga_fonts(ndev, 1);
 
-	nv04_crtc_create(dev, 0);
-	if (nv_two_heads(dev))
-		nv04_crtc_create(dev, 1);
+	nv04_crtc_create(ndev, 0);
+	if (nv_two_heads(ndev))
+		nv04_crtc_create(ndev, 1);
 
 	for (i = 0; i < dcb->entries; i++) {
 		struct dcb_entry *dcbent = &dcb->entry[i];
 
-		connector = nouveau_connector_create(dev, dcbent->connector);
+		connector = nouveau_connector_create(ndev, dcbent->connector);
 		if (IS_ERR(connector))
 			continue;
 
@@ -159,7 +156,7 @@ nv04_display_create(struct drm_device *dev)
 				ret = nv04_tv_create(connector, dcbent);
 			break;
 		default:
-			NV_WARN(dev, "DCB type %d not known\n", dcbent->type);
+			NV_WARN(ndev, "DCB type %d not known\n", dcbent->type);
 			continue;
 		}
 
@@ -168,42 +165,42 @@ nv04_display_create(struct drm_device *dev)
 	}
 
 	list_for_each_entry_safe(connector, ct,
-				 &dev->mode_config.connector_list, head) {
+				 &ndev->dev->mode_config.connector_list, head) {
 		if (!connector->encoder_ids[0]) {
-			NV_WARN(dev, "%s has no encoders, removing\n",
+			NV_WARN(ndev, "%s has no encoders, removing\n",
 				drm_get_connector_name(connector));
 			connector->funcs->destroy(connector);
 		}
 	}
 
 	/* Save previous state */
-	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head)
+	list_for_each_entry(crtc, &ndev->dev->mode_config.crtc_list, head)
 		crtc->funcs->save(crtc);
 
-	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
+	list_for_each_entry(encoder, &ndev->dev->mode_config.encoder_list, head) {
 		struct drm_encoder_helper_funcs *func = encoder->helper_private;
 
 		func->save(encoder);
 	}
 
-	nouveau_irq_register(dev, 24, nv04_vblank_crtc0_isr);
-	nouveau_irq_register(dev, 25, nv04_vblank_crtc1_isr);
+	nouveau_irq_register(ndev, 24, nv04_vblank_crtc0_isr);
+	nouveau_irq_register(ndev, 25, nv04_vblank_crtc1_isr);
 	return 0;
 }
 
 void
-nv04_display_destroy(struct drm_device *dev)
+nv04_display_destroy(struct nouveau_device *ndev)
 {
 	struct drm_encoder *encoder;
 	struct drm_crtc *crtc;
 
-	NV_DEBUG_KMS(dev, "\n");
+	NV_DEBUG_KMS(ndev, "\n");
 
-	nouveau_irq_unregister(dev, 24);
-	nouveau_irq_unregister(dev, 25);
+	nouveau_irq_unregister(ndev, 24);
+	nouveau_irq_unregister(ndev, 25);
 
 	/* Turn every CRTC off. */
-	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
+	list_for_each_entry(crtc, &ndev->dev->mode_config.crtc_list, head) {
 		struct drm_mode_set modeset = {
 			.crtc = crtc,
 		};
@@ -212,20 +209,20 @@ nv04_display_destroy(struct drm_device *dev)
 	}
 
 	/* Restore state */
-	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
+	list_for_each_entry(encoder, &ndev->dev->mode_config.encoder_list, head) {
 		struct drm_encoder_helper_funcs *func = encoder->helper_private;
 
 		func->restore(encoder);
 	}
 
-	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head)
+	list_for_each_entry(crtc, &ndev->dev->mode_config.crtc_list, head)
 		crtc->funcs->restore(crtc);
 
-	nouveau_hw_save_vga_fonts(dev, 0);
+	nouveau_hw_save_vga_fonts(ndev, 0);
 }
 
 int
-nv04_display_init(struct drm_device *dev)
+nv04_display_init(struct nouveau_device *ndev)
 {
 	struct drm_encoder *encoder;
 	struct drm_crtc *crtc;
@@ -238,37 +235,37 @@ nv04_display_init(struct drm_device *dev)
 	 * save/restore "pre-load" state, but more general so we can save
 	 * on suspend too.
 	 */
-	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
+	list_for_each_entry(encoder, &ndev->dev->mode_config.encoder_list, head) {
 		struct drm_encoder_helper_funcs *func = encoder->helper_private;
 
 		func->restore(encoder);
 	}
 
-	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head)
+	list_for_each_entry(crtc, &ndev->dev->mode_config.crtc_list, head)
 		crtc->funcs->restore(crtc);
 
 	return 0;
 }
 
 void
-nv04_display_fini(struct drm_device *dev)
+nv04_display_fini(struct nouveau_device *ndev)
 {
 	/* disable vblank interrupts */
-	NVWriteCRTC(dev, 0, NV_PCRTC_INTR_EN_0, 0);
-	if (nv_two_heads(dev))
-		NVWriteCRTC(dev, 1, NV_PCRTC_INTR_EN_0, 0);
+	NVWriteCRTC(ndev, 0, NV_PCRTC_INTR_EN_0, 0);
+	if (nv_two_heads(ndev))
+		NVWriteCRTC(ndev, 1, NV_PCRTC_INTR_EN_0, 0);
 }
 
 static void
-nv04_vblank_crtc0_isr(struct drm_device *dev)
+nv04_vblank_crtc0_isr(struct nouveau_device *ndev)
 {
-	nv_wr32(dev, NV_CRTC0_INTSTAT, NV_CRTC_INTR_VBLANK);
-	drm_handle_vblank(dev, 0);
+	nv_wr32(ndev, NV_CRTC0_INTSTAT, NV_CRTC_INTR_VBLANK);
+	drm_handle_vblank(ndev->dev, 0);
 }
 
 static void
-nv04_vblank_crtc1_isr(struct drm_device *dev)
+nv04_vblank_crtc1_isr(struct nouveau_device *ndev)
 {
-	nv_wr32(dev, NV_CRTC1_INTSTAT, NV_CRTC_INTR_VBLANK);
-	drm_handle_vblank(dev, 1);
+	nv_wr32(ndev, NV_CRTC1_INTSTAT, NV_CRTC_INTR_VBLANK);
+	drm_handle_vblank(ndev->dev, 1);
 }

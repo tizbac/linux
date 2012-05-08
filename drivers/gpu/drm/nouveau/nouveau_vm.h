@@ -50,7 +50,7 @@ struct nouveau_vma {
 };
 
 struct nouveau_vm {
-	struct drm_device *dev;
+	struct nouveau_device *device;
 	struct nouveau_mm mm;
 	int refcount;
 
@@ -80,8 +80,8 @@ struct nouveau_vm {
 };
 
 /* nouveau_vm.c */
-int  nouveau_vm_new(struct drm_device *, u64 offset, u64 length, u64 mm_offset,
-		    struct nouveau_vm **);
+int  nouveau_vm_new(struct nouveau_device *, u64 offset, u64 length,
+		    u64 mm_offset, struct nouveau_vm **);
 int  nouveau_vm_ref(struct nouveau_vm *, struct nouveau_vm **,
 		    struct nouveau_gpuobj *pgd);
 int  nouveau_vm_get(struct nouveau_vm *, u64 size, u32 page_shift,
@@ -104,7 +104,7 @@ void nv50_vm_map_sg(struct nouveau_vma *, struct nouveau_gpuobj *,
 		    struct nouveau_mem *, u32 pte, u32 cnt, dma_addr_t *);
 void nv50_vm_unmap(struct nouveau_gpuobj *, u32 pte, u32 cnt);
 void nv50_vm_flush(struct nouveau_vm *);
-void nv50_vm_flush_engine(struct drm_device *, int engine);
+void nv50_vm_flush_engine(struct nouveau_device *, int engine);
 
 /* nvc0_vm.c */
 void nvc0_vm_map_pgt(struct nouveau_gpuobj *pgd, u32 pde,

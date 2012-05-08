@@ -73,8 +73,8 @@ nouveau_debugfs_channel_info(struct seq_file *m, void *data)
 int
 nouveau_debugfs_channel_init(struct nouveau_channel *chan)
 {
-	struct nouveau_device *ndev = nouveau_device(chan->dev);
-	struct drm_minor *minor = chan->dev->primary;
+	struct nouveau_device *ndev = chan->device;
+	struct drm_minor *minor = ndev->dev->primary;
 	int ret;
 
 	if (!ndev->debugfs.channel_root) {
@@ -91,8 +91,7 @@ nouveau_debugfs_channel_init(struct nouveau_channel *chan)
 	chan->debugfs.info.data = chan;
 
 	ret = drm_debugfs_create_files(&chan->debugfs.info, 1,
-				       ndev->debugfs.channel_root,
-				       chan->dev->primary);
+				       ndev->debugfs.channel_root, minor);
 	if (ret == 0)
 		chan->debugfs.active = true;
 	return ret;
@@ -101,12 +100,12 @@ nouveau_debugfs_channel_init(struct nouveau_channel *chan)
 void
 nouveau_debugfs_channel_fini(struct nouveau_channel *chan)
 {
-	struct nouveau_device *ndev = nouveau_device(chan->dev);
+	struct nouveau_device *ndev = chan->device;
 
 	if (!chan->debugfs.active)
 		return;
 
-	drm_debugfs_remove_files(&chan->debugfs.info, 1, chan->dev->primary);
+	drm_debugfs_remove_files(&chan->debugfs.info, 1, ndev->dev->primary);
 	chan->debugfs.active = false;
 
 	if (chan == ndev->channel) {
@@ -122,11 +121,11 @@ nouveau_debugfs_chipset_info(struct seq_file *m, void *data)
 	struct drm_minor *minor = node->minor;
 	struct drm_device *dev = minor->dev;
 	struct nouveau_device *ndev = nouveau_device(dev);
-	uint32_t ppci_0;
+	u32 ppci_0;
 
-	ppci_0 = nv_rd32(dev, ndev->chipset >= 0x40 ? 0x88000 : 0x1800);
+	ppci_0 = nv_rd32(ndev, ndev->chipset >= 0x40 ? 0x88000 : 0x1800);
 
-	seq_printf(m, "PMC_BOOT_0: 0x%08x\n", nv_rd32(dev, NV03_PMC_BOOT_0));
+	seq_printf(m, "PMC_BOOT_0: 0x%08x\n", nv_rd32(ndev, NV03_PMC_BOOT_0));
 	seq_printf(m, "PCI ID    : 0x%04x:0x%04x\n",
 		   ppci_0 & 0xffff, ppci_0 >> 16);
 	return 0;

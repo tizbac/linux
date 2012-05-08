@@ -47,11 +47,10 @@
  */
 
 static void
-nv10_mem_update_tile_region(struct drm_device *dev,
-			    struct nouveau_tile_reg *tile, uint32_t addr,
-			    uint32_t size, uint32_t pitch, uint32_t flags)
+nv10_mem_update_tile_region(struct nouveau_device *ndev,
+			    struct nouveau_tile_reg *tile, u32 addr,
+			    u32 size, u32 pitch, u32 flags)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	int i = tile - ndev->tile.reg, j;
 	unsigned long save;
@@ -59,32 +58,31 @@ nv10_mem_update_tile_region(struct drm_device *dev,
 	nouveau_fence_unref(&tile->fence);
 
 	if (tile->pitch)
-		pfb->free_tile_region(dev, i);
+		pfb->free_tile_region(ndev, i);
 
 	if (pitch)
-		pfb->init_tile_region(dev, i, addr, size, pitch, flags);
+		pfb->init_tile_region(ndev, i, addr, size, pitch, flags);
 
 	spin_lock_irqsave(&ndev->context_switch_lock, save);
-	nv_wr32(dev, NV03_PFIFO_CACHES, 0);
-	nv04_fifo_cache_pull(dev, false);
+	nv_wr32(ndev, NV03_PFIFO_CACHES, 0);
+	nv04_fifo_cache_pull(ndev, false);
 
-	nouveau_wait_for_idle(dev);
+	nouveau_wait_for_idle(ndev);
 
-	pfb->set_tile_region(dev, i);
+	pfb->set_tile_region(ndev, i);
 	for (j = 0; j < NVOBJ_ENGINE_NR; j++) {
 		if (ndev->engine[j] && ndev->engine[j]->set_tile_region)
-			ndev->engine[j]->set_tile_region(dev, i);
+			ndev->engine[j]->set_tile_region(ndev, i);
 	}
 
-	nv04_fifo_cache_pull(dev, true);
-	nv_wr32(dev, NV03_PFIFO_CACHES, 1);
+	nv04_fifo_cache_pull(ndev, true);
+	nv_wr32(ndev, NV03_PFIFO_CACHES, 1);
 	spin_unlock_irqrestore(&ndev->context_switch_lock, save);
 }
 
 static struct nouveau_tile_reg *
-nv10_mem_get_tile_region(struct drm_device *dev, int i)
+nv10_mem_get_tile_region(struct nouveau_device *ndev, int i)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	spin_lock(&ndev->tile.lock);
@@ -100,11 +98,9 @@ nv10_mem_get_tile_region(struct drm_device *dev, int i)
 }
 
 void
-nv10_mem_put_tile_region(struct drm_device *dev, struct nouveau_tile_reg *tile,
+nv10_mem_put_tile_region(struct nouveau_device *ndev, struct nouveau_tile_reg *tile,
 			 struct nouveau_fence *fence)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-
 	if (tile) {
 		spin_lock(&ndev->tile.lock);
 		if (fence) {
@@ -119,16 +115,15 @@ nv10_mem_put_tile_region(struct drm_device *dev, struct nouveau_tile_reg *tile,
 }
 
 struct nouveau_tile_reg *
-nv10_mem_set_tiling(struct drm_device *dev, uint32_t addr, uint32_t size,
-		    uint32_t pitch, uint32_t flags)
+nv10_mem_set_tiling(struct nouveau_device *ndev, u32 addr, u32 size,
+		    u32 pitch, u32 flags)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	struct nouveau_tile_reg *tile, *found = NULL;
 	int i;
 
 	for (i = 0; i < pfb->num_tiles; i++) {
-		tile = nv10_mem_get_tile_region(dev, i);
+		tile = nv10_mem_get_tile_region(ndev, i);
 
 		if (pitch && !found) {
 			found = tile;
@@ -136,14 +131,14 @@ nv10_mem_set_tiling(struct drm_device *dev, uint32_t addr, uint32_t size,
 
 		} else if (tile && tile->pitch) {
 			/* Kill an unused tile region. */
-			nv10_mem_update_tile_region(dev, tile, 0, 0, 0, 0);
+			nv10_mem_update_tile_region(ndev, tile, 0, 0, 0, 0);
 		}
 
-		nv10_mem_put_tile_region(dev, tile, NULL);
+		nv10_mem_put_tile_region(ndev, tile, NULL);
 	}
 
 	if (found)
-		nv10_mem_update_tile_region(dev, found, addr, size,
+		nv10_mem_update_tile_region(ndev, found, addr, size,
 					    pitch, flags);
 	return found;
 }
@@ -152,26 +147,26 @@ nv10_mem_set_tiling(struct drm_device *dev, uint32_t addr, uint32_t size,
  * Cleanup everything
  */
 void
-nouveau_mem_vram_fini(struct drm_device *dev)
+nouveau_mem_vram_fini(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-
 	ttm_bo_device_release(&ndev->ttm.bdev);
 
 	nouveau_ttm_global_release(ndev);
 
 	if (ndev->fb_mtrr >= 0) {
 		drm_mtrr_del(ndev->fb_mtrr,
-			     pci_resource_start(dev->pdev, 1),
-			     pci_resource_len(dev->pdev, 1), DRM_MTRR_WC);
+			     pci_resource_start(ndev->dev->pdev, 1),
+			     pci_resource_len(ndev->dev->pdev, 1), DRM_MTRR_WC);
 		ndev->fb_mtrr = -1;
 	}
 }
 
 void
-nouveau_mem_gart_fini(struct drm_device *dev)
+nouveau_mem_gart_fini(struct nouveau_device *ndev)
 {
-	nouveau_sgdma_takedown(dev);
+	struct drm_device *dev = ndev->dev;
+
+	nouveau_sgdma_takedown(ndev);
 
 	if (drm_core_has_AGP(dev) && dev->agp) {
 		struct drm_agp_mem *entry, *tempe;
@@ -195,7 +190,7 @@ nouveau_mem_gart_fini(struct drm_device *dev)
 }
 
 bool
-nouveau_mem_flags_valid(struct drm_device *dev, u32 tile_flags)
+nouveau_mem_flags_valid(struct nouveau_device *ndev, u32 tile_flags)
 {
 	if (!(tile_flags & NOUVEAU_GEM_TILE_LAYOUT_MASK))
 		return true;
@@ -205,10 +200,8 @@ nouveau_mem_flags_valid(struct drm_device *dev, u32 tile_flags)
 
 #if __OS_HAS_AGP
 static unsigned long
-get_agp_mode(struct drm_device *dev, unsigned long mode)
+get_agp_mode(struct nouveau_device *ndev, unsigned long mode)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-
 	/*
 	 * FW seems to be broken on nv18, it makes the card lock up
 	 * randomly.
@@ -231,16 +224,17 @@ get_agp_mode(struct drm_device *dev, unsigned long mode)
 #endif
 
 int
-nouveau_mem_reset_agp(struct drm_device *dev)
+nouveau_mem_reset_agp(struct nouveau_device *ndev)
 {
 #if __OS_HAS_AGP
-	uint32_t saved_pci_nv_1, pmc_enable;
+	struct drm_device *dev = ndev->dev;
+	u32 saved_pci_nv_1, pmc_enable;
 	int ret;
 
 	/* First of all, disable fast writes, otherwise if it's
 	 * already enabled in the AGP bridge and we disable the card's
 	 * AGP controller we might be locking ourselves out of it. */
-	if ((nv_rd32(dev, NV04_PBUS_PCI_NV_19) |
+	if ((nv_rd32(ndev, NV04_PBUS_PCI_NV_19) |
 	     dev->agp->mode) & PCI_AGP_COMMAND_FW) {
 		struct drm_agp_info info;
 		struct drm_agp_mode mode;
@@ -249,40 +243,40 @@ nouveau_mem_reset_agp(struct drm_device *dev)
 		if (ret)
 			return ret;
 
-		mode.mode = get_agp_mode(dev, info.mode) & ~PCI_AGP_COMMAND_FW;
+		mode.mode = get_agp_mode(ndev, info.mode) & ~PCI_AGP_COMMAND_FW;
 		ret = drm_agp_enable(dev, mode);
 		if (ret)
 			return ret;
 	}
 
-	saved_pci_nv_1 = nv_rd32(dev, NV04_PBUS_PCI_NV_1);
+	saved_pci_nv_1 = nv_rd32(ndev, NV04_PBUS_PCI_NV_1);
 
 	/* clear busmaster bit */
-	nv_wr32(dev, NV04_PBUS_PCI_NV_1, saved_pci_nv_1 & ~0x4);
+	nv_wr32(ndev, NV04_PBUS_PCI_NV_1, saved_pci_nv_1 & ~0x4);
 	/* disable AGP */
-	nv_wr32(dev, NV04_PBUS_PCI_NV_19, 0);
+	nv_wr32(ndev, NV04_PBUS_PCI_NV_19, 0);
 
 	/* power cycle pgraph, if enabled */
-	pmc_enable = nv_rd32(dev, NV03_PMC_ENABLE);
+	pmc_enable = nv_rd32(ndev, NV03_PMC_ENABLE);
 	if (pmc_enable & NV_PMC_ENABLE_PGRAPH) {
-		nv_wr32(dev, NV03_PMC_ENABLE,
+		nv_wr32(ndev, NV03_PMC_ENABLE,
 				pmc_enable & ~NV_PMC_ENABLE_PGRAPH);
-		nv_wr32(dev, NV03_PMC_ENABLE, nv_rd32(dev, NV03_PMC_ENABLE) |
+		nv_wr32(ndev, NV03_PMC_ENABLE, nv_rd32(ndev, NV03_PMC_ENABLE) |
 				NV_PMC_ENABLE_PGRAPH);
 	}
 
 	/* and restore (gives effect of resetting AGP) */
-	nv_wr32(dev, NV04_PBUS_PCI_NV_1, saved_pci_nv_1);
+	nv_wr32(ndev, NV04_PBUS_PCI_NV_1, saved_pci_nv_1);
 #endif
 
 	return 0;
 }
 
 int
-nouveau_mem_init_agp(struct drm_device *dev)
+nouveau_mem_init_agp(struct nouveau_device *ndev)
 {
 #if __OS_HAS_AGP
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct drm_device *dev = ndev->dev;
 	struct drm_agp_info info;
 	struct drm_agp_mode mode;
 	int ret;
@@ -290,24 +284,24 @@ nouveau_mem_init_agp(struct drm_device *dev)
 	if (!dev->agp->acquired) {
 		ret = drm_agp_acquire(dev);
 		if (ret) {
-			NV_ERROR(dev, "Unable to acquire AGP: %d\n", ret);
+			NV_ERROR(ndev, "Unable to acquire AGP: %d\n", ret);
 			return ret;
 		}
 	}
 
-	nouveau_mem_reset_agp(dev);
+	nouveau_mem_reset_agp(ndev);
 
 	ret = drm_agp_info(dev, &info);
 	if (ret) {
-		NV_ERROR(dev, "Unable to get AGP info: %d\n", ret);
+		NV_ERROR(ndev, "Unable to get AGP info: %d\n", ret);
 		return ret;
 	}
 
 	/* see agp.h for the AGPSTAT_* modes available */
-	mode.mode = get_agp_mode(dev, info.mode);
+	mode.mode = get_agp_mode(ndev, info.mode);
 	ret = drm_agp_enable(dev, mode);
 	if (ret) {
-		NV_ERROR(dev, "Unable to enable AGP: %d\n", ret);
+		NV_ERROR(ndev, "Unable to enable AGP: %d\n", ret);
 		return ret;
 	}
 
@@ -336,10 +330,10 @@ static const struct vram_types {
 };
 
 int
-nouveau_mem_vram_init(struct drm_device *dev)
+nouveau_mem_vram_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct ttm_bo_device *bdev = &ndev->ttm.bdev;
+	struct drm_device *dev = ndev->dev;
 	const struct vram_types *vram_type;
 	int ret, dma_bits;
 
@@ -374,7 +368,7 @@ nouveau_mem_vram_init(struct drm_device *dev)
 				 &nouveau_bo_driver, DRM_FILE_PAGE_OFFSET,
 				 dma_bits <= 32 ? true : false);
 	if (ret) {
-		NV_ERROR(dev, "Error initialising bo driver: %d\n", ret);
+		NV_ERROR(ndev, "Error initialising bo driver: %d\n", ret);
 		return ret;
 	}
 
@@ -391,10 +385,10 @@ nouveau_mem_vram_init(struct drm_device *dev)
 		vram_type++;
 	}
 
-	NV_INFO(dev, "Detected %dMiB VRAM (%s)\n",
+	NV_INFO(ndev, "Detected %dMiB VRAM (%s)\n",
 		(int)(ndev->vram_size >> 20), vram_type->name);
 	if (ndev->vram_sys_base) {
-		NV_INFO(dev, "Stolen system memory at: 0x%010llx\n",
+		NV_INFO(ndev, "Stolen system memory at: 0x%010llx\n",
 			ndev->vram_sys_base);
 	}
 
@@ -411,19 +405,19 @@ nouveau_mem_vram_init(struct drm_device *dev)
 	ret = ttm_bo_init_mm(bdev, TTM_PL_VRAM,
 			     ndev->fb_available_size >> PAGE_SHIFT);
 	if (ret) {
-		NV_ERROR(dev, "Failed VRAM mm init: %d\n", ret);
+		NV_ERROR(ndev, "Failed VRAM mm init: %d\n", ret);
 		return ret;
 	}
 
 	if (ndev->card_type < NV_50) {
-		ret = nouveau_bo_new(dev, 256*1024, 0, TTM_PL_FLAG_VRAM,
+		ret = nouveau_bo_new(ndev, 256*1024, 0, TTM_PL_FLAG_VRAM,
 				     0, 0, NULL, &ndev->vga_ram);
 		if (ret == 0)
 			ret = nouveau_bo_pin(ndev->vga_ram,
 					     TTM_PL_FLAG_VRAM);
 
 		if (ret) {
-			NV_WARN(dev, "failed to reserve VGA memory\n");
+			NV_WARN(ndev, "failed to reserve VGA memory\n");
 			nouveau_bo_ref(NULL, &ndev->vga_ram);
 		}
 	}
@@ -435,38 +429,37 @@ nouveau_mem_vram_init(struct drm_device *dev)
 }
 
 int
-nouveau_mem_gart_init(struct drm_device *dev)
+nouveau_mem_gart_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct ttm_bo_device *bdev = &ndev->ttm.bdev;
 	int ret;
 
 	ndev->gart_info.type = NOUVEAU_GART_NONE;
 
 #if !defined(__powerpc__) && !defined(__ia64__)
-	if (drm_pci_device_is_agp(dev) && dev->agp && nouveau_agpmode) {
-		ret = nouveau_mem_init_agp(dev);
+	if (drm_pci_device_is_agp(ndev->dev) && ndev->dev->agp && nouveau_agpmode) {
+		ret = nouveau_mem_init_agp(ndev);
 		if (ret)
-			NV_ERROR(dev, "Error initialising AGP: %d\n", ret);
+			NV_ERROR(ndev, "Error initialising AGP: %d\n", ret);
 	}
 #endif
 
 	if (ndev->gart_info.type == NOUVEAU_GART_NONE) {
-		ret = nouveau_sgdma_init(dev);
+		ret = nouveau_sgdma_init(ndev);
 		if (ret) {
-			NV_ERROR(dev, "Error initialising PCI(E): %d\n", ret);
+			NV_ERROR(ndev, "Error initialising PCI(E): %d\n", ret);
 			return ret;
 		}
 	}
 
-	NV_INFO(dev, "%d MiB GART (aperture)\n",
+	NV_INFO(ndev, "%d MiB GART (aperture)\n",
 		(int)(ndev->gart_info.aper_size >> 20));
 	ndev->gart_info.aper_free = ndev->gart_info.aper_size;
 
 	ret = ttm_bo_init_mm(bdev, TTM_PL_TT,
 			     ndev->gart_info.aper_size >> PAGE_SHIFT);
 	if (ret) {
-		NV_ERROR(dev, "Failed TT mm init: %d\n", ret);
+		NV_ERROR(ndev, "Failed TT mm init: %d\n", ret);
 		return ret;
 	}
 
@@ -474,7 +467,7 @@ nouveau_mem_gart_init(struct drm_device *dev)
 }
 
 static int
-nv40_mem_timing_calc(struct drm_device *dev, u32 freq,
+nv40_mem_timing_calc(struct nouveau_device *ndev, u32 freq,
 		     struct nouveau_pm_tbl_entry *e, u8 len,
 		     struct nouveau_pm_memtiming *boot,
 		     struct nouveau_pm_memtiming *t)
@@ -494,22 +487,21 @@ nv40_mem_timing_calc(struct drm_device *dev, u32 freq,
 		     e->tRCDWR << 8 |
 		     e->tRCDRD);
 
-	NV_DEBUG(dev, "Entry %d: 220: %08x %08x %08x\n", t->id,
+	NV_DEBUG(ndev, "Entry %d: 220: %08x %08x %08x\n", t->id,
 		 t->reg[0], t->reg[1], t->reg[2]);
 	return 0;
 }
 
 static int
-nv50_mem_timing_calc(struct drm_device *dev, u32 freq,
+nv50_mem_timing_calc(struct nouveau_device *ndev, u32 freq,
 		     struct nouveau_pm_tbl_entry *e, u8 len,
 		     struct nouveau_pm_memtiming *boot,
 		     struct nouveau_pm_memtiming *t)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct bit_entry P;
-	uint8_t unk18 = 1, unk20 = 0, unk21 = 0, tmp7_3;
+	u8 unk18 = 1, unk20 = 0, unk21 = 0, tmp7_3;
 
-	if (bit_table(dev, 'P', &P))
+	if (bit_table(ndev, 'P', &P))
 		return -EINVAL;
 
 	switch (min(len, (u8) 22)) {
@@ -592,16 +584,16 @@ nv50_mem_timing_calc(struct drm_device *dev, u32 freq,
 			    0x202;
 	}
 
-	NV_DEBUG(dev, "Entry %d: 220: %08x %08x %08x %08x\n", t->id,
+	NV_DEBUG(ndev, "Entry %d: 220: %08x %08x %08x %08x\n", t->id,
 		 t->reg[0], t->reg[1], t->reg[2], t->reg[3]);
-	NV_DEBUG(dev, "         230: %08x %08x %08x %08x\n",
+	NV_DEBUG(ndev, "         230: %08x %08x %08x %08x\n",
 		 t->reg[4], t->reg[5], t->reg[6], t->reg[7]);
-	NV_DEBUG(dev, "         240: %08x\n", t->reg[8]);
+	NV_DEBUG(ndev, "         240: %08x\n", t->reg[8]);
 	return 0;
 }
 
 static int
-nvc0_mem_timing_calc(struct drm_device *dev, u32 freq,
+nvc0_mem_timing_calc(struct nouveau_device *ndev, u32 freq,
 		     struct nouveau_pm_tbl_entry *e, u8 len,
 		     struct nouveau_pm_memtiming *boot,
 		     struct nouveau_pm_memtiming *t)
@@ -628,9 +620,9 @@ nvc0_mem_timing_calc(struct drm_device *dev, u32 freq,
 	t->reg[4] = (boot->reg[4] & 0xfff00fff) |
 		    (e->tRRD&0x1f) << 15;
 
-	NV_DEBUG(dev, "Entry %d: 290: %08x %08x %08x %08x\n", t->id,
+	NV_DEBUG(ndev, "Entry %d: 290: %08x %08x %08x %08x\n", t->id,
 		 t->reg[0], t->reg[1], t->reg[2], t->reg[3]);
-	NV_DEBUG(dev, "         2a0: %08x\n", t->reg[4]);
+	NV_DEBUG(ndev, "         2a0: %08x\n", t->reg[4]);
 	return 0;
 }
 
@@ -639,7 +631,7 @@ nvc0_mem_timing_calc(struct drm_device *dev, u32 freq,
  */
 
 static int
-nouveau_mem_ddr2_mr(struct drm_device *dev, u32 freq,
+nouveau_mem_ddr2_mr(struct nouveau_device *ndev, u32 freq,
 		    struct nouveau_pm_tbl_entry *e, u8 len,
 		    struct nouveau_pm_memtiming *boot,
 		    struct nouveau_pm_memtiming *t)
@@ -652,17 +644,17 @@ nouveau_mem_ddr2_mr(struct drm_device *dev, u32 freq,
 	}
 
 	if (e->tCL >= NV_MEM_CL_DDR2_MAX) {
-		NV_WARN(dev, "(%u) Invalid tCL: %u", t->id, e->tCL);
+		NV_WARN(ndev, "(%u) Invalid tCL: %u", t->id, e->tCL);
 		return -ERANGE;
 	}
 
 	if (e->tWR >= NV_MEM_WR_DDR2_MAX) {
-		NV_WARN(dev, "(%u) Invalid tWR: %u", t->id, e->tWR);
+		NV_WARN(ndev, "(%u) Invalid tWR: %u", t->id, e->tWR);
 		return -ERANGE;
 	}
 
 	if (t->odt > 3) {
-		NV_WARN(dev, "(%u) Invalid odt value, assuming disabled: %x",
+		NV_WARN(ndev, "(%u) Invalid odt value, assuming disabled: %x",
 			t->id, t->odt);
 		t->odt = 0;
 	}
@@ -674,15 +666,15 @@ nouveau_mem_ddr2_mr(struct drm_device *dev, u32 freq,
 		   (t->odt & 0x1) << 2 |
 		   (t->odt & 0x2) << 5;
 
-	NV_DEBUG(dev, "(%u) MR: %08x", t->id, t->mr[0]);
+	NV_DEBUG(ndev, "(%u) MR: %08x", t->id, t->mr[0]);
 	return 0;
 }
 
-uint8_t nv_mem_wr_lut_ddr3[NV_MEM_WR_DDR3_MAX] = {
+u8 nv_mem_wr_lut_ddr3[NV_MEM_WR_DDR3_MAX] = {
 	0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 5, 6, 6, 7, 7, 0, 0};
 
 static int
-nouveau_mem_ddr3_mr(struct drm_device *dev, u32 freq,
+nouveau_mem_ddr3_mr(struct nouveau_device *ndev, u32 freq,
 		    struct nouveau_pm_tbl_entry *e, u8 len,
 		    struct nouveau_pm_memtiming *boot,
 		    struct nouveau_pm_memtiming *t)
@@ -697,17 +689,17 @@ nouveau_mem_ddr3_mr(struct drm_device *dev, u32 freq,
 	}
 
 	if (e->tCL >= NV_MEM_CL_DDR3_MAX || e->tCL < 4) {
-		NV_WARN(dev, "(%u) Invalid tCL: %u", t->id, e->tCL);
+		NV_WARN(ndev, "(%u) Invalid tCL: %u", t->id, e->tCL);
 		return -ERANGE;
 	}
 
 	if (e->tWR >= NV_MEM_WR_DDR3_MAX || e->tWR < 4) {
-		NV_WARN(dev, "(%u) Invalid tWR: %u", t->id, e->tWR);
+		NV_WARN(ndev, "(%u) Invalid tWR: %u", t->id, e->tWR);
 		return -ERANGE;
 	}
 
 	if (e->tCWL < 5) {
-		NV_WARN(dev, "(%u) Invalid tCWL: %u", t->id, e->tCWL);
+		NV_WARN(ndev, "(%u) Invalid tCWL: %u", t->id, e->tCWL);
 		return -ERANGE;
 	}
 
@@ -722,17 +714,17 @@ nouveau_mem_ddr3_mr(struct drm_device *dev, u32 freq,
 		   (t->odt & 0x4) << 7;
 	t->mr[2] = (boot->mr[2] & 0x20ffb7) | (e->tCWL - 5) << 3;
 
-	NV_DEBUG(dev, "(%u) MR: %08x %08x", t->id, t->mr[0], t->mr[2]);
+	NV_DEBUG(ndev, "(%u) MR: %08x %08x", t->id, t->mr[0], t->mr[2]);
 	return 0;
 }
 
-uint8_t nv_mem_cl_lut_gddr3[NV_MEM_CL_GDDR3_MAX] = {
+u8 nv_mem_cl_lut_gddr3[NV_MEM_CL_GDDR3_MAX] = {
 	0, 0, 0, 0, 4, 5, 6, 7, 0, 1, 2, 3, 8, 9, 10, 11};
-uint8_t nv_mem_wr_lut_gddr3[NV_MEM_WR_GDDR3_MAX] = {
+u8 nv_mem_wr_lut_gddr3[NV_MEM_WR_GDDR3_MAX] = {
 	0, 0, 0, 0, 0, 2, 3, 8, 9, 10, 11, 0, 0, 1, 1, 0, 3};
 
 static int
-nouveau_mem_gddr3_mr(struct drm_device *dev, u32 freq,
+nouveau_mem_gddr3_mr(struct nouveau_device *ndev, u32 freq,
 		     struct nouveau_pm_tbl_entry *e, u8 len,
 		     struct nouveau_pm_memtiming *boot,
 		     struct nouveau_pm_memtiming *t)
@@ -746,17 +738,17 @@ nouveau_mem_gddr3_mr(struct drm_device *dev, u32 freq,
 	}
 
 	if (e->tCL >= NV_MEM_CL_GDDR3_MAX) {
-		NV_WARN(dev, "(%u) Invalid tCL: %u", t->id, e->tCL);
+		NV_WARN(ndev, "(%u) Invalid tCL: %u", t->id, e->tCL);
 		return -ERANGE;
 	}
 
 	if (e->tWR >= NV_MEM_WR_GDDR3_MAX) {
-		NV_WARN(dev, "(%u) Invalid tWR: %u", t->id, e->tWR);
+		NV_WARN(ndev, "(%u) Invalid tWR: %u", t->id, e->tWR);
 		return -ERANGE;
 	}
 
 	if (t->odt > 3) {
-		NV_WARN(dev, "(%u) Invalid odt value, assuming autocal: %x",
+		NV_WARN(ndev, "(%u) Invalid odt value, assuming autocal: %x",
 			t->id, t->odt);
 		t->odt = 0;
 	}
@@ -770,13 +762,13 @@ nouveau_mem_gddr3_mr(struct drm_device *dev, u32 freq,
 		   (nv_mem_wr_lut_gddr3[e->tWR] & 0xf) << 4;
 	t->mr[2] = boot->mr[2];
 
-	NV_DEBUG(dev, "(%u) MR: %08x %08x %08x", t->id,
+	NV_DEBUG(ndev, "(%u) MR: %08x %08x %08x", t->id,
 		      t->mr[0], t->mr[1], t->mr[2]);
 	return 0;
 }
 
 static int
-nouveau_mem_gddr5_mr(struct drm_device *dev, u32 freq,
+nouveau_mem_gddr5_mr(struct nouveau_device *ndev, u32 freq,
 		     struct nouveau_pm_tbl_entry *e, u8 len,
 		     struct nouveau_pm_memtiming *boot,
 		     struct nouveau_pm_memtiming *t)
@@ -790,17 +782,17 @@ nouveau_mem_gddr5_mr(struct drm_device *dev, u32 freq,
 	}
 
 	if (e->tCL >= NV_MEM_CL_GDDR5_MAX) {
-		NV_WARN(dev, "(%u) Invalid tCL: %u", t->id, e->tCL);
+		NV_WARN(ndev, "(%u) Invalid tCL: %u", t->id, e->tCL);
 		return -ERANGE;
 	}
 
 	if (e->tWR >= NV_MEM_WR_GDDR5_MAX) {
-		NV_WARN(dev, "(%u) Invalid tWR: %u", t->id, e->tWR);
+		NV_WARN(ndev, "(%u) Invalid tWR: %u", t->id, e->tWR);
 		return -ERANGE;
 	}
 
 	if (t->odt > 3) {
-		NV_WARN(dev, "(%u) Invalid odt value, assuming autocal: %x",
+		NV_WARN(ndev, "(%u) Invalid odt value, assuming autocal: %x",
 			t->id, t->odt);
 		t->odt = 0;
 	}
@@ -812,22 +804,21 @@ nouveau_mem_gddr5_mr(struct drm_device *dev, u32 freq,
 		   t->drive_strength |
 		   (t->odt << 2);
 
-	NV_DEBUG(dev, "(%u) MR: %08x %08x", t->id, t->mr[0], t->mr[1]);
+	NV_DEBUG(ndev, "(%u) MR: %08x %08x", t->id, t->mr[0], t->mr[1]);
 	return 0;
 }
 
 int
-nouveau_mem_timing_calc(struct drm_device *dev, u32 freq,
+nouveau_mem_timing_calc(struct nouveau_device *ndev, u32 freq,
 			struct nouveau_pm_memtiming *t)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_memtiming *boot = &pm->boot.timing;
 	struct nouveau_pm_tbl_entry *e;
 	u8 ver, len, *ptr, *ramcfg;
 	int ret;
 
-	ptr = nouveau_perf_timing(dev, freq, &ver, &len);
+	ptr = nouveau_perf_timing(ndev, freq, &ver, &len);
 	if (!ptr || ptr[0] == 0x00) {
 		*t = *boot;
 		return 0;
@@ -838,14 +829,14 @@ nouveau_mem_timing_calc(struct drm_device *dev, u32 freq,
 
 	switch (ndev->card_type) {
 	case NV_40:
-		ret = nv40_mem_timing_calc(dev, freq, e, len, boot, t);
+		ret = nv40_mem_timing_calc(ndev, freq, e, len, boot, t);
 		break;
 	case NV_50:
-		ret = nv50_mem_timing_calc(dev, freq, e, len, boot, t);
+		ret = nv50_mem_timing_calc(ndev, freq, e, len, boot, t);
 		break;
 	case NV_C0:
 	case NV_D0:
-		ret = nvc0_mem_timing_calc(dev, freq, e, len, boot, t);
+		ret = nvc0_mem_timing_calc(ndev, freq, e, len, boot, t);
 		break;
 	default:
 		ret = -ENODEV;
@@ -854,23 +845,23 @@ nouveau_mem_timing_calc(struct drm_device *dev, u32 freq,
 
 	switch (ndev->vram_type * !ret) {
 	case NV_MEM_TYPE_GDDR3:
-		ret = nouveau_mem_gddr3_mr(dev, freq, e, len, boot, t);
+		ret = nouveau_mem_gddr3_mr(ndev, freq, e, len, boot, t);
 		break;
 	case NV_MEM_TYPE_GDDR5:
-		ret = nouveau_mem_gddr5_mr(dev, freq, e, len, boot, t);
+		ret = nouveau_mem_gddr5_mr(ndev, freq, e, len, boot, t);
 		break;
 	case NV_MEM_TYPE_DDR2:
-		ret = nouveau_mem_ddr2_mr(dev, freq, e, len, boot, t);
+		ret = nouveau_mem_ddr2_mr(ndev, freq, e, len, boot, t);
 		break;
 	case NV_MEM_TYPE_DDR3:
-		ret = nouveau_mem_ddr3_mr(dev, freq, e, len, boot, t);
+		ret = nouveau_mem_ddr3_mr(ndev, freq, e, len, boot, t);
 		break;
 	default:
 		ret = -EINVAL;
 		break;
 	}
 
-	ramcfg = nouveau_perf_ramcfg(dev, freq, &ver, &len);
+	ramcfg = nouveau_perf_ramcfg(ndev, freq, &ver, &len);
 	if (ramcfg) {
 		int dll_off;
 
@@ -895,9 +886,8 @@ nouveau_mem_timing_calc(struct drm_device *dev, u32 freq,
 }
 
 void
-nouveau_mem_timing_read(struct drm_device *dev, struct nouveau_pm_memtiming *t)
+nouveau_mem_timing_read(struct nouveau_device *ndev, struct nouveau_pm_memtiming *t)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 timing_base, timing_regs, mr_base;
 	int i;
 
@@ -928,19 +918,19 @@ nouveau_mem_timing_read(struct drm_device *dev, struct nouveau_pm_memtiming *t)
 		return;
 	}
 	for(i = 0; i < timing_regs; i++)
-		t->reg[i] = nv_rd32(dev, timing_base + (0x04 * i));
+		t->reg[i] = nv_rd32(ndev, timing_base + (0x04 * i));
 
 	t->tCWL = 0;
 	if (ndev->card_type < NV_C0) {
-		t->tCWL = ((nv_rd32(dev, 0x100228) & 0x0f000000) >> 24) + 1;
+		t->tCWL = ((nv_rd32(ndev, 0x100228) & 0x0f000000) >> 24) + 1;
 	} else if (ndev->card_type <= NV_D0) {
-		t->tCWL = ((nv_rd32(dev, 0x10f294) & 0x00000f80) >> 7);
+		t->tCWL = ((nv_rd32(ndev, 0x10f294) & 0x00000f80) >> 7);
 	}
 
-	t->mr[0] = nv_rd32(dev, mr_base);
-	t->mr[1] = nv_rd32(dev, mr_base + 0x04);
-	t->mr[2] = nv_rd32(dev, mr_base + 0x20);
-	t->mr[3] = nv_rd32(dev, mr_base + 0x24);
+	t->mr[0] = nv_rd32(ndev, mr_base);
+	t->mr[1] = nv_rd32(ndev, mr_base + 0x04);
+	t->mr[2] = nv_rd32(ndev, mr_base + 0x20);
+	t->mr[3] = nv_rd32(ndev, mr_base + 0x24);
 
 	t->odt = 0;
 	t->drive_strength = 0;
@@ -966,8 +956,8 @@ int
 nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 		 struct nouveau_pm_level *perflvl)
 {
-	struct nouveau_device *ndev = nouveau_device(exec->dev);
 	struct nouveau_pm_memtiming *info = &perflvl->timing;
+	struct nouveau_device *ndev = exec->device;
 	u32 tMRD = 1000, tCKSRE = 0, tCKSRX = 0, tXS = 0, tDLLK = 0;
 	u32 mr[3] = { info->mr[0], info->mr[1], info->mr[2] };
 	u32 mr1_dlloff;
@@ -988,7 +978,7 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 		mr1_dlloff = 0x00000040;
 		break;
 	default:
-		NV_ERROR(exec->dev, "cannot reclock unsupported memtype\n");
+		NV_ERROR(ndev, "cannot reclock unsupported memtype\n");
 		return -ENODEV;
 	}
 
@@ -1068,12 +1058,12 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 }
 
 int
-nouveau_mem_vbios_type(struct drm_device *dev)
+nouveau_mem_vbios_type(struct nouveau_device *ndev)
 {
 	struct bit_entry M;
-	u8 ramcfg = (nv_rd32(dev, 0x101000) & 0x0000003c) >> 2;
-	if (!bit_table(dev, 'M', &M) || M.version != 2 || M.length < 5) {
-		u8 *table = ROMPTR(dev, M.data[3]);
+	u8 ramcfg = (nv_rd32(ndev, 0x101000) & 0x0000003c) >> 2;
+	if (!bit_table(ndev, 'M', &M) || M.version != 2 || M.length < 5) {
+		u8 *table = ROMPTR(ndev, M.data[3]);
 		if (table && table[0] == 0x10 && ramcfg < table[3]) {
 			u8 *entry = table + table[1] + (ramcfg * table[2]);
 			switch (entry[0] & 0x0f) {
@@ -1124,10 +1114,9 @@ nouveau_vram_manager_del(struct ttm_mem_type_manager *man,
 {
 	struct nouveau_device *ndev = nouveau_bdev(man->bdev);
 	struct nouveau_vram_engine *vram = &ndev->subsys.vram;
-	struct drm_device *dev = ndev->dev;
 
 	nouveau_mem_node_cleanup(mem->mm_node);
-	vram->put(dev, (struct nouveau_mem **)&mem->mm_node);
+	vram->put(ndev, (struct nouveau_mem **)&mem->mm_node);
 }
 
 static int
@@ -1138,7 +1127,6 @@ nouveau_vram_manager_new(struct ttm_mem_type_manager *man,
 {
 	struct nouveau_device *ndev = nouveau_bdev(man->bdev);
 	struct nouveau_vram_engine *vram = &ndev->subsys.vram;
-	struct drm_device *dev = ndev->dev;
 	struct nouveau_bo *nvbo = nouveau_bo(bo);
 	struct nouveau_mem *node;
 	u32 size_nc = 0;
@@ -1147,7 +1135,7 @@ nouveau_vram_manager_new(struct ttm_mem_type_manager *man,
 	if (nvbo->tile_flags & NOUVEAU_GEM_TILE_NONCONTIG)
 		size_nc = 1 << nvbo->page_shift;
 
-	ret = vram->get(dev, mem->num_pages << PAGE_SHIFT,
+	ret = vram->get(ndev, mem->num_pages << PAGE_SHIFT,
 			mem->page_alignment << PAGE_SHIFT, size_nc,
 			(nvbo->tile_flags >> 8) & 0x3ff, &node);
 	if (ret) {

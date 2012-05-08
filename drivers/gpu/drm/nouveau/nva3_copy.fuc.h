@@ -1,4 +1,4 @@
-uint32_t nva3_pcopy_data[] = {
+u32 nva3_pcopy_data[] = {
 	0x00000000,
 	0x00000000,
 	0x00000000,
@@ -146,7 +146,7 @@ uint32_t nva3_pcopy_data[] = {
 	0x00000800,
 };
 
-uint32_t nva3_pcopy_code[] = {
+u32 nva3_pcopy_code[] = {
 	0x04fe04bd,
 	0x3517f000,
 	0xf10010fe,

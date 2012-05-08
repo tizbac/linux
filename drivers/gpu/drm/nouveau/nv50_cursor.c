@@ -36,33 +36,32 @@
 static void
 nv50_cursor_show(struct nouveau_crtc *nv_crtc, bool update)
 {
-	struct drm_device *dev = nv_crtc->base.dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
-	struct nouveau_channel *evo = nv50_display(dev)->master;
+	struct nouveau_device *ndev = nouveau_device(nv_crtc->base.dev);
+	struct nouveau_channel *evo = nv50_display(ndev)->master;
 	int ret;
 
-	NV_DEBUG_KMS(dev, "\n");
+	NV_DEBUG_KMS(ndev, "\n");
 
 	if (update && nv_crtc->cursor.visible)
 		return;
 
 	ret = RING_SPACE(evo, (ndev->chipset != 0x50 ? 5 : 3) + update * 2);
 	if (ret) {
-		NV_ERROR(dev, "no space while unhiding cursor\n");
+		NV_ERROR(ndev, "no space while unhiding cursor\n");
 		return;
 	}
 
 	if (ndev->chipset != 0x50) {
 		BEGIN_NV04(evo, 0, NV84_EVO_CRTC(nv_crtc->index, CURSOR_DMA), 1);
-		OUT_RING(evo, NvEvoVRAM);
+		PUSH_DATA (evo, NvEvoVRAM);
 	}
 	BEGIN_NV04(evo, 0, NV50_EVO_CRTC(nv_crtc->index, CURSOR_CTRL), 2);
-	OUT_RING(evo, NV50_EVO_CRTC_CURSOR_CTRL_SHOW);
-	OUT_RING(evo, nv_crtc->cursor.offset >> 8);
+	PUSH_DATA (evo, NV50_EVO_CRTC_CURSOR_CTRL_SHOW);
+	PUSH_DATA (evo, nv_crtc->cursor.offset >> 8);
 
 	if (update) {
 		BEGIN_NV04(evo, 0, NV50_EVO_UPDATE, 1);
-		OUT_RING(evo, 0);
+		PUSH_DATA (evo, 0);
 		FIRE_RING(evo);
 		nv_crtc->cursor.visible = true;
 	}
@@ -71,32 +70,31 @@ nv50_cursor_show(struct nouveau_crtc *nv_crtc, bool update)
 static void
 nv50_cursor_hide(struct nouveau_crtc *nv_crtc, bool update)
 {
-	struct drm_device *dev = nv_crtc->base.dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
-	struct nouveau_channel *evo = nv50_display(dev)->master;
+	struct nouveau_device *ndev = nouveau_device(nv_crtc->base.dev);
+	struct nouveau_channel *evo = nv50_display(ndev)->master;
 	int ret;
 
-	NV_DEBUG_KMS(dev, "\n");
+	NV_DEBUG_KMS(ndev, "\n");
 
 	if (update && !nv_crtc->cursor.visible)
 		return;
 
 	ret = RING_SPACE(evo, (ndev->chipset != 0x50 ? 5 : 3) + update * 2);
 	if (ret) {
-		NV_ERROR(dev, "no space while hiding cursor\n");
+		NV_ERROR(ndev, "no space while hiding cursor\n");
 		return;
 	}
 	BEGIN_NV04(evo, 0, NV50_EVO_CRTC(nv_crtc->index, CURSOR_CTRL), 2);
-	OUT_RING(evo, NV50_EVO_CRTC_CURSOR_CTRL_HIDE);
-	OUT_RING(evo, 0);
+	PUSH_DATA (evo, NV50_EVO_CRTC_CURSOR_CTRL_HIDE);
+	PUSH_DATA (evo, 0);
 	if (ndev->chipset != 0x50) {
 		BEGIN_NV04(evo, 0, NV84_EVO_CRTC(nv_crtc->index, CURSOR_DMA), 1);
-		OUT_RING(evo, NV84_EVO_CRTC_CURSOR_DMA_HANDLE_NONE);
+		PUSH_DATA (evo, NV84_EVO_CRTC_CURSOR_DMA_HANDLE_NONE);
 	}
 
 	if (update) {
 		BEGIN_NV04(evo, 0, NV50_EVO_UPDATE, 1);
-		OUT_RING(evo, 0);
+		PUSH_DATA (evo, 0);
 		FIRE_RING(evo);
 		nv_crtc->cursor.visible = false;
 	}
@@ -105,19 +103,22 @@ nv50_cursor_hide(struct nouveau_crtc *nv_crtc, bool update)
 static void
 nv50_cursor_set_pos(struct nouveau_crtc *nv_crtc, int x, int y)
 {
-	struct drm_device *dev = nv_crtc->base.dev;
+	struct nouveau_device *ndev = nouveau_device(nv_crtc->base.dev);
 
 	nv_crtc->cursor_saved_x = x; nv_crtc->cursor_saved_y = y;
-	nv_wr32(dev, NV50_PDISPLAY_CURSOR_USER_POS(nv_crtc->index),
+	nv_wr32(ndev, NV50_PDISPLAY_CURSOR_USER_POS(nv_crtc->index),
 		((y & 0xFFFF) << 16) | (x & 0xFFFF));
 	/* Needed to make the cursor move. */
-	nv_wr32(dev, NV50_PDISPLAY_CURSOR_USER_POS_CTRL(nv_crtc->index), 0);
+	nv_wr32(ndev, NV50_PDISPLAY_CURSOR_USER_POS_CTRL(nv_crtc->index), 0);
 }
 
 static void
-nv50_cursor_set_offset(struct nouveau_crtc *nv_crtc, uint32_t offset)
+nv50_cursor_set_offset(struct nouveau_crtc *nv_crtc, u32 offset)
 {
-	NV_DEBUG_KMS(nv_crtc->base.dev, "\n");
+	struct nouveau_device *ndev = nouveau_device(nv_crtc->base.dev);
+
+	NV_DEBUG_KMS(ndev, "\n");
+
 	if (offset == nv_crtc->cursor.offset)
 		return;
 

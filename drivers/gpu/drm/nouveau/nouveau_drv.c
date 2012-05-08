@@ -177,7 +177,7 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 	struct drm_device *dev = pci_get_drvdata(pdev);
 	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
-	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
 	struct nouveau_channel *chan;
 	struct drm_crtc *crtc;
 	int ret, i, e;
@@ -188,13 +188,13 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 	if (dev->switch_power_state == DRM_SWITCH_POWER_OFF)
 		return 0;
 
-	NV_INFO(dev, "Disabling display...\n");
-	nouveau_display_fini(dev);
+	NV_INFO(ndev, "Disabling display...\n");
+	nouveau_display_fini(ndev);
 
-	NV_INFO(dev, "Disabling fbcon...\n");
-	nouveau_fbcon_set_suspend(dev, 1);
+	NV_INFO(ndev, "Disabling fbcon...\n");
+	nouveau_fbcon_set_suspend(ndev, 1);
 
-	NV_INFO(dev, "Unpinning framebuffer(s)...\n");
+	NV_INFO(ndev, "Unpinning framebuffer(s)...\n");
 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
 		struct nouveau_framebuffer *nouveau_fb;
 
@@ -212,10 +212,10 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 		nouveau_bo_unpin(nv_crtc->cursor.nvbo);
 	}
 
-	NV_INFO(dev, "Evicting buffers...\n");
+	NV_INFO(ndev, "Evicting buffers...\n");
 	ttm_bo_evict_mm(&ndev->ttm.bdev, TTM_PL_VRAM);
 
-	NV_INFO(dev, "Idling channels...\n");
+	NV_INFO(ndev, "Idling channels...\n");
 	for (i = 0; i < (pfifo ? pfifo->channels : 0); i++) {
 		chan = ndev->channels.ptr[i];
 
@@ -227,28 +227,28 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 		if (!ndev->engine[e])
 			continue;
 
-		ret = ndev->engine[e]->fini(dev, e, true);
+		ret = ndev->engine[e]->fini(ndev, e, true);
 		if (ret) {
-			NV_ERROR(dev, "... engine %d failed: %d\n", e, ret);
+			NV_ERROR(ndev, "... engine %d failed: %d\n", e, ret);
 			goto out_abort;
 		}
 	}
 
-	ret = pinstmem->suspend(dev);
+	ret = pinstmem->suspend(ndev);
 	if (ret) {
-		NV_ERROR(dev, "... failed: %d\n", ret);
+		NV_ERROR(ndev, "... failed: %d\n", ret);
 		goto out_abort;
 	}
 
-	NV_INFO(dev, "Suspending GPU objects...\n");
-	ret = nouveau_gpuobj_suspend(dev);
+	NV_INFO(ndev, "Suspending GPU objects...\n");
+	ret = nouveau_gpuobj_suspend(ndev);
 	if (ret) {
-		NV_ERROR(dev, "... failed: %d\n", ret);
-		pinstmem->resume(dev);
+		NV_ERROR(ndev, "... failed: %d\n", ret);
+		pinstmem->resume(ndev);
 		goto out_abort;
 	}
 
-	NV_INFO(dev, "And we're gone!\n");
+	NV_INFO(ndev, "And we're gone!\n");
 	pci_save_state(pdev);
 	if (pm_state.event == PM_EVENT_SUSPEND) {
 		pci_disable_device(pdev);
@@ -258,10 +258,10 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 	return 0;
 
 out_abort:
-	NV_INFO(dev, "Re-enabling acceleration..\n");
+	NV_INFO(ndev, "Re-enabling acceleration..\n");
 	for (e = e + 1; e < NVOBJ_ENGINE_NR; e++) {
 		if (ndev->engine[e])
-			ndev->engine[e]->init(dev, e);
+			ndev->engine[e]->init(ndev, e);
 	}
 	return ret;
 }
@@ -270,8 +270,8 @@ int
 nouveau_pci_resume(struct pci_dev *pdev)
 {
 	struct drm_device *dev = pci_get_drvdata(pdev);
-	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
 	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
 	struct nouveau_subsys *engine = &ndev->subsys;
 	struct drm_crtc *crtc;
 	int ret, i;
@@ -279,7 +279,7 @@ nouveau_pci_resume(struct pci_dev *pdev)
 	if (dev->switch_power_state == DRM_SWITCH_POWER_OFF)
 		return 0;
 
-	NV_INFO(dev, "We're back, enabling device...\n");
+	NV_INFO(ndev, "We're back, enabling device...\n");
 	pci_set_power_state(pdev, PCI_D0);
 	pci_restore_state(pdev);
 	if (pci_enable_device(pdev))
@@ -288,35 +288,35 @@ nouveau_pci_resume(struct pci_dev *pdev)
 
 	/* Make sure the AGP controller is in a consistent state */
 	if (ndev->gart_info.type == NOUVEAU_GART_AGP)
-		nouveau_mem_reset_agp(dev);
+		nouveau_mem_reset_agp(ndev);
 
 	/* Make the CRTCs accessible */
-	engine->display.early_init(dev);
+	engine->display.early_init(ndev);
 
-	NV_INFO(dev, "POSTing device...\n");
-	ret = nouveau_run_vbios_init(dev);
+	NV_INFO(ndev, "POSTing device...\n");
+	ret = nouveau_run_vbios_init(ndev);
 	if (ret)
 		return ret;
 
 	if (ndev->gart_info.type == NOUVEAU_GART_AGP) {
-		ret = nouveau_mem_init_agp(dev);
+		ret = nouveau_mem_init_agp(ndev);
 		if (ret) {
-			NV_ERROR(dev, "error reinitialising AGP: %d\n", ret);
+			NV_ERROR(ndev, "error reinitialising AGP: %d\n", ret);
 			return ret;
 		}
 	}
 
-	NV_INFO(dev, "Restoring GPU objects...\n");
-	nouveau_gpuobj_resume(dev);
+	NV_INFO(ndev, "Restoring GPU objects...\n");
+	nouveau_gpuobj_resume(ndev);
 
-	NV_INFO(dev, "Reinitialising engines...\n");
-	engine->instmem.resume(dev);
-	engine->mc.init(dev);
-	engine->timer.init(dev);
-	engine->fb.init(dev);
+	NV_INFO(ndev, "Reinitialising engines...\n");
+	engine->instmem.resume(ndev);
+	engine->mc.init(ndev);
+	engine->timer.init(ndev);
+	engine->fb.init(ndev);
 	for (i = 0; i < NVOBJ_ENGINE_NR; i++) {
 		if (ndev->engine[i])
-			ndev->engine[i]->init(dev, i);
+			ndev->engine[i]->init(ndev, i);
 	}
 
 	nouveau_irq_postinstall(dev);
@@ -336,9 +336,9 @@ nouveau_pci_resume(struct pci_dev *pdev)
 		}
 	}
 
-	nouveau_pm_resume(dev);
+	nouveau_pm_resume(ndev);
 
-	NV_INFO(dev, "Restoring mode...\n");
+	NV_INFO(ndev, "Restoring mode...\n");
 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
 		struct nouveau_framebuffer *nouveau_fb;
 
@@ -356,13 +356,13 @@ nouveau_pci_resume(struct pci_dev *pdev)
 		if (!ret)
 			ret = nouveau_bo_map(nv_crtc->cursor.nvbo);
 		if (ret)
-			NV_ERROR(dev, "Could not pin/map cursor.\n");
+			NV_ERROR(ndev, "Could not pin/map cursor.\n");
 	}
 
-	nouveau_fbcon_set_suspend(dev, 0);
-	nouveau_fbcon_zfill_all(dev);
+	nouveau_fbcon_set_suspend(ndev, 0);
+	nouveau_fbcon_zfill_all(ndev);
 
-	nouveau_display_init(dev);
+	nouveau_display_init(ndev);
 
 	/* Force CLUT to get re-loaded during modeset */
 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {

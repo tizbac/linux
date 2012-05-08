@@ -34,7 +34,7 @@ struct nouveau_fbdev {
 	struct drm_fb_helper helper;
 	struct nouveau_framebuffer nouveau_fb;
 	struct list_head fbdev_list;
-	struct drm_device *dev;
+	struct nouveau_device *device;
 	unsigned int saved_flags;
 };
 
@@ -57,13 +57,14 @@ int nvc0_fbcon_accel_init(struct fb_info *info);
 
 void nouveau_fbcon_gpu_lockup(struct fb_info *info);
 
-int nouveau_fbcon_init(struct drm_device *dev);
-void nouveau_fbcon_fini(struct drm_device *dev);
-void nouveau_fbcon_set_suspend(struct drm_device *dev, int state);
-void nouveau_fbcon_zfill_all(struct drm_device *dev);
-void nouveau_fbcon_save_disable_accel(struct drm_device *dev);
-void nouveau_fbcon_restore_accel(struct drm_device *dev);
+int nouveau_fbcon_init(struct nouveau_device *);
+void nouveau_fbcon_fini(struct nouveau_device *);
+void nouveau_fbcon_set_suspend(struct nouveau_device *, int state);
+void nouveau_fbcon_zfill_all(struct nouveau_device *);
+void nouveau_fbcon_save_disable_accel(struct nouveau_device *);
+void nouveau_fbcon_restore_accel(struct nouveau_device *);
 
-void nouveau_fbcon_output_poll_changed(struct drm_device *dev);
+void nouveau_fbcon_output_poll_changed(struct drm_device *);
+
 #endif /* __NV50_FBCON_H__ */
 

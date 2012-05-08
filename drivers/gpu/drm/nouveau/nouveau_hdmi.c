@@ -52,13 +52,15 @@ hdmi_base(struct drm_encoder *encoder)
 static void
 hdmi_wr32(struct drm_encoder *encoder, u32 reg, u32 val)
 {
-	nv_wr32(encoder->dev, hdmi_base(encoder) + reg, val);
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
+	nv_wr32(ndev, hdmi_base(encoder) + reg, val);
 }
 
 static u32
 hdmi_rd32(struct drm_encoder *encoder, u32 reg)
 {
-	return nv_rd32(encoder->dev, hdmi_base(encoder) + reg);
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
+	return nv_rd32(ndev, hdmi_base(encoder) + reg);
 }
 
 static u32
@@ -73,11 +75,11 @@ static void
 nouveau_audio_disconnect(struct drm_encoder *encoder)
 {
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
-	struct drm_device *dev = encoder->dev;
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	u32 or = nv_encoder->or * 0x800;
 
 	if (hdmi_sor(encoder)) {
-		nv_mask(dev, 0x61c448 + or, 0x00000003, 0x00000000);
+		nv_mask(ndev, 0x61c448 + or, 0x00000003, 0x00000000);
 	}
 }
 
@@ -86,8 +88,8 @@ nouveau_audio_mode_set(struct drm_encoder *encoder,
 		       struct drm_display_mode *mode)
 {
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct nouveau_connector *nv_connector;
-	struct drm_device *dev = encoder->dev;
 	u32 or = nv_encoder->or * 0x800;
 	int i;
 
@@ -98,16 +100,16 @@ nouveau_audio_mode_set(struct drm_encoder *encoder,
 	}
 
 	if (hdmi_sor(encoder)) {
-		nv_mask(dev, 0x61c448 + or, 0x00000001, 0x00000001);
+		nv_mask(ndev, 0x61c448 + or, 0x00000001, 0x00000001);
 
 		drm_edid_to_eld(&nv_connector->base, nv_connector->edid);
 		if (nv_connector->base.eld[0]) {
 			u8 *eld = nv_connector->base.eld;
 			for (i = 0; i < eld[2] * 4; i++)
-				nv_wr32(dev, 0x61c440 + or, (i << 8) | eld[i]);
+				nv_wr32(ndev, 0x61c440 + or, (i << 8) | eld[i]);
 			for (i = eld[2] * 4; i < 0x60; i++)
-				nv_wr32(dev, 0x61c440 + or, (i << 8) | 0x00);
-			nv_mask(dev, 0x61c448 + or, 0x00000002, 0x00000002);
+				nv_wr32(ndev, 0x61c440 + or, (i << 8) | 0x00);
+			nv_mask(ndev, 0x61c448 + or, 0x00000002, 0x00000002);
 		}
 	}
 }
@@ -220,8 +222,8 @@ nouveau_hdmi_mode_set(struct drm_encoder *encoder,
 		      struct drm_display_mode *mode)
 {
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct nouveau_connector *nv_connector;
-	struct drm_device *dev = encoder->dev;
 	u32 max_ac_packet, rekey;
 
 	nv_connector = nouveau_encoder_connector_get(nv_encoder);
@@ -238,9 +240,9 @@ nouveau_hdmi_mode_set(struct drm_encoder *encoder,
 	hdmi_mask(encoder, 0x068, 0x00010101, 0x00000000); /* ACR_CTRL, ?? */
 	hdmi_mask(encoder, 0x078, 0x80000000, 0x80000000); /* ACR_0441_ENABLE */
 
-	nv_mask(dev, 0x61733c, 0x00100000, 0x00100000); /* RESETF */
-	nv_mask(dev, 0x61733c, 0x10000000, 0x10000000); /* LOOKUP_EN */
-	nv_mask(dev, 0x61733c, 0x00100000, 0x00000000); /* !RESETF */
+	nv_mask(ndev, 0x61733c, 0x00100000, 0x00100000); /* RESETF */
+	nv_mask(ndev, 0x61733c, 0x10000000, 0x10000000); /* LOOKUP_EN */
+	nv_mask(ndev, 0x61733c, 0x00100000, 0x00000000); /* !RESETF */
 
 	/* value matches nvidia binary driver, and tegra constant */
 	rekey = 56;

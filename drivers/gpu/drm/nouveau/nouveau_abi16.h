@@ -12,21 +12,21 @@ int nouveau_abi16_ioctl_notifierobj_alloc(ABI16_IOCTL_ARGS);
 int nouveau_abi16_ioctl_gpuobj_free(ABI16_IOCTL_ARGS);
 
 struct drm_nouveau_channel_alloc {
-	uint32_t     fb_ctxdma_handle;
-	uint32_t     tt_ctxdma_handle;
+	u32 fb_ctxdma_handle;
+	u32 tt_ctxdma_handle;
 
-	int          channel;
-	uint32_t     pushbuf_domains;
+	int channel;
+	u32 pushbuf_domains;
 
 	/* Notifier memory */
-	uint32_t     notifier_handle;
+	u32 notifier_handle;
 
 	/* DRM-enforced subchannel assignments */
 	struct {
-		uint32_t handle;
-		uint32_t grclass;
+		u32 handle;
+		u32 grclass;
 	} subchan[8];
-	uint32_t nr_subchan;
+	u32 nr_subchan;
 };
 
 struct drm_nouveau_channel_free {
@@ -34,21 +34,21 @@ struct drm_nouveau_channel_free {
 };
 
 struct drm_nouveau_grobj_alloc {
-	int      channel;
-	uint32_t handle;
-	int      class;
+	int channel;
+	u32 handle;
+	int class;
 };
 
 struct drm_nouveau_notifierobj_alloc {
-	uint32_t channel;
-	uint32_t handle;
-	uint32_t size;
-	uint32_t offset;
+	u32 channel;
+	u32 handle;
+	u32 size;
+	u32 offset;
 };
 
 struct drm_nouveau_gpuobj_free {
-	int      channel;
-	uint32_t handle;
+	int channel;
+	u32 handle;
 };
 
 #define NOUVEAU_GETPARAM_PCI_VENDOR      3
@@ -63,13 +63,13 @@ struct drm_nouveau_gpuobj_free {
 #define NOUVEAU_GETPARAM_HAS_BO_USAGE    15
 #define NOUVEAU_GETPARAM_HAS_PAGEFLIP    16
 struct drm_nouveau_getparam {
-	uint64_t param;
-	uint64_t value;
+	u64 param;
+	u64 value;
 };
 
 struct drm_nouveau_setparam {
-	uint64_t param;
-	uint64_t value;
+	u64 param;
+	u64 value;
 };
 
 #define DRM_IOCTL_NOUVEAU_GETPARAM           DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GETPARAM, struct drm_nouveau_getparam)

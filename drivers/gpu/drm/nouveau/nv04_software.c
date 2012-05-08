@@ -45,7 +45,7 @@ mthd_flip(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 	struct nouveau_page_flip_state state;
 
 	if (!nouveau_finish_page_flip(chan, &state)) {
-		nv_set_crtc_base(chan->dev, state.crtc, state.offset +
+		nv_set_crtc_base(chan->device, state.crtc, state.offset +
 				 state.y * state.pitch +
 				 state.x * state.bpp / 8);
 	}
@@ -79,11 +79,11 @@ static int
 nv04_software_object_new(struct nouveau_channel *chan, int engine,
 			 u32 handle, u16 class)
 {
-	struct drm_device *dev = chan->dev;
+	struct nouveau_device *ndev = chan->device;
 	struct nouveau_gpuobj *obj = NULL;
 	int ret;
 
-	ret = nouveau_gpuobj_new(dev, chan, 16, 16, 0, &obj);
+	ret = nouveau_gpuobj_new(ndev, chan, 16, 16, 0, &obj);
 	if (ret)
 		return ret;
 	obj->engine = 0;
@@ -95,30 +95,29 @@ nv04_software_object_new(struct nouveau_channel *chan, int engine,
 }
 
 static int
-nv04_software_init(struct drm_device *dev, int engine)
+nv04_software_init(struct nouveau_device *ndev, int engine)
 {
 	return 0;
 }
 
 static int
-nv04_software_fini(struct drm_device *dev, int engine, bool suspend)
+nv04_software_fini(struct nouveau_device *ndev, int engine, bool suspend)
 {
 	return 0;
 }
 
 static void
-nv04_software_destroy(struct drm_device *dev, int engine)
+nv04_software_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv04_software_priv *psw = nv_engine(dev, engine);
+	struct nv04_software_priv *psw = nv_engine(ndev, engine);
 
-	NVOBJ_ENGINE_DEL(dev, SW);
+	NVOBJ_ENGINE_DEL(ndev, SW);
 	kfree(psw);
 }
 
 int
-nv04_software_create(struct drm_device *dev)
+nv04_software_create(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv04_software_priv *psw;
 
 	psw = kzalloc(sizeof(*psw), GFP_KERNEL);
@@ -133,14 +132,14 @@ nv04_software_create(struct drm_device *dev)
 	psw->base.base.object_new = nv04_software_object_new;
 	nouveau_software_create(&psw->base);
 
-	NVOBJ_ENGINE_ADD(dev, SW, &psw->base.base);
+	NVOBJ_ENGINE_ADD(ndev, SW, &psw->base.base);
 	if (ndev->card_type <= NV_04) {
-		NVOBJ_CLASS(dev, 0x006e, SW);
-		NVOBJ_MTHD (dev, 0x006e, 0x0150, nv04_fence_mthd);
-		NVOBJ_MTHD (dev, 0x006e, 0x0500, mthd_flip);
+		NVOBJ_CLASS(ndev, 0x006e, SW);
+		NVOBJ_MTHD (ndev, 0x006e, 0x0150, nv04_fence_mthd);
+		NVOBJ_MTHD (ndev, 0x006e, 0x0500, mthd_flip);
 	} else {
-		NVOBJ_CLASS(dev, 0x016e, SW);
-		NVOBJ_MTHD (dev, 0x016e, 0x0500, mthd_flip);
+		NVOBJ_CLASS(ndev, 0x016e, SW);
+		NVOBJ_MTHD (ndev, 0x016e, 0x0500, mthd_flip);
 	}
 
 	return 0;

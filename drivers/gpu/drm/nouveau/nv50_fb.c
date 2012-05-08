@@ -10,9 +10,8 @@ struct nv50_fb_priv {
 };
 
 static void
-nv50_fb_destroy(struct drm_device *dev)
+nv50_fb_destroy(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	struct nv50_fb_priv *priv = pfb->priv;
 
@@ -20,7 +19,7 @@ nv50_fb_destroy(struct drm_device *dev)
 		drm_mm_takedown(&pfb->tag_heap);
 
 	if (priv->r100c08_page) {
-		pci_unmap_page(dev->pdev, priv->r100c08, PAGE_SIZE,
+		pci_unmap_page(ndev->dev->pdev, priv->r100c08, PAGE_SIZE,
 			       PCI_DMA_BIDIRECTIONAL);
 		__free_page(priv->r100c08_page);
 	}
@@ -30,9 +29,8 @@ nv50_fb_destroy(struct drm_device *dev)
 }
 
 static int
-nv50_fb_create(struct drm_device *dev)
+nv50_fb_create(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	struct nv50_fb_priv *priv;
 	u32 tagmem;
@@ -45,22 +43,22 @@ nv50_fb_create(struct drm_device *dev)
 
 	priv->r100c08_page = alloc_page(GFP_KERNEL | __GFP_ZERO);
 	if (!priv->r100c08_page) {
-		nv50_fb_destroy(dev);
+		nv50_fb_destroy(ndev);
 		return -ENOMEM;
 	}
 
-	priv->r100c08 = pci_map_page(dev->pdev, priv->r100c08_page, 0,
+	priv->r100c08 = pci_map_page(ndev->dev->pdev, priv->r100c08_page, 0,
 				     PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
-	if (pci_dma_mapping_error(dev->pdev, priv->r100c08)) {
-		nv50_fb_destroy(dev);
+	if (pci_dma_mapping_error(ndev->dev->pdev, priv->r100c08)) {
+		nv50_fb_destroy(ndev);
 		return -EFAULT;
 	}
 
-	tagmem = nv_rd32(dev, 0x100320);
-	NV_DEBUG(dev, "%d tags available\n", tagmem);
+	tagmem = nv_rd32(ndev, 0x100320);
+	NV_DEBUG(ndev, "%d tags available\n", tagmem);
 	ret = drm_mm_init(&pfb->tag_heap, 0, tagmem);
 	if (ret) {
-		nv50_fb_destroy(dev);
+		nv50_fb_destroy(ndev);
 		return ret;
 	}
 
@@ -68,14 +66,13 @@ nv50_fb_create(struct drm_device *dev)
 }
 
 int
-nv50_fb_init(struct drm_device *dev)
+nv50_fb_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv50_fb_priv *priv;
 	int ret;
 
 	if (!ndev->subsys.fb.priv) {
-		ret = nv50_fb_create(dev);
+		ret = nv50_fb_create(ndev);
 		if (ret)
 			return ret;
 	}
@@ -85,24 +82,24 @@ nv50_fb_init(struct drm_device *dev)
 	 * scratch page, VRAM->GART blits with M2MF (as in DDX DFS)
 	 * cause IOMMU "read from address 0" errors (rh#561267)
 	 */
-	nv_wr32(dev, 0x100c08, priv->r100c08 >> 8);
+	nv_wr32(ndev, 0x100c08, priv->r100c08 >> 8);
 
 	/* This is needed to get meaningful information from 100c90
 	 * on traps. No idea what these values mean exactly. */
 	switch (ndev->chipset) {
 	case 0x50:
-		nv_wr32(dev, 0x100c90, 0x000707ff);
+		nv_wr32(ndev, 0x100c90, 0x000707ff);
 		break;
 	case 0xa3:
 	case 0xa5:
 	case 0xa8:
-		nv_wr32(dev, 0x100c90, 0x000d0fff);
+		nv_wr32(ndev, 0x100c90, 0x000d0fff);
 		break;
 	case 0xaf:
-		nv_wr32(dev, 0x100c90, 0x089d1fff);
+		nv_wr32(ndev, 0x100c90, 0x089d1fff);
 		break;
 	default:
-		nv_wr32(dev, 0x100c90, 0x001d07ff);
+		nv_wr32(ndev, 0x100c90, 0x001d07ff);
 		break;
 	}
 
@@ -110,9 +107,9 @@ nv50_fb_init(struct drm_device *dev)
 }
 
 void
-nv50_fb_takedown(struct drm_device *dev)
+nv50_fb_takedown(struct nouveau_device *ndev)
 {
-	nv50_fb_destroy(dev);
+	nv50_fb_destroy(ndev);
 }
 
 static struct nouveau_enum vm_dispatch_subclients[] = {
@@ -211,26 +208,25 @@ static struct nouveau_enum vm_fault[] = {
 };
 
 void
-nv50_fb_vm_trap(struct drm_device *dev, int display)
+nv50_fb_vm_trap(struct nouveau_device *ndev, int display)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
 	const struct nouveau_enum *en, *cl;
 	unsigned long flags;
 	u32 trap[6], idx, chinst;
 	u8 st0, st1, st2, st3;
 	int i, ch;
 
-	idx = nv_rd32(dev, 0x100c90);
+	idx = nv_rd32(ndev, 0x100c90);
 	if (!(idx & 0x80000000))
 		return;
 	idx &= 0x00ffffff;
 
 	for (i = 0; i < 6; i++) {
-		nv_wr32(dev, 0x100c90, idx | i << 24);
-		trap[i] = nv_rd32(dev, 0x100c94);
+		nv_wr32(ndev, 0x100c90, idx | i << 24);
+		trap[i] = nv_rd32(ndev, 0x100c94);
 	}
-	nv_wr32(dev, 0x100c90, idx | 0x80000000);
+	nv_wr32(ndev, 0x100c90, idx | 0x80000000);
 
 	if (!display)
 		return;
@@ -263,7 +259,7 @@ nv50_fb_vm_trap(struct drm_device *dev, int display)
 		st3 = (trap[0] & 0xff000000) >> 24;
 	}
 
-	NV_INFO(dev, "VM: trapped %s at 0x%02x%04x%04x on ch %d [0x%08x] ",
+	NV_INFO(ndev, "VM: trapped %s at 0x%02x%04x%04x on ch %d [0x%08x] ",
 		(trap[5] & 0x00000100) ? "read" : "write",
 		trap[5] & 0xff, trap[4] & 0xffff, trap[3] & 0xffff, ch, chinst);
 

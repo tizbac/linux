@@ -7,9 +7,8 @@
 
 /* returns the size of fifo context */
 static int
-nouveau_fifo_ctx_size(struct drm_device *dev)
+nouveau_fifo_ctx_size(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 
 	if (ndev->chipset >= 0x40)
 		return 128 * 32;
@@ -23,9 +22,8 @@ nouveau_fifo_ctx_size(struct drm_device *dev)
 	return 32 * 16;
 }
 
-int nv04_instmem_init(struct drm_device *dev)
+int nv04_instmem_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_gpuobj *ramht = NULL;
 	u32 offset, length;
 	int ret;
@@ -35,13 +33,13 @@ int nv04_instmem_init(struct drm_device *dev)
 
 	/* Reserve space at end of VRAM for PRAMIN */
 	if (ndev->card_type >= NV_40) {
-		u32 vs = hweight8((nv_rd32(dev, 0x001540) & 0x0000ff00) >> 8);
+		u32 vs = hweight8((nv_rd32(ndev, 0x001540) & 0x0000ff00) >> 8);
 		u32 rsvd;
 
 		/* estimate grctx size, the magics come from nv40_grctx.c */
 		if      (ndev->chipset == 0x40) rsvd = 0x6aa0 * vs;
 		else if (ndev->chipset  < 0x43) rsvd = 0x4f00 * vs;
-		else if (nv44_graph_class(dev))	    rsvd = 0x4980 * vs;
+		else if (nv44_graph_class(ndev))	    rsvd = 0x4980 * vs;
 		else				    rsvd = 0x4a40 * vs;
 		rsvd += 16 * 1024;
 		rsvd *= 32; /* per-channel */
@@ -55,24 +53,24 @@ int nv04_instmem_init(struct drm_device *dev)
 	}
 
 	/* Setup shared RAMHT */
-	ret = nouveau_gpuobj_new_fake(dev, 0x10000, ~0, 4096,
+	ret = nouveau_gpuobj_new_fake(ndev, 0x10000, ~0, 4096,
 				      NVOBJ_FLAG_ZERO_ALLOC, &ramht);
 	if (ret)
 		return ret;
 
-	ret = nouveau_ramht_new(dev, ramht, &ndev->ramht);
+	ret = nouveau_ramht_new(ndev, ramht, &ndev->ramht);
 	nouveau_gpuobj_ref(NULL, &ramht);
 	if (ret)
 		return ret;
 
 	/* And RAMRO */
-	ret = nouveau_gpuobj_new_fake(dev, 0x11200, ~0, 512,
+	ret = nouveau_gpuobj_new_fake(ndev, 0x11200, ~0, 512,
 				      NVOBJ_FLAG_ZERO_ALLOC, &ndev->ramro);
 	if (ret)
 		return ret;
 
 	/* And RAMFC */
-	length = nouveau_fifo_ctx_size(dev);
+	length = nouveau_fifo_ctx_size(ndev);
 	switch (ndev->card_type) {
 	case NV_40:
 		offset = 0x20000;
@@ -82,7 +80,7 @@ int nv04_instmem_init(struct drm_device *dev)
 		break;
 	}
 
-	ret = nouveau_gpuobj_new_fake(dev, offset, ~0, length,
+	ret = nouveau_gpuobj_new_fake(ndev, offset, ~0, length,
 				      NVOBJ_FLAG_ZERO_ALLOC, &ndev->ramfc);
 	if (ret)
 		return ret;
@@ -106,7 +104,7 @@ int nv04_instmem_init(struct drm_device *dev)
 	ret = drm_mm_init(&ndev->ramin_heap, offset,
 			  ndev->ramin_rsvd_vram - offset);
 	if (ret) {
-		NV_ERROR(dev, "Failed to init RAMIN heap: %d\n", ret);
+		NV_ERROR(ndev, "Failed to init RAMIN heap: %d\n", ret);
 		return ret;
 	}
 
@@ -114,9 +112,8 @@ int nv04_instmem_init(struct drm_device *dev)
 }
 
 void
-nv04_instmem_takedown(struct drm_device *dev)
+nv04_instmem_takedown(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 
 	nouveau_ramht_ref(NULL, &ndev->ramht, NULL);
 	nouveau_gpuobj_ref(NULL, &ndev->ramro);
@@ -127,13 +124,13 @@ nv04_instmem_takedown(struct drm_device *dev)
 }
 
 int
-nv04_instmem_suspend(struct drm_device *dev)
+nv04_instmem_suspend(struct nouveau_device *ndev)
 {
 	return 0;
 }
 
 void
-nv04_instmem_resume(struct drm_device *dev)
+nv04_instmem_resume(struct nouveau_device *ndev)
 {
 }
 
@@ -141,7 +138,7 @@ int
 nv04_instmem_get(struct nouveau_gpuobj *gpuobj, struct nouveau_channel *chan,
 		 u32 size, u32 align)
 {
-	struct nouveau_device *ndev = nouveau_device(gpuobj->dev);
+	struct nouveau_device *ndev = gpuobj->device;
 	struct drm_mm_node *ramin = NULL;
 
 	do {
@@ -167,7 +164,7 @@ nv04_instmem_get(struct nouveau_gpuobj *gpuobj, struct nouveau_channel *chan,
 void
 nv04_instmem_put(struct nouveau_gpuobj *gpuobj)
 {
-	struct nouveau_device *ndev = nouveau_device(gpuobj->dev);
+	struct nouveau_device *ndev = gpuobj->device;
 
 	spin_lock(&ndev->ramin_lock);
 	drm_mm_put_block(gpuobj->node);
@@ -188,6 +185,6 @@ nv04_instmem_unmap(struct nouveau_gpuobj *gpuobj)
 }
 
 void
-nv04_instmem_flush(struct drm_device *dev)
+nv04_instmem_flush(struct nouveau_device *ndev)
 {
 }

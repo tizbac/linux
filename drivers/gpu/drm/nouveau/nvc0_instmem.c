@@ -35,23 +35,21 @@ struct nvc0_instmem_priv {
 };
 
 int
-nvc0_instmem_suspend(struct drm_device *dev)
+nvc0_instmem_suspend(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 
 	ndev->ramin_available = false;
 	return 0;
 }
 
 void
-nvc0_instmem_resume(struct drm_device *dev)
+nvc0_instmem_resume(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_instmem_priv *priv = ndev->subsys.instmem.priv;
 
-	nv_mask(dev, 0x100c80, 0x00000001, 0x00000000);
-	nv_wr32(dev, 0x001704, 0x80000000 | priv->bar1->ramin->vinst >> 12);
-	nv_wr32(dev, 0x001714, 0xc0000000 | priv->bar3->ramin->vinst >> 12);
+	nv_mask(ndev, 0x100c80, 0x00000001, 0x00000000);
+	nv_wr32(ndev, 0x001704, 0x80000000 | priv->bar1->ramin->vinst >> 12);
+	nv_wr32(ndev, 0x001714, 0xc0000000 | priv->bar3->ramin->vinst >> 12);
 	ndev->ramin_available = true;
 }
 
@@ -73,7 +71,7 @@ nvc0_channel_del(struct nouveau_channel **pchan)
 }
 
 static int
-nvc0_channel_new(struct drm_device *dev, u32 size, struct nouveau_vm *vm,
+nvc0_channel_new(struct nouveau_device *ndev, u32 size, struct nouveau_vm *vm,
 		 struct nouveau_channel **pchan,
 		 struct nouveau_gpuobj *pgd, u64 vm_size)
 {
@@ -83,9 +81,9 @@ nvc0_channel_new(struct drm_device *dev, u32 size, struct nouveau_vm *vm,
 	chan = kzalloc(sizeof(*chan), GFP_KERNEL);
 	if (!chan)
 		return -ENOMEM;
-	chan->dev = dev;
+	chan->device = ndev;
 
-	ret = nouveau_gpuobj_new(dev, NULL, size, 0x1000, 0, &chan->ramin);
+	ret = nouveau_gpuobj_new(ndev, NULL, size, 0x1000, 0, &chan->ramin);
 	if (ret) {
 		nvc0_channel_del(&chan);
 		return ret;
@@ -113,11 +111,10 @@ nvc0_channel_new(struct drm_device *dev, u32 size, struct nouveau_vm *vm,
 }
 
 int
-nvc0_instmem_init(struct drm_device *dev)
+nvc0_instmem_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
-	struct pci_dev *pdev = dev->pdev;
+	struct pci_dev *pdev = ndev->dev->pdev;
 	struct nvc0_instmem_priv *priv;
 	struct nouveau_vm *vm = NULL;
 	int ret;
@@ -128,12 +125,12 @@ nvc0_instmem_init(struct drm_device *dev)
 	pinstmem->priv = priv;
 
 	/* BAR3 VM */
-	ret = nouveau_vm_new(dev, 0, pci_resource_len(pdev, 3), 0,
+	ret = nouveau_vm_new(ndev, 0, pci_resource_len(pdev, 3), 0,
 			     &ndev->bar3_vm);
 	if (ret)
 		goto error;
 
-	ret = nouveau_gpuobj_new(dev, NULL,
+	ret = nouveau_gpuobj_new(ndev, NULL,
 				 (pci_resource_len(pdev, 3) >> 12) * 8, 0,
 				 NVOBJ_FLAG_DONT_MAP |
 				 NVOBJ_FLAG_ZERO_ALLOC,
@@ -144,7 +141,7 @@ nvc0_instmem_init(struct drm_device *dev)
 
 	nv50_instmem_map(ndev->bar3_vm->pgt[0].obj[0]);
 
-	ret = nouveau_gpuobj_new(dev, NULL, 0x8000, 4096,
+	ret = nouveau_gpuobj_new(ndev, NULL, 0x8000, 4096,
 				 NVOBJ_FLAG_ZERO_ALLOC, &priv->bar3_pgd);
 	if (ret)
 		goto error;
@@ -154,17 +151,17 @@ nvc0_instmem_init(struct drm_device *dev)
 		goto error;
 	nouveau_vm_ref(NULL, &vm, NULL);
 
-	ret = nvc0_channel_new(dev, 8192, ndev->bar3_vm, &priv->bar3,
-			       priv->bar3_pgd, pci_resource_len(dev->pdev, 3));
+	ret = nvc0_channel_new(ndev, 8192, ndev->bar3_vm, &priv->bar3,
+			       priv->bar3_pgd, pci_resource_len(ndev->dev->pdev, 3));
 	if (ret)
 		goto error;
 
 	/* BAR1 VM */
-	ret = nouveau_vm_new(dev, 0, pci_resource_len(pdev, 1), 0, &vm);
+	ret = nouveau_vm_new(ndev, 0, pci_resource_len(pdev, 1), 0, &vm);
 	if (ret)
 		goto error;
 
-	ret = nouveau_gpuobj_new(dev, NULL, 0x8000, 4096,
+	ret = nouveau_gpuobj_new(ndev, NULL, 0x8000, 4096,
 				 NVOBJ_FLAG_ZERO_ALLOC, &priv->bar1_pgd);
 	if (ret)
 		goto error;
@@ -174,35 +171,34 @@ nvc0_instmem_init(struct drm_device *dev)
 		goto error;
 	nouveau_vm_ref(NULL, &vm, NULL);
 
-	ret = nvc0_channel_new(dev, 8192, ndev->bar1_vm, &priv->bar1,
-			       priv->bar1_pgd, pci_resource_len(dev->pdev, 1));
+	ret = nvc0_channel_new(ndev, 8192, ndev->bar1_vm, &priv->bar1,
+			       priv->bar1_pgd, pci_resource_len(ndev->dev->pdev, 1));
 	if (ret)
 		goto error;
 
 	/* channel vm */
-	ret = nouveau_vm_new(dev, 0, (1ULL << 40), 0x0008000000ULL,
+	ret = nouveau_vm_new(ndev, 0, (1ULL << 40), 0x0008000000ULL,
 			     &ndev->chan_vm);
 	if (ret)
 		goto error;
 
-	nvc0_instmem_resume(dev);
+	nvc0_instmem_resume(ndev);
 	return 0;
 error:
-	nvc0_instmem_takedown(dev);
+	nvc0_instmem_takedown(ndev);
 	return ret;
 }
 
 void
-nvc0_instmem_takedown(struct drm_device *dev)
+nvc0_instmem_takedown(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_instmem_priv *priv = ndev->subsys.instmem.priv;
 	struct nouveau_vm *vm = NULL;
 
-	nvc0_instmem_suspend(dev);
+	nvc0_instmem_suspend(ndev);
 
-	nv_wr32(dev, 0x1704, 0x00000000);
-	nv_wr32(dev, 0x1714, 0x00000000);
+	nv_wr32(ndev, 0x1704, 0x00000000);
+	nv_wr32(ndev, 0x1714, 0x00000000);
 
 	nouveau_vm_ref(NULL, &ndev->chan_vm, NULL);
 

@@ -61,8 +61,8 @@ nouveau_fence_context_new(struct nouveau_fence_chan *fctx)
 void
 nouveau_fence_update(struct nouveau_channel *chan)
 {
-	struct drm_device *dev = chan->dev;
-	struct nouveau_fence_priv *priv = nv_engine(dev, NVOBJ_ENGINE_FENCE);
+	struct nouveau_device *ndev = chan->device;
+	struct nouveau_fence_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FENCE);
 	struct nouveau_fence_chan *fctx = chan->engctx[NVOBJ_ENGINE_FENCE];
 	struct nouveau_fence *fence, *fnext;
 
@@ -83,8 +83,8 @@ nouveau_fence_update(struct nouveau_channel *chan)
 int
 nouveau_fence_emit(struct nouveau_fence *fence, struct nouveau_channel *chan)
 {
-	struct drm_device *dev = chan->dev;
-	struct nouveau_fence_priv *priv = nv_engine(dev, NVOBJ_ENGINE_FENCE);
+	struct nouveau_device *ndev = chan->device;
+	struct nouveau_fence_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FENCE);
 	struct nouveau_fence_chan *fctx = chan->engctx[NVOBJ_ENGINE_FENCE];
 	int ret;
 
@@ -147,8 +147,8 @@ nouveau_fence_wait(struct nouveau_fence *fence, bool lazy, bool intr)
 int
 nouveau_fence_sync(struct nouveau_fence *fence, struct nouveau_channel *chan)
 {
-	struct drm_device *dev = chan->dev;
-	struct nouveau_fence_priv *priv = nv_engine(dev, NVOBJ_ENGINE_FENCE);
+	struct nouveau_device *ndev = chan->device;
+	struct nouveau_fence_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FENCE);
 	struct nouveau_channel *prev;
 	int ret = 0;
 

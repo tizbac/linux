@@ -63,9 +63,8 @@ struct nv10_fifo_chan {
 static int
 nv10_fifo_context_new(struct nouveau_channel *chan, int engine)
 {
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
-	struct nv10_fifo_priv *priv = nv_engine(dev, engine);
+	struct nouveau_device *ndev = chan->device;
+	struct nv10_fifo_priv *priv = nv_engine(ndev, engine);
 	struct nv10_fifo_chan *fctx;
 	unsigned long flags;
 	int ret;
@@ -75,7 +74,7 @@ nv10_fifo_context_new(struct nouveau_channel *chan, int engine)
 		return -ENOMEM;
 
 	/* map channel control registers */
-	chan->user = ioremap(pci_resource_start(dev->pdev, 0) +
+	chan->user = ioremap(pci_resource_start(ndev->dev->pdev, 0) +
 			     NV03_USER(chan->id), PAGE_SIZE);
 	if (!chan->user) {
 		ret = -ENOMEM;
@@ -83,7 +82,7 @@ nv10_fifo_context_new(struct nouveau_channel *chan, int engine)
 	}
 
 	/* initialise default fifo context */
-	ret = nouveau_gpuobj_new_fake(dev, ndev->ramfc->pinst +
+	ret = nouveau_gpuobj_new_fake(ndev, ndev->ramfc->pinst +
 				      chan->id * 32, ~0, 32,
 				      NVOBJ_FLAG_ZERO_FREE, &fctx->ramfc);
 	if (ret)
@@ -105,7 +104,7 @@ nv10_fifo_context_new(struct nouveau_channel *chan, int engine)
 
 	/* enable dma mode on the channel */
 	spin_lock_irqsave(&ndev->context_switch_lock, flags);
-	nv_mask(dev, NV04_PFIFO_MODE, (1 << chan->id), (1 << chan->id));
+	nv_mask(ndev, NV04_PFIFO_MODE, (1 << chan->id), (1 << chan->id));
 	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 error:
@@ -115,9 +114,8 @@ error:
 }
 
 int
-nv10_fifo_create(struct drm_device *dev)
+nv10_fifo_create(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv10_fifo_priv *priv;
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
@@ -133,6 +131,6 @@ nv10_fifo_create(struct drm_device *dev)
 	priv->ramfc_desc = nv10_ramfc;
 	ndev->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
 
-	nouveau_irq_register(dev, 8, nv04_fifo_isr);
+	nouveau_irq_register(ndev, 8, nv04_fifo_isr);
 	return 0;
 }

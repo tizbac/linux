@@ -4,10 +4,9 @@
 #include "nouveau_drm.h"
 
 int
-nv04_fb_vram_init(struct drm_device *dev)
+nv04_fb_vram_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-	u32 boot0 = nv_rd32(dev, NV04_PFB_BOOT_0);
+	u32 boot0 = nv_rd32(ndev, NV04_PFB_BOOT_0);
 
 	if (boot0 & 0x00000100) {
 		ndev->vram_size  = ((boot0 >> 12) & 0xf) * 2 + 2;
@@ -38,18 +37,18 @@ nv04_fb_vram_init(struct drm_device *dev)
 }
 
 int
-nv04_fb_init(struct drm_device *dev)
+nv04_fb_init(struct nouveau_device *ndev)
 {
 	/* This is what the DDX did for NV_ARCH_04, but a mmio-trace shows
 	 * nvidia reading PFB_CFG_0, then writing back its original value.
 	 * (which was 0x701114 in this case)
 	 */
 
-	nv_wr32(dev, NV04_PFB_CFG0, 0x1114);
+	nv_wr32(ndev, NV04_PFB_CFG0, 0x1114);
 	return 0;
 }
 
 void
-nv04_fb_takedown(struct drm_device *dev)
+nv04_fb_takedown(struct nouveau_device *ndev)
 {
 }

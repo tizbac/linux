@@ -73,7 +73,7 @@ void
 nv50_vm_map(struct nouveau_vma *vma, struct nouveau_gpuobj *pgt,
 	    struct nouveau_mem *mem, u32 pte, u32 cnt, u64 phys, u64 delta)
 {
-	struct nouveau_device *ndev = nouveau_device(vma->vm->dev);
+	struct nouveau_device *ndev = vma->vm->device;
 	u32 comp = (mem->memtype & 0x180) >> 7;
 	u32 block, target;
 	int i;
@@ -145,33 +145,32 @@ nv50_vm_unmap(struct nouveau_gpuobj *pgt, u32 pte, u32 cnt)
 void
 nv50_vm_flush(struct nouveau_vm *vm)
 {
-	struct nouveau_device *ndev = nouveau_device(vm->dev);
+	struct nouveau_device *ndev = vm->device;
 	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	int i;
 
-	pinstmem->flush(vm->dev);
+	pinstmem->flush(ndev);
 
 	/* BAR */
 	if (vm == ndev->bar1_vm || vm == ndev->bar3_vm) {
-		nv50_vm_flush_engine(vm->dev, 6);
+		nv50_vm_flush_engine(ndev, 6);
 		return;
 	}
 
 	for (i = 0; i < NVOBJ_ENGINE_NR; i++) {
 		if (atomic_read(&vm->engref[i]))
-			ndev->engine[i]->tlb_flush(vm->dev, i);
+			ndev->engine[i]->tlb_flush(ndev, i);
 	}
 }
 
 void
-nv50_vm_flush_engine(struct drm_device *dev, int engine)
+nv50_vm_flush_engine(struct nouveau_device *ndev, int engine)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	unsigned long flags;
 
 	spin_lock_irqsave(&ndev->vm_lock, flags);
-	nv_wr32(dev, 0x100c80, (engine << 16) | 1);
-	if (!nv_wait(dev, 0x100c80, 0x00000001, 0x00000000))
-		NV_ERROR(dev, "vm flush timeout: engine %d\n", engine);
+	nv_wr32(ndev, 0x100c80, (engine << 16) | 1);
+	if (!nv_wait(ndev, 0x100c80, 0x00000001, 0x00000000))
+		NV_ERROR(ndev, "vm flush timeout: engine %d\n", engine);
 	spin_unlock_irqrestore(&ndev->vm_lock, flags);
 }

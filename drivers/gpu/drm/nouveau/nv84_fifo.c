@@ -46,10 +46,9 @@ struct nv84_fifo_chan {
 static int
 nv84_fifo_context_new(struct nouveau_channel *chan, int engine)
 {
-	struct nv84_fifo_priv *priv = nv_engine(chan->dev, engine);
+	struct nv84_fifo_priv *priv = nv_engine(chan->device, engine);
 	struct nv84_fifo_chan *fctx;
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = chan->device;
         u64 ib_offset = chan->pushbuf_base + chan->dma.ib_base * 4;
 	u64 instance;
 	unsigned long flags;
@@ -60,21 +59,21 @@ nv84_fifo_context_new(struct nouveau_channel *chan, int engine)
 		return -ENOMEM;
 	atomic_inc(&chan->vm->engref[engine]);
 
-	chan->user = ioremap(pci_resource_start(dev->pdev, 0) +
+	chan->user = ioremap(pci_resource_start(ndev->dev->pdev, 0) +
 			     NV50_USER(chan->id), PAGE_SIZE);
 	if (!chan->user) {
 		ret = -ENOMEM;
 		goto error;
 	}
 
-	ret = nouveau_gpuobj_new(dev, chan, 256, 256, NVOBJ_FLAG_ZERO_ALLOC |
+	ret = nouveau_gpuobj_new(ndev, chan, 256, 256, NVOBJ_FLAG_ZERO_ALLOC |
 				 NVOBJ_FLAG_ZERO_FREE, &fctx->ramfc);
 	if (ret)
 		goto error;
 
 	instance = fctx->ramfc->vinst >> 8;
 
-	ret = nouveau_gpuobj_new(dev, chan, 4096, 1024, 0, &fctx->cache);
+	ret = nouveau_gpuobj_new(ndev, chan, 4096, 1024, 0, &fctx->cache);
 	if (ret)
 		goto error;
 
@@ -97,11 +96,11 @@ nv84_fifo_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(chan->ramin, 0x00, chan->id);
 	nv_wo32(chan->ramin, 0x04, fctx->ramfc->vinst >> 8);
 
-	ndev->subsys.instmem.flush(dev);
+	ndev->subsys.instmem.flush(ndev);
 
 	spin_lock_irqsave(&ndev->context_switch_lock, flags);
-	nv_wr32(dev, 0x002600 + (chan->id * 4), 0x80000000 | instance);
-	nv50_fifo_playlist_update(dev);
+	nv_wr32(ndev, 0x002600 + (chan->id * 4), 0x80000000 | instance);
+	nv50_fifo_playlist_update(ndev);
 	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 error:
@@ -114,21 +113,20 @@ static void
 nv84_fifo_context_del(struct nouveau_channel *chan, int engine)
 {
 	struct nv84_fifo_chan *fctx = chan->engctx[engine];
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = chan->device;
 	unsigned long flags;
 
 	/* remove channel from playlist, will context switch if active */
 	spin_lock_irqsave(&ndev->context_switch_lock, flags);
-	nv_mask(dev, 0x002600 + (chan->id * 4), 0x80000000, 0x00000000);
-	nv50_fifo_playlist_update(dev);
+	nv_mask(ndev, 0x002600 + (chan->id * 4), 0x80000000, 0x00000000);
+	nv50_fifo_playlist_update(ndev);
 
 	/* tell any engines on this channel to unload their contexts */
-	nv_wr32(dev, 0x0032fc, chan->ramin->vinst >> 12);
-	if (!nv_wait_ne(dev, 0x0032fc, 0xffffffff, 0xffffffff))
-		NV_INFO(dev, "PFIFO: channel %d unload timeout\n", chan->id);
+	nv_wr32(ndev, 0x0032fc, chan->ramin->vinst >> 12);
+	if (!nv_wait_ne(ndev, 0x0032fc, 0xffffffff, 0xffffffff))
+		NV_INFO(ndev, "PFIFO: channel %d unload timeout\n", chan->id);
 
-	nv_wr32(dev, 0x002600 + (chan->id * 4), 0x00000000);
+	nv_wr32(ndev, 0x002600 + (chan->id * 4), 0x00000000);
 	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 	/* clean up */
@@ -146,20 +144,19 @@ nv84_fifo_context_del(struct nouveau_channel *chan, int engine)
 }
 
 static int
-nv84_fifo_init(struct drm_device *dev, int engine)
+nv84_fifo_init(struct nouveau_device *ndev, int engine)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv84_fifo_chan *fctx;
 	u32 instance;
 	int i;
 
-	nv_mask(dev, 0x000200, 0x00000100, 0x00000000);
-	nv_mask(dev, 0x000200, 0x00000100, 0x00000100);
-	nv_wr32(dev, 0x00250c, 0x6f3cfc34);
-	nv_wr32(dev, 0x002044, 0x01003fff);
+	nv_mask(ndev, 0x000200, 0x00000100, 0x00000000);
+	nv_mask(ndev, 0x000200, 0x00000100, 0x00000100);
+	nv_wr32(ndev, 0x00250c, 0x6f3cfc34);
+	nv_wr32(ndev, 0x002044, 0x01003fff);
 
-	nv_wr32(dev, 0x002100, 0xffffffff);
-	nv_wr32(dev, 0x002140, 0xffffffff);
+	nv_wr32(ndev, 0x002100, 0xffffffff);
+	nv_wr32(ndev, 0x002140, 0xffffffff);
 
 	for (i = 0; i < 128; i++) {
 		struct nouveau_channel *chan = ndev->channels.ptr[i];
@@ -167,46 +164,44 @@ nv84_fifo_init(struct drm_device *dev, int engine)
 			instance = 0x80000000 | fctx->ramfc->vinst >> 8;
 		else
 			instance = 0x00000000;
-		nv_wr32(dev, 0x002600 + (i * 4), instance);
+		nv_wr32(ndev, 0x002600 + (i * 4), instance);
 	}
 
-	nv50_fifo_playlist_update(dev);
+	nv50_fifo_playlist_update(ndev);
 
-	nv_wr32(dev, 0x003200, 1);
-	nv_wr32(dev, 0x003250, 1);
-	nv_wr32(dev, 0x002500, 1);
+	nv_wr32(ndev, 0x003200, 1);
+	nv_wr32(ndev, 0x003250, 1);
+	nv_wr32(ndev, 0x002500, 1);
 	return 0;
 }
 
 static int
-nv84_fifo_fini(struct drm_device *dev, int engine, bool suspend)
+nv84_fifo_fini(struct nouveau_device *ndev, int engine, bool suspend)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-	struct nv84_fifo_priv *priv = nv_engine(dev, engine);
+	struct nv84_fifo_priv *priv = nv_engine(ndev, engine);
 	int i;
 
 	/* set playlist length to zero, fifo will unload context */
-	nv_wr32(dev, 0x0032ec, 0);
+	nv_wr32(ndev, 0x0032ec, 0);
 
 	/* tell all connected engines to unload their contexts */
 	for (i = 0; i < priv->base.channels; i++) {
 		struct nouveau_channel *chan = ndev->channels.ptr[i];
 		if (chan)
-			nv_wr32(dev, 0x0032fc, chan->ramin->vinst >> 12);
-		if (!nv_wait_ne(dev, 0x0032fc, 0xffffffff, 0xffffffff)) {
-			NV_INFO(dev, "PFIFO: channel %d unload timeout\n", i);
+			nv_wr32(ndev, 0x0032fc, chan->ramin->vinst >> 12);
+		if (!nv_wait_ne(ndev, 0x0032fc, 0xffffffff, 0xffffffff)) {
+			NV_INFO(ndev, "PFIFO: channel %d unload timeout\n", i);
 			return -EBUSY;
 		}
 	}
 
-	nv_wr32(dev, 0x002140, 0);
+	nv_wr32(ndev, 0x002140, 0);
 	return 0;
 }
 
 int
-nv84_fifo_create(struct drm_device *dev)
+nv84_fifo_create(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv84_fifo_priv *priv;
 	int ret;
 
@@ -223,19 +218,19 @@ nv84_fifo_create(struct drm_device *dev)
 	priv->base.channels = 127;
 	ndev->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
 
-	ret = nouveau_gpuobj_new(dev, NULL, priv->base.channels * 4, 0x1000,
+	ret = nouveau_gpuobj_new(ndev, NULL, priv->base.channels * 4, 0x1000,
 				 NVOBJ_FLAG_ZERO_ALLOC, &priv->playlist[0]);
 	if (ret)
 		goto error;
 
-	ret = nouveau_gpuobj_new(dev, NULL, priv->base.channels * 4, 0x1000,
+	ret = nouveau_gpuobj_new(ndev, NULL, priv->base.channels * 4, 0x1000,
 				 NVOBJ_FLAG_ZERO_ALLOC, &priv->playlist[1]);
 	if (ret)
 		goto error;
 
-	nouveau_irq_register(dev, 8, nv04_fifo_isr);
+	nouveau_irq_register(ndev, 8, nv04_fifo_isr);
 error:
 	if (ret)
-		priv->base.base.destroy(dev, NVOBJ_ENGINE_FIFO);
+		priv->base.base.destroy(ndev, NVOBJ_ENGINE_FIFO);
 	return ret;
 }

@@ -44,7 +44,7 @@ nouveau_irq_preinstall(struct drm_device *dev)
 	struct nouveau_device *ndev = nouveau_device(dev);
 
 	/* Master disable */
-	nv_wr32(dev, NV03_PMC_INTR_EN_0, 0);
+	nv_wr32(ndev, NV03_PMC_INTR_EN_0, 0);
 
 	INIT_LIST_HEAD(&ndev->vbl_waiting);
 }
@@ -55,9 +55,9 @@ nouveau_irq_postinstall(struct drm_device *dev)
 	struct nouveau_device *ndev = nouveau_device(dev);
 
 	/* Master enable */
-	nv_wr32(dev, NV03_PMC_INTR_EN_0, NV_PMC_INTR_EN_0_MASTER_ENABLE);
+	nv_wr32(ndev, NV03_PMC_INTR_EN_0, NV_PMC_INTR_EN_0_MASTER_ENABLE);
 	if (ndev->msi_enabled)
-		nv_wr08(dev, 0x00088068, 0xff);
+		nv_wr08(ndev, 0x00088068, 0xff);
 
 	return 0;
 }
@@ -65,8 +65,10 @@ nouveau_irq_postinstall(struct drm_device *dev)
 void
 nouveau_irq_uninstall(struct drm_device *dev)
 {
+	struct nouveau_device *ndev = nouveau_device(dev);
+
 	/* Master disable */
-	nv_wr32(dev, NV03_PMC_INTR_EN_0, 0);
+	nv_wr32(ndev, NV03_PMC_INTR_EN_0, 0);
 }
 
 irqreturn_t
@@ -78,7 +80,7 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 	u32 stat;
 	int i;
 
-	stat = nv_rd32(dev, NV03_PMC_INTR_0);
+	stat = nv_rd32(ndev, NV03_PMC_INTR_0);
 	if (stat == 0 || stat == ~0)
 		return IRQ_NONE;
 
@@ -87,51 +89,47 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 		if (!(stat & (1 << i)) || !ndev->irq_handler[i])
 			continue;
 
-		ndev->irq_handler[i](dev);
+		ndev->irq_handler[i](ndev);
 		stat &= ~(1 << i);
 	}
 
 	if (ndev->msi_enabled)
-		nv_wr08(dev, 0x00088068, 0xff);
+		nv_wr08(ndev, 0x00088068, 0xff);
 	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 	if (stat && nouveau_ratelimit())
-		NV_ERROR(dev, "PMC - unhandled INTR 0x%08x\n", stat);
+		NV_ERROR(ndev, "PMC - unhandled INTR 0x%08x\n", stat);
 	return IRQ_HANDLED;
 }
 
 int
-nouveau_irq_init(struct drm_device *dev)
+nouveau_irq_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	int ret;
 
 	if (nouveau_msi != 0 && ndev->card_type >= NV_50) {
-		ret = pci_enable_msi(dev->pdev);
+		ret = pci_enable_msi(ndev->dev->pdev);
 		if (ret == 0) {
-			NV_INFO(dev, "enabled MSI\n");
+			NV_INFO(ndev, "enabled MSI\n");
 			ndev->msi_enabled = true;
 		}
 	}
 
-	return drm_irq_install(dev);
+	return drm_irq_install(ndev->dev);
 }
 
 void
-nouveau_irq_fini(struct drm_device *dev)
+nouveau_irq_fini(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-
-	drm_irq_uninstall(dev);
+	drm_irq_uninstall(ndev->dev);
 	if (ndev->msi_enabled)
-		pci_disable_msi(dev->pdev);
+		pci_disable_msi(ndev->dev->pdev);
 }
 
 void
-nouveau_irq_register(struct drm_device *dev, int status_bit,
-		     void (*handler)(struct drm_device *))
+nouveau_irq_register(struct nouveau_device *ndev, int status_bit,
+		     void (*handler)(struct nouveau_device *))
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	unsigned long flags;
 
 	spin_lock_irqsave(&ndev->context_switch_lock, flags);
@@ -140,9 +138,8 @@ nouveau_irq_register(struct drm_device *dev, int status_bit,
 }
 
 void
-nouveau_irq_unregister(struct drm_device *dev, int status_bit)
+nouveau_irq_unregister(struct nouveau_device *ndev, int status_bit)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	unsigned long flags;
 
 	spin_lock_irqsave(&ndev->context_switch_lock, flags);

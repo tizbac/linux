@@ -33,9 +33,8 @@ nouveau_software_create(struct nouveau_software_priv *psw)
 }
 
 static inline u16
-nouveau_software_class(struct drm_device *dev)
+nouveau_software_class(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	if (ndev->card_type <= NV_04)
 		return 0x006e;
 	if (ndev->card_type <= NV_40)
@@ -47,9 +46,9 @@ nouveau_software_class(struct drm_device *dev)
 	return 0x0000;
 }
 
-int nv04_software_create(struct drm_device *);
-int nv50_software_create(struct drm_device *);
-int nvc0_software_create(struct drm_device *);
+int nv04_software_create(struct nouveau_device *);
+int nv50_software_create(struct nouveau_device *);
+int nvc0_software_create(struct nouveau_device *);
 u64 nvc0_software_crtc(struct nouveau_channel *, int crtc);
 
 #endif

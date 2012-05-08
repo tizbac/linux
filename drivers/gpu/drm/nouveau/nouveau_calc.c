@@ -192,24 +192,23 @@ nv10_calc_arb(struct nv_fifo_info *fifo, struct nv_sim_state *arb)
 }
 
 static void
-nv04_update_arb(struct drm_device *dev, int VClk, int bpp,
+nv04_update_arb(struct nouveau_device *ndev, int VClk, int bpp,
 		int *burst, int *lwm)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv_fifo_info fifo_data;
 	struct nv_sim_state sim_data;
-	int MClk = nouveau_hw_get_clock(dev, PLL_MEMORY);
-	int NVClk = nouveau_hw_get_clock(dev, PLL_CORE);
-	uint32_t cfg1 = nv_rd32(dev, NV04_PFB_CFG1);
+	int MClk = nouveau_hw_get_clock(ndev, PLL_MEMORY);
+	int NVClk = nouveau_hw_get_clock(ndev, PLL_CORE);
+	u32 cfg1 = nv_rd32(ndev, NV04_PFB_CFG1);
 
 	sim_data.pclk_khz = VClk;
 	sim_data.mclk_khz = MClk;
 	sim_data.nvclk_khz = NVClk;
 	sim_data.bpp = bpp;
-	sim_data.two_heads = nv_two_heads(dev);
-	if ((dev->pci_device & 0xffff) == 0x01a0 /*CHIPSET_NFORCE*/ ||
-	    (dev->pci_device & 0xffff) == 0x01f0 /*CHIPSET_NFORCE2*/) {
-		uint32_t type;
+	sim_data.two_heads = nv_two_heads(ndev);
+	if ((ndev->dev->pci_device & 0xffff) == 0x01a0 /*CHIPSET_NFORCE*/ ||
+	    (ndev->dev->pci_device & 0xffff) == 0x01f0 /*CHIPSET_NFORCE2*/) {
+		u32 type;
 
 		pci_read_config_dword(pci_get_bus_and_slot(0, 1), 0x7c, &type);
 
@@ -218,8 +217,8 @@ nv04_update_arb(struct drm_device *dev, int VClk, int bpp,
 		sim_data.mem_latency = 3;
 		sim_data.mem_page_miss = 10;
 	} else {
-		sim_data.memory_type = nv_rd32(dev, NV04_PFB_CFG0) & 0x1;
-		sim_data.memory_width = (nv_rd32(dev, NV_PEXTDEV_BOOT_0) & 0x10) ? 128 : 64;
+		sim_data.memory_type = nv_rd32(ndev, NV04_PFB_CFG0) & 0x1;
+		sim_data.memory_width = (nv_rd32(ndev, NV_PEXTDEV_BOOT_0) & 0x10) ? 128 : 64;
 		sim_data.mem_latency = cfg1 & 0xf;
 		sim_data.mem_page_miss = ((cfg1 >> 4) & 0xf) + ((cfg1 >> 31) & 0x1);
 	}
@@ -247,14 +246,13 @@ nv20_update_arb(int *burst, int *lwm)
 }
 
 void
-nouveau_calc_arb(struct drm_device *dev, int vclk, int bpp, int *burst, int *lwm)
+nouveau_calc_arb(struct nouveau_device *ndev, int vclk, int bpp,
+		 int *burst, int *lwm)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-
 	if (ndev->card_type < NV_20)
-		nv04_update_arb(dev, vclk, bpp, burst, lwm);
-	else if ((dev->pci_device & 0xfff0) == 0x0240 /*CHIPSET_C51*/ ||
-		 (dev->pci_device & 0xfff0) == 0x03d0 /*CHIPSET_C512*/) {
+		nv04_update_arb(ndev, vclk, bpp, burst, lwm);
+	else if ((ndev->dev->pci_device & 0xfff0) == 0x0240 /*CHIPSET_C51*/ ||
+		 (ndev->dev->pci_device & 0xfff0) == 0x03d0 /*CHIPSET_C512*/) {
 		*burst = 128;
 		*lwm = 0x0480;
 	} else
@@ -262,7 +260,7 @@ nouveau_calc_arb(struct drm_device *dev, int vclk, int bpp, int *burst, int *lwm
 }
 
 static int
-getMNP_single(struct drm_device *dev, struct pll_lims *pll_lim, int clk,
+getMNP_single(struct nouveau_device *ndev, struct pll_lims *pll_lim, int clk,
 	      struct nouveau_pll_vals *bestpv)
 {
 	/* Find M, N and P for a single stage PLL
@@ -273,7 +271,6 @@ getMNP_single(struct drm_device *dev, struct pll_lims *pll_lim, int clk,
 	 * "clk" parameter in kHz
 	 * returns calculated clock
 	 */
-	struct nouveau_device *ndev = nouveau_device(dev);
 	int cv = ndev->vbios.chip_version;
 	int minvco = pll_lim->vco1.minfreq, maxvco = pll_lim->vco1.maxfreq;
 	int minM = pll_lim->vco1.min_m, maxM = pll_lim->vco1.max_m;
@@ -361,7 +358,7 @@ getMNP_single(struct drm_device *dev, struct pll_lims *pll_lim, int clk,
 }
 
 static int
-getMNP_double(struct drm_device *dev, struct pll_lims *pll_lim, int clk,
+getMNP_double(struct nouveau_device *ndev, struct pll_lims *pll_lim, int clk,
 	      struct nouveau_pll_vals *bestpv)
 {
 	/* Find M, N and P for a two stage PLL
@@ -372,7 +369,6 @@ getMNP_double(struct drm_device *dev, struct pll_lims *pll_lim, int clk,
 	 * "clk" parameter in kHz
 	 * returns calculated clock
 	 */
-	struct nouveau_device *ndev = nouveau_device(dev);
 	int chip_version = ndev->vbios.chip_version;
 	int minvco1 = pll_lim->vco1.minfreq, maxvco1 = pll_lim->vco1.maxfreq;
 	int minvco2 = pll_lim->vco2.minfreq, maxvco2 = pll_lim->vco2.maxfreq;
@@ -461,18 +457,18 @@ getMNP_double(struct drm_device *dev, struct pll_lims *pll_lim, int clk,
 }
 
 int
-nouveau_calc_pll_mnp(struct drm_device *dev, struct pll_lims *pll_lim, int clk,
-		     struct nouveau_pll_vals *pv)
+nouveau_calc_pll_mnp(struct nouveau_device *ndev, struct pll_lims *pll_lim,
+		     int clk, struct nouveau_pll_vals *pv)
 {
 	int outclk;
 
 	if (!pll_lim->vco2.maxfreq)
-		outclk = getMNP_single(dev, pll_lim, clk, pv);
+		outclk = getMNP_single(ndev, pll_lim, clk, pv);
 	else
-		outclk = getMNP_double(dev, pll_lim, clk, pv);
+		outclk = getMNP_double(ndev, pll_lim, clk, pv);
 
 	if (!outclk)
-		NV_ERROR(dev, "Could not find a compatible set of PLL values\n");
+		NV_ERROR(ndev, "Could not find a compatible set of PLL values\n");
 
 	return outclk;
 }

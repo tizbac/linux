@@ -52,7 +52,7 @@ static const char nouveau_op_dsm_muid[] = {
 	0xA7, 0x2B, 0x60, 0x42, 0xA6, 0xB5, 0xBE, 0xE0,
 };
 
-static int nouveau_optimus_dsm(acpi_handle handle, int func, int arg, uint32_t *result)
+static int nouveau_optimus_dsm(acpi_handle handle, int func, int arg, u32 *result)
 {
 	struct acpi_buffer output = { ACPI_ALLOCATE_BUFFER, NULL };
 	struct acpi_object_list input;
@@ -104,7 +104,7 @@ static int nouveau_optimus_dsm(acpi_handle handle, int func, int arg, uint32_t *
 	return 0;
 }
 
-static int nouveau_dsm(acpi_handle handle, int func, int arg, uint32_t *result)
+static int nouveau_dsm(acpi_handle handle, int func, int arg, u32 *result)
 {
 	struct acpi_buffer output = { ACPI_ALLOCATE_BUFFER, NULL };
 	struct acpi_object_list input;
@@ -152,7 +152,7 @@ static int nouveau_dsm(acpi_handle handle, int func, int arg, uint32_t *result)
 
 /* Returns 1 if a DSM function is usable and 0 otherwise */
 static int nouveau_test_dsm(acpi_handle test_handle,
-	int (*dsm_func)(acpi_handle, int, int, uint32_t *),
+	int (*dsm_func)(acpi_handle, int, int, u32 *),
 	int sfnc)
 {
 	u32 result = 0;
@@ -343,7 +343,7 @@ void nouveau_unregister_dsm_handler(void)
 }
 
 /* retrieve the ROM in 4k blocks */
-static int nouveau_rom_call(acpi_handle rom_handle, uint8_t *bios,
+static int nouveau_rom_call(acpi_handle rom_handle, u8 *bios,
 			    int offset, int len)
 {
 	acpi_status status;
@@ -391,13 +391,13 @@ bool nouveau_acpi_rom_supported(struct pci_dev *pdev)
 	return true;
 }
 
-int nouveau_acpi_get_bios_chunk(uint8_t *bios, int offset, int len)
+int nouveau_acpi_get_bios_chunk(u8 *bios, int offset, int len)
 {
 	return nouveau_rom_call(nouveau_dsm_priv.rom_handle, bios, offset, len);
 }
 
 int
-nouveau_acpi_edid(struct drm_device *dev, struct drm_connector *connector)
+nouveau_acpi_edid(struct nouveau_device *ndev, struct drm_connector *connector)
 {
 	struct nouveau_connector *nv_connector = nouveau_connector(connector);
 	struct acpi_device *acpidev;
@@ -414,7 +414,7 @@ nouveau_acpi_edid(struct drm_device *dev, struct drm_connector *connector)
 		return -EINVAL;
 	}
 
-	handle = DEVICE_ACPI_HANDLE(&dev->pdev->dev);
+	handle = DEVICE_ACPI_HANDLE(&ndev->dev->pdev->dev);
 	if (!handle)
 		return -ENODEV;
 

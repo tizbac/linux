@@ -118,9 +118,8 @@
  */
 
 static int
-nv40_graph_vs_count(struct drm_device *dev)
+nv40_graph_vs_count(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 
 	switch (ndev->chipset) {
 	case 0x47:
@@ -160,7 +159,7 @@ enum cp_label {
 static void
 nv40_graph_construct_general(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int i;
 
 	cp_ctx(ctx, 0x4000a4, 1);
@@ -208,7 +207,7 @@ nv40_graph_construct_general(struct nouveau_grctx *ctx)
 		gr_def(ctx, 0x4009dc, 0x80000000);
 	} else {
 		cp_ctx(ctx, 0x400840, 20);
-		if (nv44_graph_class(ctx->dev)) {
+		if (nv44_graph_class(ctx->device)) {
 			for (i = 0; i < 8; i++)
 				gr_def(ctx, 0x400860 + (i * 4), 0x00000001);
 		}
@@ -217,7 +216,7 @@ nv40_graph_construct_general(struct nouveau_grctx *ctx)
 		gr_def(ctx, 0x400888, 0x00000040);
 		cp_ctx(ctx, 0x400894, 11);
 		gr_def(ctx, 0x400894, 0x00000040);
-		if (!nv44_graph_class(ctx->dev)) {
+		if (!nv44_graph_class(ctx->device)) {
 			for (i = 0; i < 8; i++)
 				gr_def(ctx, 0x4008a0 + (i * 4), 0x80000000);
 		}
@@ -266,7 +265,7 @@ nv40_graph_construct_general(struct nouveau_grctx *ctx)
 static void
 nv40_graph_construct_state3d(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int i;
 
 	if (ndev->chipset == 0x40) {
@@ -371,7 +370,7 @@ nv40_graph_construct_state3d(struct nouveau_grctx *ctx)
 static void
 nv40_graph_construct_state3d_2(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int i;
 
 	cp_ctx(ctx, 0x402000, 1);
@@ -504,8 +503,8 @@ nv40_graph_construct_state3d_2(struct nouveau_grctx *ctx)
 
 	cp_ctx(ctx, 0x403400, ndev->chipset == 0x40 ? 4 : 3);
 	cp_ctx(ctx, 0x403410, ndev->chipset == 0x40 ? 4 : 3);
-	cp_ctx(ctx, 0x403420, nv40_graph_vs_count(ctx->dev));
-	for (i = 0; i < nv40_graph_vs_count(ctx->dev); i++)
+	cp_ctx(ctx, 0x403420, nv40_graph_vs_count(ctx->device));
+	for (i = 0; i < nv40_graph_vs_count(ctx->device); i++)
 		gr_def(ctx, 0x403420 + (i * 4), 0x00005555);
 
 	if (ndev->chipset != 0x40) {
@@ -535,7 +534,7 @@ nv40_graph_construct_state3d_2(struct nouveau_grctx *ctx)
 static void
 nv40_graph_construct_state3d_3(struct nouveau_grctx *ctx)
 {
-	int len = nv44_graph_class(ctx->dev) ? 0x0084 : 0x0684;
+	int len = nv44_graph_class(ctx->device) ? 0x0084 : 0x0684;
 
 	cp_out (ctx, 0x300000);
 	cp_lsr (ctx, len - 4);
@@ -550,13 +549,12 @@ nv40_graph_construct_state3d_3(struct nouveau_grctx *ctx)
 static void
 nv40_graph_construct_shader(struct nouveau_grctx *ctx)
 {
-	struct drm_device *dev = ctx->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = ctx->device;
 	struct nouveau_gpuobj *obj = ctx->data;
 	int vs, vs_nr, vs_len, vs_nr_b0, vs_nr_b1, b0_offset, b1_offset;
 	int offset, i;
 
-	vs_nr    = nv40_graph_vs_count(ctx->dev);
+	vs_nr    = nv40_graph_vs_count(ctx->device);
 	vs_nr_b0 = 363;
 	vs_nr_b1 = ndev->chipset == 0x40 ? 128 : 64;
 	if (ndev->chipset == 0x40) {
@@ -571,11 +569,11 @@ nv40_graph_construct_shader(struct nouveau_grctx *ctx)
 	} else {
 		b0_offset = 0x1d40/4; /* 2200 */
 		b1_offset = 0x3f40/4; /* 0b00 : 0a40 */
-		vs_len = nv44_graph_class(dev) ? 0x4980/4 : 0x4a40/4;
+		vs_len = nv44_graph_class(ndev) ? 0x4980/4 : 0x4a40/4;
 	}
 
 	cp_lsr(ctx, vs_len * vs_nr + 0x300/4);
-	cp_out(ctx, nv44_graph_class(dev) ? 0x800029 : 0x800041);
+	cp_out(ctx, nv44_graph_class(ndev) ? 0x800029 : 0x800041);
 
 	offset = ctx->ctxvals_pos;
 	ctx->ctxvals_pos += (0x0300/4 + (vs_nr * vs_len));
@@ -661,21 +659,21 @@ nv40_grctx_generate(struct nouveau_grctx *ctx)
 }
 
 void
-nv40_grctx_fill(struct drm_device *dev, struct nouveau_gpuobj *mem)
+nv40_grctx_fill(struct nouveau_device *ndev, struct nouveau_gpuobj *mem)
 {
 	nv40_grctx_generate(&(struct nouveau_grctx) {
-			     .dev = dev,
+			     .device = ndev,
 			     .mode = NOUVEAU_GRCTX_VALS,
 			     .data = mem,
 			   });
 }
 
 void
-nv40_grctx_init(struct drm_device *dev, u32 *size)
+nv40_grctx_init(struct nouveau_device *ndev, u32 *size)
 {
 	u32 ctxprog[256], i;
 	struct nouveau_grctx ctx = {
-		.dev = dev,
+		.device = ndev,
 		.mode = NOUVEAU_GRCTX_PROG,
 		.data = ctxprog,
 		.ctxprog_max = ARRAY_SIZE(ctxprog)
@@ -683,8 +681,8 @@ nv40_grctx_init(struct drm_device *dev, u32 *size)
 
 	nv40_grctx_generate(&ctx);
 
-	nv_wr32(dev, NV40_PGRAPH_CTXCTL_UCODE_INDEX, 0);
+	nv_wr32(ndev, NV40_PGRAPH_CTXCTL_UCODE_INDEX, 0);
 	for (i = 0; i < ctx.ctxprog_len; i++)
-		nv_wr32(dev, NV40_PGRAPH_CTXCTL_UCODE_DATA, ctxprog[i]);
+		nv_wr32(ndev, NV40_PGRAPH_CTXCTL_UCODE_DATA, ctxprog[i]);
 	*size = ctx.ctxvals_pos * 4;
 }

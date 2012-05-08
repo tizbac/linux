@@ -32,8 +32,7 @@ int
 nv04_fbcon_copyarea(struct fb_info *info, const struct fb_copyarea *region)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
-	struct drm_device *dev = nfbdev->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nfbdev->device;
 	struct nouveau_channel *chan = ndev->channel;
 	int ret;
 
@@ -42,9 +41,9 @@ nv04_fbcon_copyarea(struct fb_info *info, const struct fb_copyarea *region)
 		return ret;
 
 	BEGIN_NV04(chan, NvSubImageBlit, 0x0300, 3);
-	OUT_RING(chan, (region->sy << 16) | region->sx);
-	OUT_RING(chan, (region->dy << 16) | region->dx);
-	OUT_RING(chan, (region->height << 16) | region->width);
+	PUSH_DATA (chan, (region->sy << 16) | region->sx);
+	PUSH_DATA (chan, (region->dy << 16) | region->dx);
+	PUSH_DATA (chan, (region->height << 16) | region->width);
 	FIRE_RING(chan);
 	return 0;
 }
@@ -53,8 +52,7 @@ int
 nv04_fbcon_fillrect(struct fb_info *info, const struct fb_fillrect *rect)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
-	struct drm_device *dev = nfbdev->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nfbdev->device;
 	struct nouveau_channel *chan = ndev->channel;
 	int ret;
 
@@ -63,16 +61,16 @@ nv04_fbcon_fillrect(struct fb_info *info, const struct fb_fillrect *rect)
 		return ret;
 
 	BEGIN_NV04(chan, NvSubGdiRect, 0x02fc, 1);
-	OUT_RING(chan, (rect->rop != ROP_COPY) ? 1 : 3);
+	PUSH_DATA (chan, (rect->rop != ROP_COPY) ? 1 : 3);
 	BEGIN_NV04(chan, NvSubGdiRect, 0x03fc, 1);
 	if (info->fix.visual == FB_VISUAL_TRUECOLOR ||
 	    info->fix.visual == FB_VISUAL_DIRECTCOLOR)
-		OUT_RING(chan, ((uint32_t *)info->pseudo_palette)[rect->color]);
+		PUSH_DATA (chan, ((u32 *)info->pseudo_palette)[rect->color]);
 	else
-		OUT_RING(chan, rect->color);
+		PUSH_DATA (chan, rect->color);
 	BEGIN_NV04(chan, NvSubGdiRect, 0x0400, 2);
-	OUT_RING(chan, (rect->dx << 16) | rect->dy);
-	OUT_RING(chan, (rect->width << 16) | rect->height);
+	PUSH_DATA (chan, (rect->dx << 16) | rect->dy);
+	PUSH_DATA (chan, (rect->width << 16) | rect->height);
 	FIRE_RING(chan);
 	return 0;
 }
@@ -81,14 +79,13 @@ int
 nv04_fbcon_imageblit(struct fb_info *info, const struct fb_image *image)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
-	struct drm_device *dev = nfbdev->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nfbdev->device;
 	struct nouveau_channel *chan = ndev->channel;
-	uint32_t fg;
-	uint32_t bg;
-	uint32_t dsize;
-	uint32_t width;
-	uint32_t *data = (uint32_t *)image->data;
+	u32 fg;
+	u32 bg;
+	u32 dsize;
+	u32 width;
+	u32 *data = (u32 *)image->data;
 	int ret;
 
 	if (image->depth != 1)
@@ -103,22 +100,22 @@ nv04_fbcon_imageblit(struct fb_info *info, const struct fb_image *image)
 
 	if (info->fix.visual == FB_VISUAL_TRUECOLOR ||
 	    info->fix.visual == FB_VISUAL_DIRECTCOLOR) {
-		fg = ((uint32_t *) info->pseudo_palette)[image->fg_color];
-		bg = ((uint32_t *) info->pseudo_palette)[image->bg_color];
+		fg = ((u32 *) info->pseudo_palette)[image->fg_color];
+		bg = ((u32 *) info->pseudo_palette)[image->bg_color];
 	} else {
 		fg = image->fg_color;
 		bg = image->bg_color;
 	}
 
 	BEGIN_NV04(chan, NvSubGdiRect, 0x0be4, 7);
-	OUT_RING(chan, (image->dy << 16) | (image->dx & 0xffff));
-	OUT_RING(chan, ((image->dy + image->height) << 16) |
+	PUSH_DATA (chan, (image->dy << 16) | (image->dx & 0xffff));
+	PUSH_DATA (chan, ((image->dy + image->height) << 16) |
 			 ((image->dx + image->width) & 0xffff));
-	OUT_RING(chan, bg);
-	OUT_RING(chan, fg);
-	OUT_RING(chan, (image->height << 16) | width);
-	OUT_RING(chan, (image->height << 16) | image->width);
-	OUT_RING(chan, (image->dy << 16) | (image->dx & 0xffff));
+	PUSH_DATA (chan, bg);
+	PUSH_DATA (chan, fg);
+	PUSH_DATA (chan, (image->height << 16) | width);
+	PUSH_DATA (chan, (image->height << 16) | image->width);
+	PUSH_DATA (chan, (image->dy << 16) | (image->dx & 0xffff));
 
 	while (dsize) {
 		int iter_len = dsize > 128 ? 128 : dsize;
@@ -128,7 +125,7 @@ nv04_fbcon_imageblit(struct fb_info *info, const struct fb_image *image)
 			return ret;
 
 		BEGIN_NV04(chan, NvSubGdiRect, 0x0c00, iter_len);
-		OUT_RINGp(chan, data, iter_len);
+		PUSH_DATAp(chan, data, iter_len);
 		data += iter_len;
 		dsize -= iter_len;
 	}
@@ -141,8 +138,7 @@ int
 nv04_fbcon_accel_init(struct fb_info *info)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
-	struct drm_device *dev = nfbdev->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nfbdev->device;
 	struct nouveau_channel *chan = ndev->channel;
 	const int sub = NvSubCtxSurf2D;
 	int surface_fmt, pattern_fmt, rect_fmt;
@@ -210,63 +206,63 @@ nv04_fbcon_accel_init(struct fb_info *info)
 	}
 
 	BEGIN_NV04(chan, sub, 0x0000, 1);
-	OUT_RING(chan, NvCtxSurf2D);
+	PUSH_DATA (chan, NvCtxSurf2D);
 	BEGIN_NV04(chan, sub, 0x0184, 2);
-	OUT_RING(chan, NvDmaFB);
-	OUT_RING(chan, NvDmaFB);
+	PUSH_DATA (chan, NvDmaFB);
+	PUSH_DATA (chan, NvDmaFB);
 	BEGIN_NV04(chan, sub, 0x0300, 4);
-	OUT_RING(chan, surface_fmt);
-	OUT_RING(chan, info->fix.line_length | (info->fix.line_length << 16));
-	OUT_RING(chan, info->fix.smem_start - dev->mode_config.fb_base);
-	OUT_RING(chan, info->fix.smem_start - dev->mode_config.fb_base);
+	PUSH_DATA (chan, surface_fmt);
+	PUSH_DATA (chan, info->fix.line_length | (info->fix.line_length << 16));
+	PUSH_DATA (chan, info->fix.smem_start - ndev->dev->mode_config.fb_base);
+	PUSH_DATA (chan, info->fix.smem_start - ndev->dev->mode_config.fb_base);
 
 	BEGIN_NV04(chan, sub, 0x0000, 1);
-	OUT_RING(chan, NvRop);
+	PUSH_DATA (chan, NvRop);
 	BEGIN_NV04(chan, sub, 0x0300, 1);
-	OUT_RING(chan, 0x55);
+	PUSH_DATA (chan, 0x55);
 
 	BEGIN_NV04(chan, sub, 0x0000, 1);
-	OUT_RING(chan, NvImagePatt);
+	PUSH_DATA (chan, NvImagePatt);
 	BEGIN_NV04(chan, sub, 0x0300, 8);
-	OUT_RING(chan, pattern_fmt);
+	PUSH_DATA (chan, pattern_fmt);
 #ifdef __BIG_ENDIAN
-	OUT_RING(chan, 2);
+	PUSH_DATA (chan, 2);
 #else
-	OUT_RING(chan, 1);
+	PUSH_DATA (chan, 1);
 #endif
-	OUT_RING(chan, 0);
-	OUT_RING(chan, 1);
-	OUT_RING(chan, ~0);
-	OUT_RING(chan, ~0);
-	OUT_RING(chan, ~0);
-	OUT_RING(chan, ~0);
+	PUSH_DATA (chan, 0);
+	PUSH_DATA (chan, 1);
+	PUSH_DATA (chan, ~0);
+	PUSH_DATA (chan, ~0);
+	PUSH_DATA (chan, ~0);
+	PUSH_DATA (chan, ~0);
 
 	BEGIN_NV04(chan, sub, 0x0000, 1);
-	OUT_RING(chan, NvClipRect);
+	PUSH_DATA (chan, NvClipRect);
 	BEGIN_NV04(chan, sub, 0x0300, 2);
-	OUT_RING(chan, 0);
-	OUT_RING(chan, (info->var.yres_virtual << 16) | info->var.xres_virtual);
+	PUSH_DATA (chan, 0);
+	PUSH_DATA (chan, (info->var.yres_virtual << 16) | info->var.xres_virtual);
 
 	BEGIN_NV04(chan, NvSubImageBlit, 0x0000, 1);
-	OUT_RING(chan, NvImageBlit);
+	PUSH_DATA (chan, NvImageBlit);
 	BEGIN_NV04(chan, NvSubImageBlit, 0x019c, 1);
-	OUT_RING(chan, NvCtxSurf2D);
+	PUSH_DATA (chan, NvCtxSurf2D);
 	BEGIN_NV04(chan, NvSubImageBlit, 0x02fc, 1);
-	OUT_RING(chan, 3);
+	PUSH_DATA (chan, 3);
 
 	BEGIN_NV04(chan, NvSubGdiRect, 0x0000, 1);
-	OUT_RING(chan, NvGdiRect);
+	PUSH_DATA (chan, NvGdiRect);
 	BEGIN_NV04(chan, NvSubGdiRect, 0x0198, 1);
-	OUT_RING(chan, NvCtxSurf2D);
+	PUSH_DATA (chan, NvCtxSurf2D);
 	BEGIN_NV04(chan, NvSubGdiRect, 0x0188, 2);
-	OUT_RING(chan, NvImagePatt);
-	OUT_RING(chan, NvRop);
+	PUSH_DATA (chan, NvImagePatt);
+	PUSH_DATA (chan, NvRop);
 	BEGIN_NV04(chan, NvSubGdiRect, 0x0304, 1);
-	OUT_RING(chan, 1);
+	PUSH_DATA (chan, 1);
 	BEGIN_NV04(chan, NvSubGdiRect, 0x0300, 1);
-	OUT_RING(chan, rect_fmt);
+	PUSH_DATA (chan, rect_fmt);
 	BEGIN_NV04(chan, NvSubGdiRect, 0x02fc, 1);
-	OUT_RING(chan, 3);
+	PUSH_DATA (chan, 3);
 
 	FIRE_RING(chan);
 

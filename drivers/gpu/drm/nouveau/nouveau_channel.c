@@ -36,12 +36,11 @@ static int
 nouveau_channel_pushbuf_init(struct nouveau_channel *chan)
 {
 	u32 mem = nouveau_vram_pushbuf ? TTM_PL_FLAG_VRAM : TTM_PL_FLAG_TT;
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = chan->device;
 	int ret;
 
 	/* allocate buffer object */
-	ret = nouveau_bo_new(dev, 65536, 0, mem, 0, 0, NULL, &chan->pushbuf_bo);
+	ret = nouveau_bo_new(ndev, 65536, 0, mem, 0, 0, NULL, &chan->pushbuf_bo);
 	if (ret)
 		goto out;
 
@@ -93,7 +92,7 @@ nouveau_channel_pushbuf_init(struct nouveau_channel *chan)
 		 * VRAM.
 		 */
 		ret = nouveau_gpuobj_dma_new(chan, NV_CLASS_DMA_IN_MEMORY,
-					     pci_resource_start(dev->pdev, 1),
+					     pci_resource_start(ndev->dev->pdev, 1),
 					     ndev->fb_available_size,
 					     NV_MEM_ACCESS_RO,
 					     NV_MEM_TARGET_PCI,
@@ -102,7 +101,7 @@ nouveau_channel_pushbuf_init(struct nouveau_channel *chan)
 
 out:
 	if (ret) {
-		NV_ERROR(dev, "error initialising pushbuf: %d\n", ret);
+		NV_ERROR(ndev, "error initialising pushbuf: %d\n", ret);
 		nouveau_bo_vma_del(chan->pushbuf_bo, &chan->pushbuf_vma);
 		nouveau_gpuobj_ref(NULL, &chan->pushbuf);
 		if (chan->pushbuf_bo) {
@@ -116,13 +115,13 @@ out:
 
 /* allocates and initializes a fifo for user space consumption */
 int
-nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
+nouveau_channel_alloc(struct nouveau_device *ndev,
+		      struct nouveau_channel **chan_ret,
 		      struct drm_file *file_priv,
-		      uint32_t vram_handle, uint32_t gart_handle)
+		      u32 vram_handle, u32 gart_handle)
 {
-	struct nouveau_engine *fence = nv_engine(dev, NVOBJ_ENGINE_FENCE);
-	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_engine *fence = nv_engine(ndev, NVOBJ_ENGINE_FENCE);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
 	struct nouveau_fpriv *fpriv = nouveau_fpriv(file_priv);
 	struct nouveau_channel *chan;
 	unsigned long flags;
@@ -132,7 +131,7 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 	chan = kzalloc(sizeof(*chan), GFP_KERNEL);
 	if (!chan)
 		return -ENOMEM;
-	chan->dev = dev;
+	chan->device = ndev;
 	chan->file_priv = file_priv;
 	chan->vram_handle = vram_handle;
 	chan->gart_handle = gart_handle;
@@ -158,12 +157,12 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 		return -ENODEV;
 	}
 
-	NV_DEBUG(dev, "initialising channel %d\n", chan->id);
+	NV_DEBUG(ndev, "initialising channel %d\n", chan->id);
 
 	/* setup channel's memory and vm */
 	ret = nouveau_gpuobj_channel_init(chan, vram_handle, gart_handle);
 	if (ret) {
-		NV_ERROR(dev, "gpuobj %d\n", ret);
+		NV_ERROR(ndev, "gpuobj %d\n", ret);
 		nouveau_channel_put(&chan);
 		return ret;
 	}
@@ -171,7 +170,7 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 	/* Allocate space for per-channel fixed notifier memory */
 	ret = nouveau_notifier_init_channel(chan);
 	if (ret) {
-		NV_ERROR(dev, "ntfy %d\n", ret);
+		NV_ERROR(ndev, "ntfy %d\n", ret);
 		nouveau_channel_put(&chan);
 		return ret;
 	}
@@ -179,7 +178,7 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 	/* Allocate DMA push buffer */
 	ret = nouveau_channel_pushbuf_init(chan);
 	if (ret) {
-		NV_ERROR(dev, "pushbuf %d\n", ret);
+		NV_ERROR(ndev, "pushbuf %d\n", ret);
 		nouveau_channel_put(&chan);
 		return ret;
 	}
@@ -205,9 +204,9 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 	}
 
 	for (i = 0; i < NOUVEAU_DMA_SKIPS; i++)
-		OUT_RING  (chan, 0x00000000);
+		PUSH_DATA (chan, 0x00000000);
 
-	ret = nouveau_gpuobj_gr_new(chan, NvSw, nouveau_software_class(dev));
+	ret = nouveau_gpuobj_gr_new(chan, NvSw, nouveau_software_class(ndev));
 	if (ret) {
 		nouveau_channel_put(&chan);
 		return ret;
@@ -221,7 +220,7 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 		}
 
 		BEGIN_NV04(chan, NvSubSw, NV01_SUBCHAN_OBJECT, 1);
-		OUT_RING  (chan, NvSw);
+		PUSH_DATA (chan, NvSw);
 		FIRE_RING (chan);
 	}
 
@@ -235,7 +234,7 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 
 	nouveau_debugfs_channel_init(chan);
 
-	NV_DEBUG(dev, "channel %d initialised\n", chan->id);
+	NV_DEBUG(ndev, "channel %d initialised\n", chan->id);
 	if (fpriv) {
 		spin_lock(&fpriv->lock);
 		list_add(&chan->list, &fpriv->channels);
@@ -280,8 +279,7 @@ void
 nouveau_channel_put_unlocked(struct nouveau_channel **pchan)
 {
 	struct nouveau_channel *chan = *pchan;
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = chan->device;
 	unsigned long flags;
 	int i;
 
@@ -292,7 +290,7 @@ nouveau_channel_put_unlocked(struct nouveau_channel **pchan)
 	}
 
 	/* no one wants the channel anymore */
-	NV_DEBUG(dev, "freeing channel %d\n", chan->id);
+	NV_DEBUG(ndev, "freeing channel %d\n", chan->id);
 	nouveau_debugfs_channel_fini(chan);
 
 	/* give it chance to idle */
@@ -358,7 +356,7 @@ nouveau_channel_ref(struct nouveau_channel *chan,
 int
 nouveau_channel_idle(struct nouveau_channel *chan)
 {
-	struct drm_device *dev = chan->dev;
+	struct nouveau_device *ndev = chan->device;
 	struct nouveau_fence *fence = NULL;
 	int ret;
 
@@ -369,22 +367,22 @@ nouveau_channel_idle(struct nouveau_channel *chan)
 	}
 
 	if (ret)
-		NV_ERROR(dev, "Failed to idle channel %d.\n", chan->id);
+		NV_ERROR(ndev, "Failed to idle channel %d.\n", chan->id);
 	return ret;
 }
 
 /* cleans up all the fifos from file_priv */
 void
-nouveau_channel_cleanup(struct drm_device *dev, struct drm_file *file_priv)
+nouveau_channel_cleanup(struct nouveau_device *ndev, struct drm_file *file_priv)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
 	struct nouveau_channel *chan;
 	int i;
 
 	if (!pfifo)
 		return;
 
-	NV_DEBUG(dev, "clearing FIFO enables from file_priv\n");
+	NV_DEBUG(ndev, "clearing FIFO enables from file_priv\n");
 	for (i = 0; i < pfifo->channels; i++) {
 		chan = nouveau_channel_get(file_priv, i);
 		if (IS_ERR(chan))

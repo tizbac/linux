@@ -43,13 +43,13 @@
 			   NV_PRAMDAC_FP_TG_CONTROL_HSYNC_DISABLE |	\
 			   NV_PRAMDAC_FP_TG_CONTROL_VSYNC_DISABLE)
 
-static inline bool is_fpc_off(uint32_t fpc)
+static inline bool is_fpc_off(u32 fpc)
 {
 	return ((fpc & (FP_TG_CONTROL_ON | FP_TG_CONTROL_OFF)) ==
 			FP_TG_CONTROL_OFF);
 }
 
-int nv04_dfp_get_bound_head(struct drm_device *dev, struct dcb_entry *dcbent)
+int nv04_dfp_get_bound_head(struct nouveau_device *ndev, struct dcb_entry *dcbent)
 {
 	/* special case of nv_read_tmds to find crtc associated with an output.
 	 * this does not give a correct answer for off-chip dvi, but there's no
@@ -57,12 +57,12 @@ int nv04_dfp_get_bound_head(struct drm_device *dev, struct dcb_entry *dcbent)
 	 */
 	int ramdac = (dcbent->or & OUTPUT_C) >> 2;
 
-	NVWriteRAMDAC(dev, ramdac, NV_PRAMDAC_FP_TMDS_CONTROL,
+	NVWriteRAMDAC(ndev, ramdac, NV_PRAMDAC_FP_TMDS_CONTROL,
 	NV_PRAMDAC_FP_TMDS_CONTROL_WRITE_DISABLE | 0x4);
-	return ((NVReadRAMDAC(dev, ramdac, NV_PRAMDAC_FP_TMDS_DATA) & 0x8) >> 3) ^ ramdac;
+	return ((NVReadRAMDAC(ndev, ramdac, NV_PRAMDAC_FP_TMDS_DATA) & 0x8) >> 3) ^ ramdac;
 }
 
-void nv04_dfp_bind_head(struct drm_device *dev, struct dcb_entry *dcbent,
+void nv04_dfp_bind_head(struct nouveau_device *ndev, struct dcb_entry *dcbent,
 			int head, bool dl)
 {
 	/* The BIOS scripts don't do this for us, sadly
@@ -73,7 +73,7 @@ void nv04_dfp_bind_head(struct drm_device *dev, struct dcb_entry *dcbent,
 	 */
 
 	int ramdac = (dcbent->or & OUTPUT_C) >> 2;
-	uint8_t tmds04 = 0x80;
+	u8 tmds04 = 0x80;
 
 	if (head != ramdac)
 		tmds04 = 0x88;
@@ -81,24 +81,23 @@ void nv04_dfp_bind_head(struct drm_device *dev, struct dcb_entry *dcbent,
 	if (dcbent->type == OUTPUT_LVDS)
 		tmds04 |= 0x01;
 
-	nv_write_tmds(dev, dcbent->or, 0, 0x04, tmds04);
+	nv_write_tmds(ndev, dcbent->or, 0, 0x04, tmds04);
 
 	if (dl)	/* dual link */
-		nv_write_tmds(dev, dcbent->or, 1, 0x04, tmds04 ^ 0x08);
+		nv_write_tmds(ndev, dcbent->or, 1, 0x04, tmds04 ^ 0x08);
 }
 
-void nv04_dfp_disable(struct drm_device *dev, int head)
+void nv04_dfp_disable(struct nouveau_device *ndev, int head)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv04_crtc_reg *crtcstate = ndev->mode_reg.crtc_reg;
 
-	if (NVReadRAMDAC(dev, head, NV_PRAMDAC_FP_TG_CONTROL) &
+	if (NVReadRAMDAC(ndev, head, NV_PRAMDAC_FP_TG_CONTROL) &
 	    FP_TG_CONTROL_ON) {
 		/* digital remnants must be cleaned before new crtc
 		 * values programmed.  delay is time for the vga stuff
 		 * to realise it's in control again
 		 */
-		NVWriteRAMDAC(dev, head, NV_PRAMDAC_FP_TG_CONTROL,
+		NVWriteRAMDAC(ndev, head, NV_PRAMDAC_FP_TG_CONTROL,
 			      FP_TG_CONTROL_OFF);
 		msleep(50);
 	}
@@ -110,11 +109,10 @@ void nv04_dfp_disable(struct drm_device *dev, int head)
 
 void nv04_dfp_update_fp_control(struct drm_encoder *encoder, int mode)
 {
-	struct drm_device *dev = encoder->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct drm_crtc *crtc;
 	struct nouveau_crtc *nv_crtc;
-	uint32_t *fpc;
+	u32 *fpc;
 
 	if (mode == DRM_MODE_DPMS_ON) {
 		nv_crtc = nouveau_crtc(encoder->crtc);
@@ -129,9 +127,9 @@ void nv04_dfp_update_fp_control(struct drm_encoder *encoder, int mode)
 		}
 
 		nv_crtc->fp_users |= 1 << nouveau_encoder(encoder)->dcb->index;
-		NVWriteRAMDAC(dev, nv_crtc->index, NV_PRAMDAC_FP_TG_CONTROL, *fpc);
+		NVWriteRAMDAC(ndev, nv_crtc->index, NV_PRAMDAC_FP_TG_CONTROL, *fpc);
 	} else {
-		list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
+		list_for_each_entry(crtc, &ndev->dev->mode_config.crtc_list, head) {
 			nv_crtc = nouveau_crtc(crtc);
 			fpc = &ndev->mode_reg.crtc_reg[nv_crtc->index].fp_control;
 
@@ -141,7 +139,7 @@ void nv04_dfp_update_fp_control(struct drm_encoder *encoder, int mode)
 				/* cut the FP output */
 				*fpc &= ~FP_TG_CONTROL_ON;
 				*fpc |= FP_TG_CONTROL_OFF;
-				NVWriteRAMDAC(dev, nv_crtc->index,
+				NVWriteRAMDAC(ndev, nv_crtc->index,
 					      NV_PRAMDAC_FP_TG_CONTROL, *fpc);
 			}
 		}
@@ -150,7 +148,7 @@ void nv04_dfp_update_fp_control(struct drm_encoder *encoder, int mode)
 
 static struct drm_encoder *get_tmds_slave(struct drm_encoder *encoder)
 {
-	struct drm_device *dev = encoder->dev;
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct dcb_entry *dcb = nouveau_encoder(encoder)->dcb;
 	struct drm_encoder *slave;
 
@@ -167,7 +165,7 @@ static struct drm_encoder *get_tmds_slave(struct drm_encoder *encoder)
 	 * blob programs the one exposed via I2C for *both* heads, so
 	 * let's do the same.
 	 */
-	list_for_each_entry(slave, &dev->mode_config.encoder_list, head) {
+	list_for_each_entry(slave, &ndev->dev->mode_config.encoder_list, head) {
 		struct dcb_entry *slave_dcb = nouveau_encoder(slave)->dcb;
 
 		if (slave_dcb->type == OUTPUT_TMDS && get_slave_funcs(slave) &&
@@ -199,12 +197,11 @@ static bool nv04_dfp_mode_fixup(struct drm_encoder *encoder,
 	return true;
 }
 
-static void nv04_dfp_prepare_sel_clk(struct drm_device *dev,
+static void nv04_dfp_prepare_sel_clk(struct nouveau_device *ndev,
 				     struct nouveau_encoder *nv_encoder, int head)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv04_mode_state *state = &ndev->mode_reg;
-	uint32_t bits1618 = nv_encoder->dcb->or & OUTPUT_A ? 0x10000 : 0x40000;
+	u32 bits1618 = nv_encoder->dcb->or & OUTPUT_A ? 0x10000 : 0x40000;
 
 	if (nv_encoder->dcb->location != DCB_LOC_ON_CHIP)
 		return;
@@ -245,20 +242,19 @@ static void nv04_dfp_prepare(struct drm_encoder *encoder)
 {
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
 	struct drm_encoder_helper_funcs *helper = encoder->helper_private;
-	struct drm_device *dev = encoder->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	int head = nouveau_crtc(encoder->crtc)->index;
 	struct nv04_crtc_reg *crtcstate = ndev->mode_reg.crtc_reg;
-	uint8_t *cr_lcd = &crtcstate[head].CRTC[NV_CIO_CRE_LCD__INDEX];
-	uint8_t *cr_lcd_oth = &crtcstate[head ^ 1].CRTC[NV_CIO_CRE_LCD__INDEX];
+	u8 *cr_lcd = &crtcstate[head].CRTC[NV_CIO_CRE_LCD__INDEX];
+	u8 *cr_lcd_oth = &crtcstate[head ^ 1].CRTC[NV_CIO_CRE_LCD__INDEX];
 
 	helper->dpms(encoder, DRM_MODE_DPMS_OFF);
 
-	nv04_dfp_prepare_sel_clk(dev, nv_encoder, head);
+	nv04_dfp_prepare_sel_clk(ndev, nv_encoder, head);
 
 	*cr_lcd = (*cr_lcd & ~NV_CIO_CRE_LCD_ROUTE_MASK) | 0x3;
 
-	if (nv_two_heads(dev)) {
+	if (nv_two_heads(ndev)) {
 		if (nv_encoder->dcb->location == DCB_LOC_ON_CHIP)
 			*cr_lcd |= head ? 0x0 : 0x8;
 		else {
@@ -268,7 +264,7 @@ static void nv04_dfp_prepare(struct drm_encoder *encoder)
 			if ((*cr_lcd & 0x30) == (*cr_lcd_oth & 0x30)) {
 				/* avoid being connected to both crtcs */
 				*cr_lcd_oth &= ~0x30;
-				NVWriteVgaCrtc(dev, head ^ 1,
+				NVWriteVgaCrtc(ndev, head ^ 1,
 					       NV_CIO_CRE_LCD__INDEX,
 					       *cr_lcd_oth);
 			}
@@ -281,8 +277,7 @@ static void nv04_dfp_mode_set(struct drm_encoder *encoder,
 			      struct drm_display_mode *mode,
 			      struct drm_display_mode *adjusted_mode)
 {
-	struct drm_device *dev = encoder->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(encoder->crtc);
 	struct nv04_crtc_reg *regp = &ndev->mode_reg.crtc_reg[nv_crtc->index];
 	struct nv04_crtc_reg *savep = &ndev->saved_reg.crtc_reg[nv_crtc->index];
@@ -290,15 +285,15 @@ static void nv04_dfp_mode_set(struct drm_encoder *encoder,
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
 	struct drm_display_mode *output_mode = &nv_encoder->mode;
 	struct drm_connector *connector = &nv_connector->base;
-	uint32_t mode_ratio, panel_ratio;
+	u32 mode_ratio, panel_ratio;
 
-	NV_DEBUG_KMS(dev, "Output mode on CRTC %d:\n", nv_crtc->index);
+	NV_DEBUG_KMS(ndev, "Output mode on CRTC %d:\n", nv_crtc->index);
 	drm_mode_debug_printmodeline(output_mode);
 
 	/* Initialize the FP registers in this CRTC. */
 	regp->fp_horiz_regs[FP_DISPLAY_END] = output_mode->hdisplay - 1;
 	regp->fp_horiz_regs[FP_TOTAL] = output_mode->htotal - 1;
-	if (!nv_gf4_disp_arch(dev) ||
+	if (!nv_gf4_disp_arch(ndev) ||
 	    (output_mode->hsync_start - output_mode->hdisplay) >=
 					ndev->vbios.digital_min_front_porch)
 		regp->fp_horiz_regs[FP_CRTC] = output_mode->hdisplay;
@@ -335,7 +330,7 @@ static void nv04_dfp_mode_set(struct drm_encoder *encoder,
 		regp->fp_control |= NV_PRAMDAC_FP_TG_CONTROL_MODE_NATIVE;
 	else /* gpu needs to scale */
 		regp->fp_control |= NV_PRAMDAC_FP_TG_CONTROL_MODE_SCALE;
-	if (nv_rd32(dev, NV_PEXTDEV_BOOT_0) & NV_PEXTDEV_BOOT_0_STRAP_FP_IFACE_12BIT)
+	if (nv_rd32(ndev, NV_PEXTDEV_BOOT_0) & NV_PEXTDEV_BOOT_0_STRAP_FP_IFACE_12BIT)
 		regp->fp_control |= NV_PRAMDAC_FP_TG_CONTROL_WIDTH_12;
 	if (nv_encoder->dcb->location != DCB_LOC_ON_CHIP &&
 	    output_mode->clock > 165000)
@@ -346,7 +341,7 @@ static void nv04_dfp_mode_set(struct drm_encoder *encoder,
 		    nv_connector->type == DCB_CONNECTOR_LVDS_SPWG) {
 			duallink = (((u8 *)nv_connector->edid)[121] == 2);
 		} else {
-			nouveau_bios_parse_lvds_table(dev, output_mode->clock,
+			nouveau_bios_parse_lvds_table(ndev, output_mode->clock,
 						      &duallink, &dummy);
 		}
 
@@ -376,8 +371,8 @@ static void nv04_dfp_mode_set(struct drm_encoder *encoder,
 	 * get treated the same as SCALE_FULLSCREEN */
 	if (nv_connector->scaling_mode == DRM_MODE_SCALE_ASPECT &&
 	    mode_ratio != panel_ratio) {
-		uint32_t diff, scale;
-		bool divide_by_2 = nv_gf4_disp_arch(dev);
+		u32 diff, scale;
+		bool divide_by_2 = nv_gf4_disp_arch(ndev);
 
 		if (mode_ratio < panel_ratio) {
 			/* vertical needs to expand to glass size (automatic)
@@ -443,8 +438,7 @@ static void nv04_dfp_mode_set(struct drm_encoder *encoder,
 
 static void nv04_dfp_commit(struct drm_encoder *encoder)
 {
-	struct drm_device *dev = encoder->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct drm_encoder_helper_funcs *helper = encoder->helper_private;
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(encoder->crtc);
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
@@ -453,20 +447,20 @@ static void nv04_dfp_commit(struct drm_encoder *encoder)
 	struct drm_encoder *slave_encoder;
 
 	if (dcbe->type == OUTPUT_TMDS)
-		run_tmds_table(dev, dcbe, head, nv_encoder->mode.clock);
+		run_tmds_table(ndev, dcbe, head, nv_encoder->mode.clock);
 	else if (dcbe->type == OUTPUT_LVDS)
-		call_lvds_script(dev, dcbe, head, LVDS_RESET, nv_encoder->mode.clock);
+		call_lvds_script(ndev, dcbe, head, LVDS_RESET, nv_encoder->mode.clock);
 
 	/* update fp_control state for any changes made by scripts,
 	 * so correct value is written at DPMS on */
 	ndev->mode_reg.crtc_reg[head].fp_control =
-		NVReadRAMDAC(dev, head, NV_PRAMDAC_FP_TG_CONTROL);
+		NVReadRAMDAC(ndev, head, NV_PRAMDAC_FP_TG_CONTROL);
 
 	/* This could use refinement for flatpanels, but it should work this way */
 	if (ndev->chipset < 0x44)
-		NVWriteRAMDAC(dev, 0, NV_PRAMDAC_TEST_CONTROL + nv04_dac_output_offset(encoder), 0xf0000000);
+		NVWriteRAMDAC(ndev, 0, NV_PRAMDAC_TEST_CONTROL + nv04_dac_output_offset(encoder), 0xf0000000);
 	else
-		NVWriteRAMDAC(dev, 0, NV_PRAMDAC_TEST_CONTROL + nv04_dac_output_offset(encoder), 0x00100000);
+		NVWriteRAMDAC(ndev, 0, NV_PRAMDAC_TEST_CONTROL + nv04_dac_output_offset(encoder), 0x00100000);
 
 	/* Init external transmitters */
 	slave_encoder = get_tmds_slave(encoder);
@@ -476,7 +470,7 @@ static void nv04_dfp_commit(struct drm_encoder *encoder)
 
 	helper->dpms(encoder, DRM_MODE_DPMS_ON);
 
-	NV_INFO(dev, "Output %s is running on CRTC %d using output %c\n",
+	NV_INFO(ndev, "Output %s is running on CRTC %d using output %c\n",
 		drm_get_connector_name(&nouveau_encoder_connector_get(nv_encoder)->base),
 		nv_crtc->index, '@' + ffs(nv_encoder->dcb->or));
 }
@@ -484,19 +478,19 @@ static void nv04_dfp_commit(struct drm_encoder *encoder)
 static void nv04_dfp_update_backlight(struct drm_encoder *encoder, int mode)
 {
 #ifdef __powerpc__
-	struct drm_device *dev = encoder->dev;
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 
 	/* BIOS scripts usually take care of the backlight, thanks
 	 * Apple for your consistency.
 	 */
-	if (dev->pci_device == 0x0179 || dev->pci_device == 0x0189 ||
+	if (ndev->pci_device == 0x0179 || dev->pci_device == 0x0189 ||
 	    dev->pci_device == 0x0329) {
 		if (mode == DRM_MODE_DPMS_ON) {
-			nv_mask(dev, NV_PBUS_DEBUG_DUALHEAD_CTL, 0, 1 << 31);
-			nv_mask(dev, NV_PCRTC_GPIO_EXT, 3, 1);
+			nv_mask(ndev, NV_PBUS_DEBUG_DUALHEAD_CTL, 0, 1 << 31);
+			nv_mask(ndev, NV_PCRTC_GPIO_EXT, 3, 1);
 		} else {
-			nv_mask(dev, NV_PBUS_DEBUG_DUALHEAD_CTL, 1 << 31, 0);
-			nv_mask(dev, NV_PCRTC_GPIO_EXT, 3, 0);
+			nv_mask(ndev, NV_PBUS_DEBUG_DUALHEAD_CTL, 1 << 31, 0);
+			nv_mask(ndev, NV_PCRTC_GPIO_EXT, 3, 0);
 		}
 	}
 #endif
@@ -509,9 +503,8 @@ static inline bool is_powersaving_dpms(int mode)
 
 static void nv04_lvds_dpms(struct drm_encoder *encoder, int mode)
 {
-	struct drm_device *dev = encoder->dev;
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct drm_crtc *crtc = encoder->crtc;
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
 	bool was_powersaving = is_powersaving_dpms(nv_encoder->last_dpms);
 
@@ -519,7 +512,7 @@ static void nv04_lvds_dpms(struct drm_encoder *encoder, int mode)
 		return;
 	nv_encoder->last_dpms = mode;
 
-	NV_INFO(dev, "Setting dpms mode %d on lvds encoder (output %d)\n",
+	NV_INFO(ndev, "Setting dpms mode %d on lvds encoder (output %d)\n",
 		     mode, nv_encoder->dcb->index);
 
 	if (was_powersaving && is_powersaving_dpms(mode))
@@ -530,16 +523,16 @@ static void nv04_lvds_dpms(struct drm_encoder *encoder, int mode)
 		 * must still be run
 		 */
 		int head = crtc ? nouveau_crtc(crtc)->index :
-			   nv04_dfp_get_bound_head(dev, nv_encoder->dcb);
+			   nv04_dfp_get_bound_head(ndev, nv_encoder->dcb);
 
 		if (mode == DRM_MODE_DPMS_ON) {
-			call_lvds_script(dev, nv_encoder->dcb, head,
+			call_lvds_script(ndev, nv_encoder->dcb, head,
 					 LVDS_PANEL_ON, nv_encoder->mode.clock);
 		} else
 			/* pxclk of 0 is fine for PANEL_OFF, and for a
 			 * disconnected LVDS encoder there is no native_mode
 			 */
-			call_lvds_script(dev, nv_encoder->dcb, head,
+			call_lvds_script(ndev, nv_encoder->dcb, head,
 					 LVDS_PANEL_OFF, 0);
 	}
 
@@ -547,24 +540,24 @@ static void nv04_lvds_dpms(struct drm_encoder *encoder, int mode)
 	nv04_dfp_update_fp_control(encoder, mode);
 
 	if (mode == DRM_MODE_DPMS_ON)
-		nv04_dfp_prepare_sel_clk(dev, nv_encoder, nouveau_crtc(crtc)->index);
+		nv04_dfp_prepare_sel_clk(ndev, nv_encoder, nouveau_crtc(crtc)->index);
 	else {
-		ndev->mode_reg.sel_clk = NVReadRAMDAC(dev, 0, NV_PRAMDAC_SEL_CLK);
+		ndev->mode_reg.sel_clk = NVReadRAMDAC(ndev, 0, NV_PRAMDAC_SEL_CLK);
 		ndev->mode_reg.sel_clk &= ~0xf0;
 	}
-	NVWriteRAMDAC(dev, 0, NV_PRAMDAC_SEL_CLK, ndev->mode_reg.sel_clk);
+	NVWriteRAMDAC(ndev, 0, NV_PRAMDAC_SEL_CLK, ndev->mode_reg.sel_clk);
 }
 
 static void nv04_tmds_dpms(struct drm_encoder *encoder, int mode)
 {
-	struct drm_device *dev = encoder->dev;
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
 
 	if (nv_encoder->last_dpms == mode)
 		return;
 	nv_encoder->last_dpms = mode;
 
-	NV_INFO(dev, "Setting dpms mode %d on tmds encoder (output %d)\n",
+	NV_INFO(ndev, "Setting dpms mode %d on tmds encoder (output %d)\n",
 		     mode, nv_encoder->dcb->index);
 
 	nv04_dfp_update_backlight(encoder, mode);
@@ -574,18 +567,17 @@ static void nv04_tmds_dpms(struct drm_encoder *encoder, int mode)
 static void nv04_dfp_save(struct drm_encoder *encoder)
 {
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
-	struct drm_device *dev = encoder->dev;
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 
-	if (nv_two_heads(dev))
+	if (nv_two_heads(ndev))
 		nv_encoder->restore.head =
-			nv04_dfp_get_bound_head(dev, nv_encoder->dcb);
+			nv04_dfp_get_bound_head(ndev, nv_encoder->dcb);
 }
 
 static void nv04_dfp_restore(struct drm_encoder *encoder)
 {
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
-	struct drm_device *dev = encoder->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	int head = nv_encoder->restore.head;
 
 	if (nv_encoder->dcb->type == OUTPUT_LVDS) {
@@ -593,7 +585,7 @@ static void nv04_dfp_restore(struct drm_encoder *encoder)
 			nouveau_encoder_connector_get(nv_encoder);
 
 		if (connector && connector->native_mode)
-			call_lvds_script(dev, nv_encoder->dcb, head,
+			call_lvds_script(ndev, nv_encoder->dcb, head,
 					 LVDS_PANEL_ON,
 					 connector->native_mode->clock);
 
@@ -601,7 +593,7 @@ static void nv04_dfp_restore(struct drm_encoder *encoder)
 		int clock = nouveau_hw_pllvals_to_clk
 					(&ndev->saved_reg.crtc_reg[head].pllvals);
 
-		run_tmds_table(dev, nv_encoder->dcb, head, clock);
+		run_tmds_table(ndev, nv_encoder->dcb, head, clock);
 	}
 
 	nv_encoder->last_dpms = NV_DPMS_CLEARED;
@@ -610,8 +602,9 @@ static void nv04_dfp_restore(struct drm_encoder *encoder)
 static void nv04_dfp_destroy(struct drm_encoder *encoder)
 {
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 
-	NV_DEBUG_KMS(encoder->dev, "\n");
+	NV_DEBUG_KMS(ndev, "\n");
 
 	if (get_slave_funcs(encoder))
 		get_slave_funcs(encoder)->destroy(encoder);
@@ -622,9 +615,9 @@ static void nv04_dfp_destroy(struct drm_encoder *encoder)
 
 static void nv04_tmds_slave_init(struct drm_encoder *encoder)
 {
-	struct drm_device *dev = encoder->dev;
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct dcb_entry *dcb = nouveau_encoder(encoder)->dcb;
-	struct nouveau_i2c_chan *i2c = nouveau_i2c_find(dev, 2);
+	struct nouveau_i2c_chan *i2c = nouveau_i2c_find(ndev, 2);
 	struct i2c_board_info info[] = {
 		{
 			.type = "sil164",
@@ -637,15 +630,15 @@ static void nv04_tmds_slave_init(struct drm_encoder *encoder)
 	};
 	int type;
 
-	if (!nv_gf4_disp_arch(dev) || !i2c ||
+	if (!nv_gf4_disp_arch(ndev) || !i2c ||
 	    get_tmds_slave(encoder))
 		return;
 
-	type = nouveau_i2c_identify(dev, "TMDS transmitter", info, NULL, 2);
+	type = nouveau_i2c_identify(ndev, "TMDS transmitter", info, NULL, 2);
 	if (type < 0)
 		return;
 
-	drm_i2c_encoder_init(dev, to_encoder_slave(encoder),
+	drm_i2c_encoder_init(ndev->dev, to_encoder_slave(encoder),
 			     &i2c->adapter, &info[type]);
 }
 

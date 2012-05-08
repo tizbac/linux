@@ -44,7 +44,7 @@ nv04_fence_emit(struct nouveau_fence *fence)
 	int ret = RING_SPACE(chan, 2);
 	if (ret == 0) {
 		BEGIN_NV04(chan, NvSubSw, 0x0150, 1);
-		OUT_RING  (chan, fence->sequence);
+		PUSH_DATA (chan, fence->sequence);
 		FIRE_RING (chan);
 	}
 	return ret;
@@ -95,31 +95,29 @@ nv04_fence_context_new(struct nouveau_channel *chan, int engine)
 }
 
 static int
-nv04_fence_fini(struct drm_device *dev, int engine, bool suspend)
+nv04_fence_fini(struct nouveau_device *ndev, int engine, bool suspend)
 {
 	return 0;
 }
 
 static int
-nv04_fence_init(struct drm_device *dev, int engine)
+nv04_fence_init(struct nouveau_device *ndev, int engine)
 {
 	return 0;
 }
 
 static void
-nv04_fence_destroy(struct drm_device *dev, int engine)
+nv04_fence_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-	struct nv04_fence_priv *priv = nv_engine(dev, engine);
+	struct nv04_fence_priv *priv = nv_engine(ndev, engine);
 
 	ndev->engine[engine] = NULL;
 	kfree(priv);
 }
 
 int
-nv04_fence_create(struct drm_device *dev)
+nv04_fence_create(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv04_fence_priv *priv;
 	int ret;
 

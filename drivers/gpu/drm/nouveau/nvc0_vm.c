@@ -102,9 +102,8 @@ nvc0_vm_unmap(struct nouveau_gpuobj *pgt, u32 pte, u32 cnt)
 void
 nvc0_vm_flush(struct nouveau_vm *vm)
 {
-	struct nouveau_device *ndev = nouveau_device(vm->dev);
+	struct nouveau_device *ndev = vm->device;
 	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
-	struct drm_device *dev = vm->dev;
 	struct nouveau_vm_pgd *vpgd;
 	unsigned long flags;
 	u32 engine;
@@ -113,23 +112,23 @@ nvc0_vm_flush(struct nouveau_vm *vm)
 	if (vm == ndev->bar1_vm || vm == ndev->bar3_vm)
 		engine |= 4;
 
-	pinstmem->flush(vm->dev);
+	pinstmem->flush(ndev);
 
 	spin_lock_irqsave(&ndev->vm_lock, flags);
 	list_for_each_entry(vpgd, &vm->pgd_list, head) {
 		/* looks like maybe a "free flush slots" counter, the
 		 * faster you write to 0x100cbc to more it decreases
 		 */
-		if (!nv_wait_ne(dev, 0x100c80, 0x00ff0000, 0x00000000)) {
-			NV_ERROR(dev, "vm timeout 0: 0x%08x %d\n",
-				 nv_rd32(dev, 0x100c80), engine);
+		if (!nv_wait_ne(ndev, 0x100c80, 0x00ff0000, 0x00000000)) {
+			NV_ERROR(ndev, "vm timeout 0: 0x%08x %d\n",
+				 nv_rd32(ndev, 0x100c80), engine);
 		}
-		nv_wr32(dev, 0x100cb8, vpgd->obj->vinst >> 8);
-		nv_wr32(dev, 0x100cbc, 0x80000000 | engine);
+		nv_wr32(ndev, 0x100cb8, vpgd->obj->vinst >> 8);
+		nv_wr32(ndev, 0x100cbc, 0x80000000 | engine);
 		/* wait for flush to be queued? */
-		if (!nv_wait(dev, 0x100c80, 0x00008000, 0x00008000)) {
-			NV_ERROR(dev, "vm timeout 1: 0x%08x %d\n",
-				 nv_rd32(dev, 0x100c80), engine);
+		if (!nv_wait(ndev, 0x100c80, 0x00008000, 0x00008000)) {
+			NV_ERROR(ndev, "vm timeout 1: 0x%08x %d\n",
+				 nv_rd32(ndev, 0x100c80), engine);
 		}
 	}
 	spin_unlock_irqrestore(&ndev->vm_lock, flags);

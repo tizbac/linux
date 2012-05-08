@@ -27,13 +27,13 @@
 #include "nouveau_hw.h"
 
 int
-nv50_calc_pll(struct drm_device *dev, struct pll_lims *pll, int clk,
+nv50_calc_pll(struct nouveau_device *ndev, struct pll_lims *pll, int clk,
 	      int *N1, int *M1, int *N2, int *M2, int *P)
 {
 	struct nouveau_pll_vals pll_vals;
 	int ret;
 
-	ret = nouveau_calc_pll_mnp(dev, pll, clk, &pll_vals);
+	ret = nouveau_calc_pll_mnp(ndev, pll, clk, &pll_vals);
 	if (ret <= 0)
 		return ret;
 
@@ -46,7 +46,7 @@ nv50_calc_pll(struct drm_device *dev, struct pll_lims *pll, int clk,
 }
 
 int
-nva3_calc_pll(struct drm_device *dev, struct pll_lims *pll, int clk,
+nva3_calc_pll(struct nouveau_device *ndev, struct pll_lims *pll, int clk,
 	      int *pN, int *pfN, int *pM, int *P)
 {
 	u32 best_err = ~0, err;
@@ -89,7 +89,7 @@ nva3_calc_pll(struct drm_device *dev, struct pll_lims *pll, int clk,
 	}
 
 	if (unlikely(best_err == ~0)) {
-		NV_ERROR(dev, "unable to find matching pll values\n");
+		NV_ERROR(ndev, "unable to find matching pll values\n");
 		return -EINVAL;
 	}
 

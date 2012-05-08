@@ -27,21 +27,20 @@
 #include "drmP.h"
 #include "nouveau_drv.h"
 
-#define MXM_DBG(dev, fmt, args...) NV_DEBUG((dev), "MXM: " fmt, ##args)
-#define MXM_MSG(dev, fmt, args...) NV_INFO((dev), "MXM: " fmt, ##args)
+#define MXM_DBG(ndev, fmt, args...) NV_DEBUG((ndev), "MXM: " fmt, ##args)
+#define MXM_MSG(ndev, fmt, args...) NV_INFO((ndev), "MXM: " fmt, ##args)
 
 static u8 *
-mxms_data(struct drm_device *dev)
+mxms_data(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	return ndev->mxms;
 
 }
 
 static u16
-mxms_version(struct drm_device *dev)
+mxms_version(struct nouveau_device *ndev)
 {
-	u8 *mxms = mxms_data(dev);
+	u8 *mxms = mxms_data(ndev);
 	u16 version = (mxms[4] << 8) | mxms[5];
 	switch (version ) {
 	case 0x0200:
@@ -52,58 +51,58 @@ mxms_version(struct drm_device *dev)
 		break;
 	}
 
-	MXM_DBG(dev, "unknown version %d.%d\n", mxms[4], mxms[5]);
+	MXM_DBG(ndev, "unknown version %d.%d\n", mxms[4], mxms[5]);
 	return 0x0000;
 }
 
 static u16
-mxms_headerlen(struct drm_device *dev)
+mxms_headerlen(struct nouveau_device *ndev)
 {
 	return 8;
 }
 
 static u16
-mxms_structlen(struct drm_device *dev)
+mxms_structlen(struct nouveau_device *ndev)
 {
-	return *(u16 *)&mxms_data(dev)[6];
+	return *(u16 *)&mxms_data(ndev)[6];
 }
 
 static bool
-mxms_checksum(struct drm_device *dev)
+mxms_checksum(struct nouveau_device *ndev)
 {
-	u16 size = mxms_headerlen(dev) + mxms_structlen(dev);
-	u8 *mxms = mxms_data(dev), sum = 0;
+	u16 size = mxms_headerlen(ndev) + mxms_structlen(ndev);
+	u8 *mxms = mxms_data(ndev), sum = 0;
 	while (size--)
 		sum += *mxms++;
 	if (sum) {
-		MXM_DBG(dev, "checksum invalid\n");
+		MXM_DBG(ndev, "checksum invalid\n");
 		return false;
 	}
 	return true;
 }
 
 static bool
-mxms_valid(struct drm_device *dev)
+mxms_valid(struct nouveau_device *ndev)
 {
-	u8 *mxms = mxms_data(dev);
+	u8 *mxms = mxms_data(ndev);
 	if (*(u32 *)mxms != 0x5f4d584d) {
-		MXM_DBG(dev, "signature invalid\n");
+		MXM_DBG(ndev, "signature invalid\n");
 		return false;
 	}
 
-	if (!mxms_version(dev) || !mxms_checksum(dev))
+	if (!mxms_version(ndev) || !mxms_checksum(ndev))
 		return false;
 
 	return true;
 }
 
 static bool
-mxms_foreach(struct drm_device *dev, u8 types,
-	     bool (*exec)(struct drm_device *, u8 *, void *), void *info)
+mxms_foreach(struct nouveau_device *ndev, u8 types,
+	     bool (*exec)(struct nouveau_device *, u8 *, void *), void *info)
 {
-	u8 *mxms = mxms_data(dev);
-	u8 *desc = mxms + mxms_headerlen(dev);
-	u8 *fini = desc + mxms_structlen(dev) - 1;
+	u8 *mxms = mxms_data(ndev);
+	u8 *desc = mxms + mxms_headerlen(ndev);
+	u8 *fini = desc + mxms_structlen(ndev) - 1;
 	while (desc < fini) {
 		u8 type = desc[0] & 0x0f;
 		u8 headerlen = 0;
@@ -112,7 +111,7 @@ mxms_foreach(struct drm_device *dev, u8 types,
 
 		switch (type) {
 		case 0: /* Output Device Structure */
-			if (mxms_version(dev) >= 0x0300)
+			if (mxms_version(ndev) >= 0x0300)
 				headerlen = 8;
 			else
 				headerlen = 6;
@@ -131,7 +130,7 @@ mxms_foreach(struct drm_device *dev, u8 types,
 			headerlen = 8;
 			break;
 		case 6: /* Backlight Control Structure */
-			if (mxms_version(dev) >= 0x0300) {
+			if (mxms_version(ndev) >= 0x0300) {
 				headerlen = 4;
 				recordlen = 8;
 				entries   = (desc[1] & 0xf0) >> 4;
@@ -145,7 +144,7 @@ mxms_foreach(struct drm_device *dev, u8 types,
 			entries   = desc[1] & 0x07;
 			break;
 		default:
-			MXM_DBG(dev, "unknown descriptor type %d\n", type);
+			MXM_DBG(ndev, "unknown descriptor type %d\n", type);
 			return false;
 		}
 
@@ -157,14 +156,14 @@ mxms_foreach(struct drm_device *dev, u8 types,
 			u8 *dump = desc;
 			int i, j;
 
-			MXM_DBG(dev, "%4s: ", mxms_desc_name[type]);
+			MXM_DBG(ndev, "%4s: ", mxms_desc_name[type]);
 			for (j = headerlen - 1; j >= 0; j--)
 				printk("%02x", dump[j]);
 			printk("\n");
 			dump += headerlen;
 
 			for (i = 0; i < entries; i++, dump += recordlen) {
-				MXM_DBG(dev, "      ");
+				MXM_DBG(ndev, "      ");
 				for (j = recordlen - 1; j >= 0; j--)
 					printk("%02x", dump[j]);
 				printk("\n");
@@ -172,7 +171,7 @@ mxms_foreach(struct drm_device *dev, u8 types,
 		}
 
 		if (types & (1 << type)) {
-			if (!exec(dev, desc, info))
+			if (!exec(ndev, desc, info))
 				return false;
 		}
 
@@ -183,17 +182,17 @@ mxms_foreach(struct drm_device *dev, u8 types,
 }
 
 static u8 *
-mxm_table(struct drm_device *dev, u8 *size)
+mxm_table(struct nouveau_device *ndev, u8 *size)
 {
 	struct bit_entry x;
 
-	if (bit_table(dev, 'x', &x)) {
-		MXM_DBG(dev, "BIT 'x' table not present\n");
+	if (bit_table(ndev, 'x', &x)) {
+		MXM_DBG(ndev, "BIT 'x' table not present\n");
 		return NULL;
 	}
 
 	if (x.version != 1 || x.length < 3) {
-		MXM_MSG(dev, "BIT x table %d/%d unknown\n",
+		MXM_MSG(ndev, "BIT x table %d/%d unknown\n",
 			x.version, x.length);
 		return NULL;
 	}
@@ -233,12 +232,11 @@ static u8 nv98_sor_map[16] = {
 };
 
 static u8
-mxm_sor_map(struct drm_device *dev, u8 conn)
+mxm_sor_map(struct nouveau_device *ndev, u8 conn)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-	u8 len, *mxm = mxm_table(dev, &len);
+	u8 len, *mxm = mxm_table(ndev, &len);
 	if (mxm && len >= 6) {
-		u8 *map = ROMPTR(dev, mxm[4]);
+		u8 *map = ROMPTR(ndev, mxm[4]);
 		if (map) {
 			if (map[0] == 0x10) {
 				if (conn < map[3])
@@ -246,7 +244,7 @@ mxm_sor_map(struct drm_device *dev, u8 conn)
 				return 0x00;
 			}
 
-			MXM_MSG(dev, "unknown sor map 0x%02x\n", map[0]);
+			MXM_MSG(ndev, "unknown sor map 0x%02x\n", map[0]);
 		}
 	}
 
@@ -261,16 +259,16 @@ mxm_sor_map(struct drm_device *dev, u8 conn)
 	if (ndev->chipset == 0x98)
 		return nv98_sor_map[conn];
 
-	MXM_MSG(dev, "missing sor map\n");
+	MXM_MSG(ndev, "missing sor map\n");
 	return 0x00;
 }
 
 static u8
-mxm_ddc_map(struct drm_device *dev, u8 port)
+mxm_ddc_map(struct nouveau_device *ndev, u8 port)
 {
-	u8 len, *mxm = mxm_table(dev, &len);
+	u8 len, *mxm = mxm_table(ndev, &len);
 	if (mxm && len >= 8) {
-		u8 *map = ROMPTR(dev, mxm[6]);
+		u8 *map = ROMPTR(ndev, mxm[6]);
 		if (map) {
 			if (map[0] == 0x10) {
 				if (port < map[3])
@@ -278,7 +276,7 @@ mxm_ddc_map(struct drm_device *dev, u8 port)
 				return 0x00;
 			}
 
-			MXM_MSG(dev, "unknown ddc map 0x%02x\n", map[0]);
+			MXM_MSG(ndev, "unknown ddc map 0x%02x\n", map[0]);
 		}
 	}
 
@@ -294,10 +292,10 @@ struct mxms_odev {
 };
 
 static void
-mxms_output_device(struct drm_device *dev, u8 *pdata, struct mxms_odev *desc)
+mxms_output_device(struct nouveau_device *ndev, u8 *pdata, struct mxms_odev *desc)
 {
 	u64 data = ROM32(pdata[0]);
-	if (mxms_version(dev) >= 0x0300)
+	if (mxms_version(ndev) >= 0x0300)
 		data |= (u64)ROM16(pdata[4]) << 32;
 
 	desc->outp_type = (data & 0x00000000000000f0ULL) >> 4;
@@ -312,12 +310,12 @@ struct context {
 };
 
 static bool
-mxm_match_tmds_partner(struct drm_device *dev, u8 *data, void *info)
+mxm_match_tmds_partner(struct nouveau_device *ndev, u8 *data, void *info)
 {
 	struct context *ctx = info;
 	struct mxms_odev desc;
 
-	mxms_output_device(dev, data, &desc);
+	mxms_output_device(ndev, data, &desc);
 	if (desc.outp_type == 2 &&
 	    desc.dig_conn == ctx->desc.dig_conn)
 		return false;
@@ -325,12 +323,12 @@ mxm_match_tmds_partner(struct drm_device *dev, u8 *data, void *info)
 }
 
 static bool
-mxm_match_dcb(struct drm_device *dev, u8 *data, void *info)
+mxm_match_dcb(struct nouveau_device *ndev, u8 *data, void *info)
 {
 	struct context *ctx = info;
 	u64 desc = *(u64 *)data;
 
-	mxms_output_device(dev, data, &ctx->desc);
+	mxms_output_device(ndev, data, &ctx->desc);
 
 	/* match dcb encoder type to mxm-ods device type */
 	if ((ctx->outp[0] & 0x0000000f) != ctx->desc.outp_type)
@@ -342,7 +340,7 @@ mxm_match_dcb(struct drm_device *dev, u8 *data, void *info)
 	 */
 	if ((desc & 0x00000000000000f0) >= 0x20) {
 		/* check against sor index */
-		u8 link = mxm_sor_map(dev, ctx->desc.dig_conn);
+		u8 link = mxm_sor_map(ndev, ctx->desc.dig_conn);
 		if ((ctx->outp[0] & 0x0f000000) != (link & 0x0f) << 24)
 			return true;
 
@@ -359,7 +357,7 @@ mxm_match_dcb(struct drm_device *dev, u8 *data, void *info)
 	 */
 	data[0] &= ~0xf0;
 	if (ctx->desc.outp_type == 6 && ctx->desc.conn_type == 6 &&
-	    mxms_foreach(dev, 0x01, mxm_match_tmds_partner, ctx)) {
+	    mxms_foreach(ndev, 0x01, mxm_match_tmds_partner, ctx)) {
 		data[0] |= 0x20; /* modify descriptor to match TMDS now */
 	} else {
 		data[0] |= 0xf0;
@@ -369,7 +367,7 @@ mxm_match_dcb(struct drm_device *dev, u8 *data, void *info)
 }
 
 static int
-mxm_dcb_sanitise_entry(struct drm_device *dev, void *data, int idx, u8 *dcbe)
+mxm_dcb_sanitise_entry(struct nouveau_device *ndev, void *data, int idx, u8 *dcbe)
 {
 	struct context ctx = { .outp = (u32 *)dcbe };
 	u8 type, i2cidx, link;
@@ -378,8 +376,8 @@ mxm_dcb_sanitise_entry(struct drm_device *dev, void *data, int idx, u8 *dcbe)
 	/* look for an output device structure that matches this dcb entry.
 	 * if one isn't found, disable it.
 	 */
-	if (mxms_foreach(dev, 0x01, mxm_match_dcb, &ctx)) {
-		MXM_DBG(dev, "disable %d: 0x%08x 0x%08x\n",
+	if (mxms_foreach(ndev, 0x01, mxm_match_dcb, &ctx)) {
+		MXM_DBG(ndev, "disable %d: 0x%08x 0x%08x\n",
 			idx, ctx.outp[0], ctx.outp[1]);
 		ctx.outp[0] |= 0x0000000f;
 		return 0;
@@ -389,7 +387,7 @@ mxm_dcb_sanitise_entry(struct drm_device *dev, void *data, int idx, u8 *dcbe)
 	 * with the mapping from mxm ddc/aux port to dcb i2c_index in the
 	 * vbios mxm table
 	 */
-	i2cidx = mxm_ddc_map(dev, ctx.desc.ddc_port);
+	i2cidx = mxm_ddc_map(ndev, ctx.desc.ddc_port);
 	if ((ctx.outp[0] & 0x0000000f) != OUTPUT_DP)
 		i2cidx = (i2cidx & 0x0f) << 4;
 	else
@@ -406,7 +404,7 @@ mxm_dcb_sanitise_entry(struct drm_device *dev, void *data, int idx, u8 *dcbe)
 	case 0x01: /* Analog TV/HDTV */
 		break;
 	default:
-		link = mxm_sor_map(dev, ctx.desc.dig_conn) & 0x30;
+		link = mxm_sor_map(ndev, ctx.desc.dig_conn) & 0x30;
 		ctx.outp[1] &= ~0x00000030;
 		ctx.outp[1] |= link;
 		break;
@@ -419,7 +417,7 @@ mxm_dcb_sanitise_entry(struct drm_device *dev, void *data, int idx, u8 *dcbe)
 	 * and the mxm data says the connector is really HDMI.  another
 	 * common example is DP->eDP.
 	 */
-	conn = dcb_conn(dev, (ctx.outp[0] & 0x0000f000) >> 12);
+	conn = dcb_conn(ndev, (ctx.outp[0] & 0x0000f000) >> 12);
 	type = conn[0];
 	switch (ctx.desc.conn_type) {
 	case 0x01: /* LVDS */
@@ -442,32 +440,32 @@ mxm_dcb_sanitise_entry(struct drm_device *dev, void *data, int idx, u8 *dcbe)
 		break;
 	}
 
-	if (mxms_version(dev) >= 0x0300)
+	if (mxms_version(ndev) >= 0x0300)
 		conn[0] = type;
 
 	return 0;
 }
 
 static bool
-mxm_show_unmatched(struct drm_device *dev, u8 *data, void *info)
+mxm_show_unmatched(struct nouveau_device *ndev, u8 *data, void *info)
 {
 	u64 desc = *(u64 *)data;
 	if ((desc & 0xf0) != 0xf0)
-		MXM_MSG(dev, "unmatched output device 0x%016llx\n", desc);
+		MXM_MSG(ndev, "unmatched output device 0x%016llx\n", desc);
 	return true;
 }
 
 static void
-mxm_dcb_sanitise(struct drm_device *dev)
+mxm_dcb_sanitise(struct nouveau_device *ndev)
 {
-	u8 *dcb = dcb_table(dev);
+	u8 *dcb = dcb_table(ndev);
 	if (!dcb || dcb[0] != 0x40) {
-		MXM_DBG(dev, "unsupported DCB version\n");
+		MXM_DBG(ndev, "unsupported DCB version\n");
 		return;
 	}
 
-	dcb_outp_foreach(dev, NULL, mxm_dcb_sanitise_entry);
-	mxms_foreach(dev, 0x01, mxm_show_unmatched, NULL);
+	dcb_outp_foreach(ndev, NULL, mxm_dcb_sanitise_entry);
+	mxms_foreach(ndev, 0x01, mxm_show_unmatched, NULL);
 }
 
 static bool
@@ -483,15 +481,14 @@ mxm_shadow_rom_fetch(struct nouveau_i2c_chan *i2c, u8 addr,
 }
 
 static bool
-mxm_shadow_rom(struct drm_device *dev, u8 version)
+mxm_shadow_rom(struct nouveau_device *ndev, u8 version)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_i2c_chan *i2c = NULL;
 	u8 i2cidx, mxms[6], addr, size;
 
-	i2cidx = mxm_ddc_map(dev, 1 /* LVDS_DDC */) & 0x0f;
+	i2cidx = mxm_ddc_map(ndev, 1 /* LVDS_DDC */) & 0x0f;
 	if (i2cidx < 0x0f)
-		i2c = nouveau_i2c_find(dev, i2cidx);
+		i2c = nouveau_i2c_find(ndev, i2cidx);
 	if (!i2c)
 		return false;
 
@@ -503,7 +500,7 @@ mxm_shadow_rom(struct drm_device *dev, u8 version)
 	}
 
 	ndev->mxms = mxms;
-	size = mxms_headerlen(dev) + mxms_structlen(dev);
+	size = mxms_headerlen(ndev) + mxms_structlen(ndev);
 	ndev->mxms = kmalloc(size, GFP_KERNEL);
 
 	if (ndev->mxms &&
@@ -517,9 +514,8 @@ mxm_shadow_rom(struct drm_device *dev, u8 version)
 
 #if defined(CONFIG_ACPI)
 static bool
-mxm_shadow_dsm(struct drm_device *dev, u8 version)
+mxm_shadow_dsm(struct nouveau_device *ndev, u8 version)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	static char muid[] = {
 		0x00, 0xA4, 0x04, 0x40, 0x7D, 0x91, 0xF2, 0x4C,
 		0xB8, 0x9C, 0x79, 0xB6, 0x2F, 0xD5, 0x56, 0x65
@@ -554,13 +550,13 @@ mxm_shadow_dsm(struct drm_device *dev, u8 version)
 	acpi_handle handle;
 	int ret;
 
-	handle = DEVICE_ACPI_HANDLE(&dev->pdev->dev);
+	handle = DEVICE_ACPI_HANDLE(&ndev->dev->pdev->dev);
 	if (!handle)
 		return false;
 
 	ret = acpi_evaluate_object(handle, "_DSM", &list, &retn);
 	if (ret) {
-		MXM_DBG(dev, "DSM MXMS failed: %d\n", ret);
+		MXM_DBG(ndev, "DSM MXMS failed: %d\n", ret);
 		return false;
 	}
 
@@ -570,7 +566,7 @@ mxm_shadow_dsm(struct drm_device *dev, u8 version)
 					 obj->buffer.length, GFP_KERNEL);
 	} else
 	if (obj->type == ACPI_TYPE_INTEGER) {
-		MXM_DBG(dev, "DSM MXMS returned 0x%llx\n", obj->integer.value);
+		MXM_DBG(ndev, "DSM MXMS returned 0x%llx\n", obj->integer.value);
 	}
 
 	kfree(obj);
@@ -583,7 +579,7 @@ mxm_shadow_dsm(struct drm_device *dev, u8 version)
 #define WMI_WMMX_GUID "F6CB5C3C-9CAE-4EBD-B577-931EA32A2CC0"
 
 static u8
-wmi_wmmx_mxmi(struct drm_device *dev, u8 version)
+wmi_wmmx_mxmi(struct nouveau_device *ndev, u8 version)
 {
 	u32 mxmi_args[] = { 0x494D584D /* MXMI */, version, 0 };
 	struct acpi_buffer args = { sizeof(mxmi_args), mxmi_args };
@@ -593,18 +589,18 @@ wmi_wmmx_mxmi(struct drm_device *dev, u8 version)
 
 	status = wmi_evaluate_method(WMI_WMMX_GUID, 0, 0, &args, &retn);
 	if (ACPI_FAILURE(status)) {
-		MXM_DBG(dev, "WMMX MXMI returned %d\n", status);
+		MXM_DBG(ndev, "WMMX MXMI returned %d\n", status);
 		return 0x00;
 	}
 
 	obj = retn.pointer;
 	if (obj->type == ACPI_TYPE_INTEGER) {
 		version = obj->integer.value;
-		MXM_DBG(dev, "WMMX MXMI version %d.%d\n",
+		MXM_DBG(ndev, "WMMX MXMI version %d.%d\n",
 			     (version >> 4), version & 0x0f);
 	} else {
 		version = 0;
-		MXM_DBG(dev, "WMMX MXMI returned non-integer\n");
+		MXM_DBG(ndev, "WMMX MXMI returned non-integer\n");
 	}
 
 	kfree(obj);
@@ -612,9 +608,8 @@ wmi_wmmx_mxmi(struct drm_device *dev, u8 version)
 }
 
 static bool
-mxm_shadow_wmi(struct drm_device *dev, u8 version)
+mxm_shadow_wmi(struct nouveau_device *ndev, u8 version)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 mxms_args[] = { 0x534D584D /* MXMS */, version, 0 };
 	struct acpi_buffer args = { sizeof(mxms_args), mxms_args };
 	struct acpi_buffer retn = { ACPI_ALLOCATE_BUFFER, NULL };
@@ -622,19 +617,19 @@ mxm_shadow_wmi(struct drm_device *dev, u8 version)
 	acpi_status status;
 
 	if (!wmi_has_guid(WMI_WMMX_GUID)) {
-		MXM_DBG(dev, "WMMX GUID not found\n");
+		MXM_DBG(ndev, "WMMX GUID not found\n");
 		return false;
 	}
 
-	mxms_args[1] = wmi_wmmx_mxmi(dev, 0x00);
+	mxms_args[1] = wmi_wmmx_mxmi(ndev, 0x00);
 	if (!mxms_args[1])
-		mxms_args[1] = wmi_wmmx_mxmi(dev, version);
+		mxms_args[1] = wmi_wmmx_mxmi(ndev, version);
 	if (!mxms_args[1])
 		return false;
 
 	status = wmi_evaluate_method(WMI_WMMX_GUID, 0, 0, &args, &retn);
 	if (ACPI_FAILURE(status)) {
-		MXM_DBG(dev, "WMMX MXMS returned %d\n", status);
+		MXM_DBG(ndev, "WMMX MXMS returned %d\n", status);
 		return false;
 	}
 
@@ -651,7 +646,7 @@ mxm_shadow_wmi(struct drm_device *dev, u8 version)
 
 struct mxm_shadow_h {
 	const char *name;
-	bool (*exec)(struct drm_device *, u8 version);
+	bool (*exec)(struct nouveau_device *, u8 version);
 } _mxm_shadow[] = {
 	{ "ROM", mxm_shadow_rom },
 #if defined(CONFIG_ACPI)
@@ -664,14 +659,13 @@ struct mxm_shadow_h {
 };
 
 static int
-mxm_shadow(struct drm_device *dev, u8 version)
+mxm_shadow(struct nouveau_device *ndev, u8 version)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct mxm_shadow_h *shadow = _mxm_shadow;
 	do {
-		MXM_DBG(dev, "checking %s\n", shadow->name);
-		if (shadow->exec(dev, version)) {
-			if (mxms_valid(dev))
+		MXM_DBG(ndev, "checking %s\n", shadow->name);
+		if (shadow->exec(ndev, version)) {
+			if (mxms_valid(ndev))
 				return 0;
 			kfree(ndev->mxms);
 			ndev->mxms = NULL;
@@ -681,18 +675,18 @@ mxm_shadow(struct drm_device *dev, u8 version)
 }
 
 int
-nouveau_mxm_init(struct drm_device *dev)
+nouveau_mxm_init(struct nouveau_device *ndev)
 {
-	u8 mxm_size, *mxm = mxm_table(dev, &mxm_size);
+	u8 mxm_size, *mxm = mxm_table(ndev, &mxm_size);
 	if (!mxm || !mxm[0]) {
-		MXM_MSG(dev, "no VBIOS data, nothing to do\n");
+		MXM_MSG(ndev, "no VBIOS data, nothing to do\n");
 		return 0;
 	}
 
-	MXM_MSG(dev, "BIOS version %d.%d\n", mxm[0] >> 4, mxm[0] & 0x0f);
+	MXM_MSG(ndev, "BIOS version %d.%d\n", mxm[0] >> 4, mxm[0] & 0x0f);
 
-	if (mxm_shadow(dev, mxm[0])) {
-		MXM_MSG(dev, "failed to locate valid SIS\n");
+	if (mxm_shadow(ndev, mxm[0])) {
+		MXM_MSG(ndev, "failed to locate valid SIS\n");
 #if 0
 		/* we should, perhaps, fall back to some kind of limited
 		 * mode here if the x86 vbios hasn't already done the
@@ -705,19 +699,18 @@ nouveau_mxm_init(struct drm_device *dev)
 #endif
 	}
 
-	MXM_MSG(dev, "MXMS Version %d.%d\n",
-		mxms_version(dev) >> 8, mxms_version(dev) & 0xff);
-	mxms_foreach(dev, 0, NULL, NULL);
+	MXM_MSG(ndev, "MXMS Version %d.%d\n",
+		mxms_version(ndev) >> 8, mxms_version(ndev) & 0xff);
+	mxms_foreach(ndev, 0, NULL, NULL);
 
 	if (nouveau_mxmdcb)
-		mxm_dcb_sanitise(dev);
+		mxm_dcb_sanitise(ndev);
 	return 0;
 }
 
 void
-nouveau_mxm_fini(struct drm_device *dev)
+nouveau_mxm_fini(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	kfree(ndev->mxms);
 	ndev->mxms = NULL;
 }

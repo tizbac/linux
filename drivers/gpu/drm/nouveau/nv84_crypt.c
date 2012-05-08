@@ -35,15 +35,14 @@ struct nv84_crypt_engine {
 static int
 nv84_crypt_context_new(struct nouveau_channel *chan, int engine)
 {
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = chan->device;
 	struct nouveau_gpuobj *ramin = chan->ramin;
 	struct nouveau_gpuobj *ctx;
 	int ret;
 
-	NV_DEBUG(dev, "ch%d\n", chan->id);
+	NV_DEBUG(ndev, "ch%d\n", chan->id);
 
-	ret = nouveau_gpuobj_new(dev, chan, 256, 0, NVOBJ_FLAG_ZERO_ALLOC |
+	ret = nouveau_gpuobj_new(ndev, chan, 256, 0, NVOBJ_FLAG_ZERO_ALLOC |
 				 NVOBJ_FLAG_ZERO_FREE, &ctx);
 	if (ret)
 		return ret;
@@ -54,7 +53,7 @@ nv84_crypt_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(ramin, 0xac, 0);
 	nv_wo32(ramin, 0xb0, 0);
 	nv_wo32(ramin, 0xb4, 0);
-	ndev->subsys.instmem.flush(dev);
+	ndev->subsys.instmem.flush(ndev);
 
 	atomic_inc(&chan->vm->engref[engine]);
 	chan->engctx[engine] = ctx;
@@ -65,7 +64,7 @@ static void
 nv84_crypt_context_del(struct nouveau_channel *chan, int engine)
 {
 	struct nouveau_gpuobj *ctx = chan->engctx[engine];
-	struct drm_device *dev = chan->dev;
+	struct nouveau_device *ndev = chan->device;
 	u32 inst;
 
 	inst  = (chan->ramin->vinst >> 12);
@@ -75,12 +74,12 @@ nv84_crypt_context_del(struct nouveau_channel *chan, int engine)
 	 * doing this causes issues the next time PCRYPT is used,
 	 * unsurprisingly :)
 	 */
-	nv_wr32(dev, 0x10200c, 0x00000000);
-	if (nv_rd32(dev, 0x102188) == inst)
-		nv_mask(dev, 0x102188, 0x80000000, 0x00000000);
-	if (nv_rd32(dev, 0x10218c) == inst)
-		nv_mask(dev, 0x10218c, 0x80000000, 0x00000000);
-	nv_wr32(dev, 0x10200c, 0x00000010);
+	nv_wr32(ndev, 0x10200c, 0x00000000);
+	if (nv_rd32(ndev, 0x102188) == inst)
+		nv_mask(ndev, 0x102188, 0x80000000, 0x00000000);
+	if (nv_rd32(ndev, 0x10218c) == inst)
+		nv_mask(ndev, 0x10218c, 0x80000000, 0x00000000);
+	nv_wr32(ndev, 0x10200c, 0x00000010);
 
 	nouveau_gpuobj_ref(NULL, &ctx);
 
@@ -92,19 +91,18 @@ static int
 nv84_crypt_object_new(struct nouveau_channel *chan, int engine,
 		      u32 handle, u16 class)
 {
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = chan->device;
 	struct nouveau_gpuobj *obj = NULL;
 	int ret;
 
-	ret = nouveau_gpuobj_new(dev, chan, 16, 16, NVOBJ_FLAG_ZERO_FREE, &obj);
+	ret = nouveau_gpuobj_new(ndev, chan, 16, 16, NVOBJ_FLAG_ZERO_FREE, &obj);
 	if (ret)
 		return ret;
 	obj->engine = 5;
 	obj->class  = class;
 
 	nv_wo32(obj, 0x00, class);
-	ndev->subsys.instmem.flush(dev);
+	ndev->subsys.instmem.flush(ndev);
 
 	ret = nouveau_ramht_insert(chan, handle, obj);
 	nouveau_gpuobj_ref(NULL, &obj);
@@ -112,64 +110,64 @@ nv84_crypt_object_new(struct nouveau_channel *chan, int engine,
 }
 
 static void
-nv84_crypt_tlb_flush(struct drm_device *dev, int engine)
+nv84_crypt_tlb_flush(struct nouveau_device *ndev, int engine)
 {
-	nv50_vm_flush_engine(dev, 0x0a);
+	nv50_vm_flush_engine(ndev, 0x0a);
 }
 
 static void
-nv84_crypt_isr(struct drm_device *dev)
+nv84_crypt_isr(struct nouveau_device *ndev)
 {
-	u32 stat = nv_rd32(dev, 0x102130);
-	u32 mthd = nv_rd32(dev, 0x102190);
-	u32 data = nv_rd32(dev, 0x102194);
-	u32 inst = nv_rd32(dev, 0x102188) & 0x7fffffff;
+	u32 stat = nv_rd32(ndev, 0x102130);
+	u32 mthd = nv_rd32(ndev, 0x102190);
+	u32 data = nv_rd32(ndev, 0x102194);
+	u32 inst = nv_rd32(ndev, 0x102188) & 0x7fffffff;
 	int show = nouveau_ratelimit();
 
 	if (show) {
-		NV_INFO(dev, "PCRYPT_INTR: 0x%08x 0x%08x 0x%08x 0x%08x\n",
+		NV_INFO(ndev, "PCRYPT_INTR: 0x%08x 0x%08x 0x%08x 0x%08x\n",
 			     stat, mthd, data, inst);
 	}
 
-	nv_wr32(dev, 0x102130, stat);
-	nv_wr32(dev, 0x10200c, 0x10);
+	nv_wr32(ndev, 0x102130, stat);
+	nv_wr32(ndev, 0x10200c, 0x10);
 
-	nv50_fb_vm_trap(dev, show);
+	nv50_fb_vm_trap(ndev, show);
 }
 
 static int
-nv84_crypt_fini(struct drm_device *dev, int engine, bool suspend)
+nv84_crypt_fini(struct nouveau_device *ndev, int engine, bool suspend)
 {
-	nv_wr32(dev, 0x102140, 0x00000000);
+	nv_wr32(ndev, 0x102140, 0x00000000);
 	return 0;
 }
 
 static int
-nv84_crypt_init(struct drm_device *dev, int engine)
+nv84_crypt_init(struct nouveau_device *ndev, int engine)
 {
-	nv_mask(dev, 0x000200, 0x00004000, 0x00000000);
-	nv_mask(dev, 0x000200, 0x00004000, 0x00004000);
+	nv_mask(ndev, 0x000200, 0x00004000, 0x00000000);
+	nv_mask(ndev, 0x000200, 0x00004000, 0x00004000);
 
-	nv_wr32(dev, 0x102130, 0xffffffff);
-	nv_wr32(dev, 0x102140, 0xffffffbf);
+	nv_wr32(ndev, 0x102130, 0xffffffff);
+	nv_wr32(ndev, 0x102140, 0xffffffbf);
 
-	nv_wr32(dev, 0x10200c, 0x00000010);
+	nv_wr32(ndev, 0x10200c, 0x00000010);
 	return 0;
 }
 
 static void
-nv84_crypt_destroy(struct drm_device *dev, int engine)
+nv84_crypt_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv84_crypt_engine *pcrypt = nv_engine(dev, engine);
+	struct nv84_crypt_engine *pcrypt = nv_engine(ndev, engine);
 
-	NVOBJ_ENGINE_DEL(dev, CRYPT);
+	NVOBJ_ENGINE_DEL(ndev, CRYPT);
 
-	nouveau_irq_unregister(dev, 14);
+	nouveau_irq_unregister(ndev, 14);
 	kfree(pcrypt);
 }
 
 int
-nv84_crypt_create(struct drm_device *dev)
+nv84_crypt_create(struct nouveau_device *ndev)
 {
 	struct nv84_crypt_engine *pcrypt;
 
@@ -185,9 +183,9 @@ nv84_crypt_create(struct drm_device *dev)
 	pcrypt->base.object_new = nv84_crypt_object_new;
 	pcrypt->base.tlb_flush = nv84_crypt_tlb_flush;
 
-	nouveau_irq_register(dev, 14, nv84_crypt_isr);
+	nouveau_irq_register(ndev, 14, nv84_crypt_isr);
 
-	NVOBJ_ENGINE_ADD(dev, CRYPT, &pcrypt->base);
-	NVOBJ_CLASS (dev, 0x74c1, CRYPT);
+	NVOBJ_ENGINE_ADD(ndev, CRYPT, &pcrypt->base);
+	NVOBJ_CLASS (ndev, 0x74c1, CRYPT);
 	return 0;
 }

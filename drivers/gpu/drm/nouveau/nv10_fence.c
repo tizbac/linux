@@ -46,7 +46,7 @@ nv10_fence_emit(struct nouveau_fence *fence)
 	int ret = RING_SPACE(chan, 2);
 	if (ret == 0) {
 		BEGIN_NV04(chan, 0, NV10_SUBCHAN_REF_CNT, 1);
-		OUT_RING  (chan, fence->sequence);
+		PUSH_DATA (chan, fence->sequence);
 		FIRE_RING (chan);
 	}
 	return ret;
@@ -64,7 +64,7 @@ static int
 nv17_fence_sync(struct nouveau_fence *fence,
 		struct nouveau_channel *prev, struct nouveau_channel *chan)
 {
-	struct nv10_fence_priv *priv = nv_engine(chan->dev, NVOBJ_ENGINE_FENCE);
+	struct nv10_fence_priv *priv = nv_engine(chan->device, NVOBJ_ENGINE_FENCE);
 	u32 value;
 	int ret;
 
@@ -79,19 +79,19 @@ nv17_fence_sync(struct nouveau_fence *fence,
 	ret = RING_SPACE(prev, 5);
 	if (!ret) {
 		BEGIN_NV04(prev, 0, NV11_SUBCHAN_DMA_SEMAPHORE, 4);
-		OUT_RING  (prev, NvSema);
-		OUT_RING  (prev, 0);
-		OUT_RING  (prev, value + 0);
-		OUT_RING  (prev, value + 1);
+		PUSH_DATA (prev, NvSema);
+		PUSH_DATA (prev, 0);
+		PUSH_DATA (prev, value + 0);
+		PUSH_DATA (prev, value + 1);
 		FIRE_RING (prev);
 	}
 
 	if (!ret && !(ret = RING_SPACE(chan, 5))) {
 		BEGIN_NV04(chan, 0, NV11_SUBCHAN_DMA_SEMAPHORE, 4);
-		OUT_RING  (chan, NvSema);
-		OUT_RING  (chan, 0);
-		OUT_RING  (chan, value + 1);
-		OUT_RING  (chan, value + 2);
+		PUSH_DATA (chan, NvSema);
+		PUSH_DATA (chan, 0);
+		PUSH_DATA (chan, value + 1);
+		PUSH_DATA (chan, value + 2);
 		FIRE_RING (chan);
 	}
 
@@ -117,7 +117,7 @@ nv10_fence_context_del(struct nouveau_channel *chan, int engine)
 static int
 nv10_fence_context_new(struct nouveau_channel *chan, int engine)
 {
-	struct nv10_fence_priv *priv = nv_engine(chan->dev, engine);
+	struct nv10_fence_priv *priv = nv_engine(chan->device, engine);
 	struct nv10_fence_chan *fctx;
 	struct nouveau_gpuobj *obj;
 	int ret = 0;
@@ -147,37 +147,30 @@ nv10_fence_context_new(struct nouveau_channel *chan, int engine)
 }
 
 static int
-nv10_fence_fini(struct drm_device *dev, int engine, bool suspend)
+nv10_fence_fini(struct nouveau_device *ndev, int engine, bool suspend)
 {
 	return 0;
 }
 
 static int
-nv10_fence_init(struct drm_device *dev, int engine)
+nv10_fence_init(struct nouveau_device *ndev, int engine)
 {
 	return 0;
 }
 
 static void
-nv10_fence_destroy(struct drm_device *dev, int engine)
+nv10_fence_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-	struct nv10_fence_priv *priv = nv_engine(dev, engine);
+	struct nv10_fence_priv *priv = nv_engine(ndev, engine);
 
-<<<<<<< HEAD
 	nouveau_bo_ref(NULL, &priv->bo);
-	dev_priv->engine[engine] = NULL;
-=======
-	nouveau_gpuobj_ref(NULL, &priv->mem);
 	ndev->engine[engine] = NULL;
->>>>>>> 91bfb3f... drm/nouveau: rename drm_nouveau_private to nouveau_device
 	kfree(priv);
 }
 
 int
-nv10_fence_create(struct drm_device *dev)
+nv10_fence_create(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nv10_fence_priv *priv;
 	int ret = 0;
 
@@ -197,7 +190,7 @@ nv10_fence_create(struct drm_device *dev)
 	spin_lock_init(&priv->lock);
 
 	if (ndev->chipset >= 0x17) {
-		ret = nouveau_bo_new(dev, 4096, 0x1000, TTM_PL_FLAG_VRAM,
+		ret = nouveau_bo_new(ndev, 4096, 0x1000, TTM_PL_FLAG_VRAM,
 				     0, 0x0000, NULL, &priv->bo);
 		if (!ret) {
 			ret = nouveau_bo_pin(priv->bo, TTM_PL_FLAG_VRAM);
@@ -214,6 +207,6 @@ nv10_fence_create(struct drm_device *dev)
 	}
 
 	if (ret)
-		nv10_fence_destroy(dev, NVOBJ_ENGINE_FENCE);
+		nv10_fence_destroy(ndev, NVOBJ_ENGINE_FENCE);
 	return ret;
 }

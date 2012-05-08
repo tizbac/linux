@@ -4,9 +4,8 @@
 #include "nouveau_drm.h"
 
 static struct drm_mm_node *
-nv20_fb_alloc_tag(struct drm_device *dev, uint32_t size)
+nv20_fb_alloc_tag(struct nouveau_device *ndev, u32 size)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	struct drm_mm_node *mem;
 	int ret;
@@ -25,9 +24,8 @@ nv20_fb_alloc_tag(struct drm_device *dev, uint32_t size)
 }
 
 static void
-nv20_fb_free_tag(struct drm_device *dev, struct drm_mm_node **pmem)
+nv20_fb_free_tag(struct nouveau_device *ndev, struct drm_mm_node **pmem)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_mm_node *mem = *pmem;
 	if (mem) {
 		spin_lock(&ndev->tile.lock);
@@ -38,10 +36,9 @@ nv20_fb_free_tag(struct drm_device *dev, struct drm_mm_node **pmem)
 }
 
 void
-nv20_fb_init_tile_region(struct drm_device *dev, int i, uint32_t addr,
-			 uint32_t size, uint32_t pitch, uint32_t flags)
+nv20_fb_init_tile_region(struct nouveau_device *ndev, int i, u32 addr,
+			 u32 size, u32 pitch, u32 flags)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 	int bpp = (flags & NOUVEAU_GEM_TILE_32BPP ? 32 : 16);
 
@@ -54,7 +51,7 @@ nv20_fb_init_tile_region(struct drm_device *dev, int i, uint32_t addr,
 	 * if a given tile is compressed or not).
 	 */
 	if (flags & NOUVEAU_GEM_TILE_ZETA) {
-		tile->tag_mem = nv20_fb_alloc_tag(dev, size / 256);
+		tile->tag_mem = nv20_fb_alloc_tag(ndev, size / 256);
 		if (tile->tag_mem) {
 			/* Enable Z compression */
 			tile->zcomp = tile->tag_mem->start;
@@ -75,33 +72,30 @@ nv20_fb_init_tile_region(struct drm_device *dev, int i, uint32_t addr,
 }
 
 void
-nv20_fb_free_tile_region(struct drm_device *dev, int i)
+nv20_fb_free_tile_region(struct nouveau_device *ndev, int i)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	tile->addr = tile->limit = tile->pitch = tile->zcomp = 0;
-	nv20_fb_free_tag(dev, &tile->tag_mem);
+	nv20_fb_free_tag(ndev, &tile->tag_mem);
 }
 
 void
-nv20_fb_set_tile_region(struct drm_device *dev, int i)
+nv20_fb_set_tile_region(struct nouveau_device *ndev, int i)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
-	nv_wr32(dev, NV10_PFB_TLIMIT(i), tile->limit);
-	nv_wr32(dev, NV10_PFB_TSIZE(i), tile->pitch);
-	nv_wr32(dev, NV10_PFB_TILE(i), tile->addr);
-	nv_wr32(dev, NV20_PFB_ZCOMP(i), tile->zcomp);
+	nv_wr32(ndev, NV10_PFB_TLIMIT(i), tile->limit);
+	nv_wr32(ndev, NV10_PFB_TSIZE(i), tile->pitch);
+	nv_wr32(ndev, NV10_PFB_TILE(i), tile->addr);
+	nv_wr32(ndev, NV20_PFB_ZCOMP(i), tile->zcomp);
 }
 
 int
-nv20_fb_vram_init(struct drm_device *dev)
+nv20_fb_vram_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-	u32 mem_size = nv_rd32(dev, 0x10020c);
-	u32 pbus1218 = nv_rd32(dev, 0x001218);
+	u32 mem_size = nv_rd32(ndev, 0x10020c);
+	u32 pbus1218 = nv_rd32(ndev, 0x001218);
 
 	ndev->vram_size = mem_size & 0xff000000;
 	switch (pbus1218 & 0x00000300) {
@@ -115,9 +109,8 @@ nv20_fb_vram_init(struct drm_device *dev)
 }
 
 int
-nv20_fb_init(struct drm_device *dev)
+nv20_fb_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	int i;
 
@@ -129,20 +122,19 @@ nv20_fb_init(struct drm_device *dev)
 	/* Turn all the tiling regions off. */
 	pfb->num_tiles = NV10_PFB_TILE__SIZE;
 	for (i = 0; i < pfb->num_tiles; i++)
-		pfb->set_tile_region(dev, i);
+		pfb->set_tile_region(ndev, i);
 
 	return 0;
 }
 
 void
-nv20_fb_takedown(struct drm_device *dev)
+nv20_fb_takedown(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	int i;
 
 	for (i = 0; i < pfb->num_tiles; i++)
-		pfb->free_tile_region(dev, i);
+		pfb->free_tile_region(ndev, i);
 
 	drm_mm_takedown(&pfb->tag_heap);
 }

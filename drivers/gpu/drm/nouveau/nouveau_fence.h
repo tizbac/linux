@@ -42,11 +42,11 @@ struct nouveau_fence_priv {
 void nouveau_fence_context_new(struct nouveau_fence_chan *);
 void nouveau_fence_context_del(struct nouveau_fence_chan *);
 
-int nv04_fence_create(struct drm_device *dev);
+int nv04_fence_create(struct nouveau_device *);
 int nv04_fence_mthd(struct nouveau_channel *, u32, u32, u32);
 
-int nv10_fence_create(struct drm_device *dev);
-int nv84_fence_create(struct drm_device *dev);
-int nvc0_fence_create(struct drm_device *dev);
+int nv10_fence_create(struct nouveau_device *);
+int nv84_fence_create(struct nouveau_device *);
+int nvc0_fence_create(struct nouveau_device *);
 
 #endif

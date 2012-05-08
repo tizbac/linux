@@ -71,14 +71,14 @@ mthd_vblsem_value(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 static int
 mthd_vblsem_release(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 {
-	struct nv50_software_priv *psw = nv_engine(chan->dev, NVOBJ_ENGINE_SW);
+	struct nv50_software_priv *psw = nv_engine(chan->device, NVOBJ_ENGINE_SW);
 	struct nv50_software_chan *pch = chan->engctx[NVOBJ_ENGINE_SW];
-	struct drm_device *dev = chan->dev;
+	struct nouveau_device *ndev = chan->device;
 
 	if (data > 1)
 		return -EINVAL;
 
-	drm_vblank_get(dev, data);
+	drm_vblank_get(ndev->dev, data);
 
 	pch->base.vblank.head = data;
 	list_add(&pch->base.vblank.list, &psw->base.vblank);
@@ -95,8 +95,8 @@ mthd_flip(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 static int
 nv50_software_context_new(struct nouveau_channel *chan, int engine)
 {
-	struct nv50_software_priv *psw = nv_engine(chan->dev, NVOBJ_ENGINE_SW);
-	struct nv50_display *pdisp = nv50_display(chan->dev);
+	struct nv50_software_priv *psw = nv_engine(chan->device, NVOBJ_ENGINE_SW);
+	struct nv50_display *pdisp = nv50_display(chan->device);
 	struct nv50_software_chan *pch;
 	int ret = 0, i;
 
@@ -109,7 +109,7 @@ nv50_software_context_new(struct nouveau_channel *chan, int engine)
 	chan->engctx[engine] = pch;
 
 	/* dma objects for display sync channel semaphore blocks */
-	for (i = 0; i < chan->dev->mode_config.num_crtc; i++) {
+	for (i = 0; i < chan->device->dev->mode_config.num_crtc; i++) {
 		struct nv50_display_crtc *dispc = &pdisp->crtc[i];
 		struct nouveau_gpuobj *obj = NULL;
 
@@ -141,11 +141,11 @@ static int
 nv50_software_object_new(struct nouveau_channel *chan, int engine,
 			 u32 handle, u16 class)
 {
-	struct drm_device *dev = chan->dev;
+	struct nouveau_device *ndev = chan->device;
 	struct nouveau_gpuobj *obj = NULL;
 	int ret;
 
-	ret = nouveau_gpuobj_new(dev, chan, 16, 16, 0, &obj);
+	ret = nouveau_gpuobj_new(ndev, chan, 16, 16, 0, &obj);
 	if (ret)
 		return ret;
 	obj->engine = 0;
@@ -157,28 +157,28 @@ nv50_software_object_new(struct nouveau_channel *chan, int engine,
 }
 
 static int
-nv50_software_init(struct drm_device *dev, int engine)
+nv50_software_init(struct nouveau_device *ndev, int engine)
 {
 	return 0;
 }
 
 static int
-nv50_software_fini(struct drm_device *dev, int engine, bool suspend)
+nv50_software_fini(struct nouveau_device *ndev, int engine, bool suspend)
 {
 	return 0;
 }
 
 static void
-nv50_software_destroy(struct drm_device *dev, int engine)
+nv50_software_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv50_software_priv *psw = nv_engine(dev, engine);
+	struct nv50_software_priv *psw = nv_engine(ndev, engine);
 
-	NVOBJ_ENGINE_DEL(dev, SW);
+	NVOBJ_ENGINE_DEL(ndev, SW);
 	kfree(psw);
 }
 
 int
-nv50_software_create(struct drm_device *dev)
+nv50_software_create(struct nouveau_device *ndev)
 {
 	struct nv50_software_priv *psw = kzalloc(sizeof(*psw), GFP_KERNEL);
 	if (!psw)
@@ -192,12 +192,12 @@ nv50_software_create(struct drm_device *dev)
 	psw->base.base.object_new = nv50_software_object_new;
 	nouveau_software_create(&psw->base);
 
-	NVOBJ_ENGINE_ADD(dev, SW, &psw->base.base);
-	NVOBJ_CLASS(dev, 0x506e, SW);
-	NVOBJ_MTHD (dev, 0x506e, 0x018c, mthd_dma_vblsem);
-	NVOBJ_MTHD (dev, 0x506e, 0x0400, mthd_vblsem_offset);
-	NVOBJ_MTHD (dev, 0x506e, 0x0404, mthd_vblsem_value);
-	NVOBJ_MTHD (dev, 0x506e, 0x0408, mthd_vblsem_release);
-	NVOBJ_MTHD (dev, 0x506e, 0x0500, mthd_flip);
+	NVOBJ_ENGINE_ADD(ndev, SW, &psw->base.base);
+	NVOBJ_CLASS(ndev, 0x506e, SW);
+	NVOBJ_MTHD (ndev, 0x506e, 0x018c, mthd_dma_vblsem);
+	NVOBJ_MTHD (ndev, 0x506e, 0x0400, mthd_vblsem_offset);
+	NVOBJ_MTHD (ndev, 0x506e, 0x0404, mthd_vblsem_value);
+	NVOBJ_MTHD (ndev, 0x506e, 0x0408, mthd_vblsem_release);
+	NVOBJ_MTHD (ndev, 0x506e, 0x0500, mthd_flip);
 	return 0;
 }

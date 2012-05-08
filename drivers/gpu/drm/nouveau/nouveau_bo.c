@@ -45,13 +45,12 @@ static void
 nouveau_bo_del_ttm(struct ttm_buffer_object *bo)
 {
 	struct nouveau_device *ndev = nouveau_bdev(bo->bdev);
-	struct drm_device *dev = ndev->dev;
 	struct nouveau_bo *nvbo = nouveau_bo(bo);
 
 	if (unlikely(nvbo->gem))
 		DRM_ERROR("bo %p still attached to GEM object\n", bo);
 
-	nv10_mem_put_tile_region(dev, nvbo->tile, NULL);
+	nv10_mem_put_tile_region(ndev, nvbo->tile, NULL);
 	kfree(nvbo);
 }
 
@@ -89,12 +88,10 @@ nouveau_bo_fixup_align(struct nouveau_bo *nvbo, u32 flags,
 }
 
 int
-nouveau_bo_new(struct drm_device *dev, int size, int align,
+nouveau_bo_new(struct nouveau_device *ndev, int size, int align,
 	       uint32_t flags, uint32_t tile_mode, uint32_t tile_flags,
-	       struct sg_table *sg,
-	       struct nouveau_bo **pnvbo)
+	       struct sg_table *sg, struct nouveau_bo **pnvbo)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_bo *nvbo;
 	size_t acc_size;
 	int ret;
@@ -140,7 +137,7 @@ nouveau_bo_new(struct drm_device *dev, int size, int align,
 }
 
 static void
-set_placement_list(uint32_t *pl, unsigned *n, uint32_t type, uint32_t flags)
+set_placement_list(u32 *pl, unsigned *n, u32 type, u32 flags)
 {
 	*n = 0;
 
@@ -153,7 +150,7 @@ set_placement_list(uint32_t *pl, unsigned *n, uint32_t type, uint32_t flags)
 }
 
 static void
-set_placement_range(struct nouveau_bo *nvbo, uint32_t type)
+set_placement_range(struct nouveau_bo *nvbo, u32 type)
 {
 	struct nouveau_device *ndev = nouveau_bdev(nvbo->bo.bdev);
 	int vram_pages = ndev->vram_size >> PAGE_SHIFT;
@@ -178,10 +175,10 @@ set_placement_range(struct nouveau_bo *nvbo, uint32_t type)
 }
 
 void
-nouveau_bo_placement_set(struct nouveau_bo *nvbo, uint32_t type, uint32_t busy)
+nouveau_bo_placement_set(struct nouveau_bo *nvbo, u32 type, u32 busy)
 {
 	struct ttm_placement *pl = &nvbo->placement;
-	uint32_t flags = TTM_PL_MASK_CACHING |
+	u32 flags = TTM_PL_MASK_CACHING |
 		(nvbo->pin_refcnt ? TTM_PL_FLAG_NO_EVICT : 0);
 
 	pl->placement = nvbo->placements;
@@ -196,14 +193,14 @@ nouveau_bo_placement_set(struct nouveau_bo *nvbo, uint32_t type, uint32_t busy)
 }
 
 int
-nouveau_bo_pin(struct nouveau_bo *nvbo, uint32_t memtype)
+nouveau_bo_pin(struct nouveau_bo *nvbo, u32 memtype)
 {
 	struct nouveau_device *ndev = nouveau_bdev(nvbo->bo.bdev);
 	struct ttm_buffer_object *bo = &nvbo->bo;
 	int ret;
 
 	if (nvbo->pin_refcnt && !(memtype & (1 << bo->mem.mem_type))) {
-		NV_ERROR(nouveau_bdev(bo->bdev)->dev,
+		NV_ERROR(nouveau_bdev(bo->bdev),
 			 "bo %p pinned elsewhere: 0x%08x vs 0x%08x\n", bo,
 			 1 << bo->mem.mem_type, memtype);
 		return -EINVAL;
@@ -357,16 +354,15 @@ nouveau_bo_wr32(struct nouveau_bo *nvbo, unsigned index, u32 val)
 
 static struct ttm_tt *
 nouveau_ttm_tt_create(struct ttm_bo_device *bdev,
-		      unsigned long size, uint32_t page_flags,
+		      unsigned long size, u32 page_flags,
 		      struct page *dummy_read_page)
 {
 	struct nouveau_device *ndev = nouveau_bdev(bdev);
-	struct drm_device *dev = ndev->dev;
 
 	switch (ndev->gart_info.type) {
 #if __OS_HAS_AGP
 	case NOUVEAU_GART_AGP:
-		return ttm_agp_tt_create(bdev, dev->agp->bridge,
+		return ttm_agp_tt_create(bdev, ndev->dev->agp->bridge,
 					 size, page_flags, dummy_read_page);
 #endif
 	case NOUVEAU_GART_PDMA:
@@ -374,7 +370,7 @@ nouveau_ttm_tt_create(struct ttm_bo_device *bdev,
 		return nouveau_sgdma_create_ttm(bdev, size, page_flags,
 						dummy_read_page);
 	default:
-		NV_ERROR(dev, "Unknown GART type %d\n",
+		NV_ERROR(ndev, "Unknown GART type %d\n",
 			 ndev->gart_info.type);
 		break;
 	}
@@ -383,18 +379,17 @@ nouveau_ttm_tt_create(struct ttm_bo_device *bdev,
 }
 
 static int
-nouveau_bo_invalidate_caches(struct ttm_bo_device *bdev, uint32_t flags)
+nouveau_bo_invalidate_caches(struct ttm_bo_device *bdev, u32 flags)
 {
 	/* We'll do this from user space. */
 	return 0;
 }
 
 static int
-nouveau_bo_init_mem_type(struct ttm_bo_device *bdev, uint32_t type,
+nouveau_bo_init_mem_type(struct ttm_bo_device *bdev, u32 type,
 			 struct ttm_mem_type_manager *man)
 {
 	struct nouveau_device *ndev = nouveau_bdev(bdev);
-	struct drm_device *dev = ndev->dev;
 
 	switch (type) {
 	case TTM_PL_SYSTEM:
@@ -436,13 +431,13 @@ nouveau_bo_init_mem_type(struct ttm_bo_device *bdev, uint32_t type,
 			man->default_caching = TTM_PL_FLAG_CACHED;
 			break;
 		default:
-			NV_ERROR(dev, "Unknown GART type: %d\n",
+			NV_ERROR(ndev, "Unknown GART type: %d\n",
 				 ndev->gart_info.type);
 			return -EINVAL;
 		}
 		break;
 	default:
-		NV_ERROR(dev, "Unsupported memory type %u\n", (unsigned)type);
+		NV_ERROR(ndev, "Unsupported memory type %u\n", (unsigned)type);
 		return -EINVAL;
 	}
 	return 0;
@@ -498,14 +493,14 @@ nve0_bo_move_copy(struct nouveau_channel *chan, struct ttm_buffer_object *bo,
 	int ret = RING_SPACE(chan, 10);
 	if (ret == 0) {
 		BEGIN_NVC0(chan, NvSubCopy, 0x0400, 8);
-		OUT_RING  (chan, upper_32_bits(node->vma[0].offset));
-		OUT_RING  (chan, lower_32_bits(node->vma[0].offset));
-		OUT_RING  (chan, upper_32_bits(node->vma[1].offset));
-		OUT_RING  (chan, lower_32_bits(node->vma[1].offset));
-		OUT_RING  (chan, PAGE_SIZE);
-		OUT_RING  (chan, PAGE_SIZE);
-		OUT_RING  (chan, PAGE_SIZE);
-		OUT_RING  (chan, new_mem->num_pages);
+		PUSH_DATA (chan, upper_32_bits(node->vma[0].offset));
+		PUSH_DATA (chan, lower_32_bits(node->vma[0].offset));
+		PUSH_DATA (chan, upper_32_bits(node->vma[1].offset));
+		PUSH_DATA (chan, lower_32_bits(node->vma[1].offset));
+		PUSH_DATA (chan, PAGE_SIZE);
+		PUSH_DATA (chan, PAGE_SIZE);
+		PUSH_DATA (chan, PAGE_SIZE);
+		PUSH_DATA (chan, new_mem->num_pages);
 		BEGIN_IMC0(chan, NvSubCopy, 0x0300, 0x0386);
 	}
 	return ret;
@@ -517,7 +512,7 @@ nvc0_bo_move_init(struct nouveau_channel *chan, u32 handle)
 	int ret = RING_SPACE(chan, 2);
 	if (ret == 0) {
 		BEGIN_NVC0(chan, NvSubCopy, 0x0000, 1);
-		OUT_RING  (chan, handle);
+		PUSH_DATA (chan, handle);
 	}
 	return ret;
 }
@@ -541,16 +536,16 @@ nvc0_bo_move_copy(struct nouveau_channel *chan, struct ttm_buffer_object *bo,
 			return ret;
 
 		BEGIN_NVC0(chan, NvSubCopy, 0x030c, 8);
-		OUT_RING  (chan, upper_32_bits(src_offset));
-		OUT_RING  (chan, lower_32_bits(src_offset));
-		OUT_RING  (chan, upper_32_bits(dst_offset));
-		OUT_RING  (chan, lower_32_bits(dst_offset));
-		OUT_RING  (chan, PAGE_SIZE);
-		OUT_RING  (chan, PAGE_SIZE);
-		OUT_RING  (chan, PAGE_SIZE);
-		OUT_RING  (chan, line_count);
+		PUSH_DATA (chan, upper_32_bits(src_offset));
+		PUSH_DATA (chan, lower_32_bits(src_offset));
+		PUSH_DATA (chan, upper_32_bits(dst_offset));
+		PUSH_DATA (chan, lower_32_bits(dst_offset));
+		PUSH_DATA (chan, PAGE_SIZE);
+		PUSH_DATA (chan, PAGE_SIZE);
+		PUSH_DATA (chan, PAGE_SIZE);
+		PUSH_DATA (chan, line_count);
 		BEGIN_NVC0(chan, NvSubCopy, 0x0300, 1);
-		OUT_RING  (chan, 0x00000110);
+		PUSH_DATA (chan, 0x00000110);
 
 		page_count -= line_count;
 		src_offset += (PAGE_SIZE * line_count);
@@ -579,17 +574,17 @@ nvc0_bo_move_m2mf(struct nouveau_channel *chan, struct ttm_buffer_object *bo,
 			return ret;
 
 		BEGIN_NVC0(chan, NvSubCopy, 0x0238, 2);
-		OUT_RING  (chan, upper_32_bits(dst_offset));
-		OUT_RING  (chan, lower_32_bits(dst_offset));
+		PUSH_DATA (chan, upper_32_bits(dst_offset));
+		PUSH_DATA (chan, lower_32_bits(dst_offset));
 		BEGIN_NVC0(chan, NvSubCopy, 0x030c, 6);
-		OUT_RING  (chan, upper_32_bits(src_offset));
-		OUT_RING  (chan, lower_32_bits(src_offset));
-		OUT_RING  (chan, PAGE_SIZE); /* src_pitch */
-		OUT_RING  (chan, PAGE_SIZE); /* dst_pitch */
-		OUT_RING  (chan, PAGE_SIZE); /* line_length */
-		OUT_RING  (chan, line_count);
+		PUSH_DATA (chan, upper_32_bits(src_offset));
+		PUSH_DATA (chan, lower_32_bits(src_offset));
+		PUSH_DATA (chan, PAGE_SIZE); /* src_pitch */
+		PUSH_DATA (chan, PAGE_SIZE); /* dst_pitch */
+		PUSH_DATA (chan, PAGE_SIZE); /* line_length */
+		PUSH_DATA (chan, line_count);
 		BEGIN_NVC0(chan, NvSubCopy, 0x0300, 1);
-		OUT_RING  (chan, 0x00100110);
+		PUSH_DATA (chan, 0x00100110);
 
 		page_count -= line_count;
 		src_offset += (PAGE_SIZE * line_count);
@@ -618,16 +613,16 @@ nva3_bo_move_copy(struct nouveau_channel *chan, struct ttm_buffer_object *bo,
 			return ret;
 
 		BEGIN_NV04(chan, NvSubCopy, 0x030c, 8);
-		OUT_RING  (chan, upper_32_bits(src_offset));
-		OUT_RING  (chan, lower_32_bits(src_offset));
-		OUT_RING  (chan, upper_32_bits(dst_offset));
-		OUT_RING  (chan, lower_32_bits(dst_offset));
-		OUT_RING  (chan, PAGE_SIZE);
-		OUT_RING  (chan, PAGE_SIZE);
-		OUT_RING  (chan, PAGE_SIZE);
-		OUT_RING  (chan, line_count);
+		PUSH_DATA (chan, upper_32_bits(src_offset));
+		PUSH_DATA (chan, lower_32_bits(src_offset));
+		PUSH_DATA (chan, upper_32_bits(dst_offset));
+		PUSH_DATA (chan, lower_32_bits(dst_offset));
+		PUSH_DATA (chan, PAGE_SIZE);
+		PUSH_DATA (chan, PAGE_SIZE);
+		PUSH_DATA (chan, PAGE_SIZE);
+		PUSH_DATA (chan, line_count);
 		BEGIN_NV04(chan, NvSubCopy, 0x0300, 1);
-		OUT_RING  (chan, 0x00000110);
+		PUSH_DATA (chan, 0x00000110);
 
 		page_count -= line_count;
 		src_offset += (PAGE_SIZE * line_count);
@@ -645,12 +640,12 @@ nv98_bo_move_exec(struct nouveau_channel *chan, struct ttm_buffer_object *bo,
 	int ret = RING_SPACE(chan, 7);
 	if (ret == 0) {
 		BEGIN_NV04(chan, NvSubCopy, 0x0320, 6);
-		OUT_RING  (chan, upper_32_bits(node->vma[0].offset));
-		OUT_RING  (chan, lower_32_bits(node->vma[0].offset));
-		OUT_RING  (chan, upper_32_bits(node->vma[1].offset));
-		OUT_RING  (chan, lower_32_bits(node->vma[1].offset));
-		OUT_RING  (chan, 0x00000000 /* COPY */);
-		OUT_RING  (chan, new_mem->num_pages << PAGE_SHIFT);
+		PUSH_DATA (chan, upper_32_bits(node->vma[0].offset));
+		PUSH_DATA (chan, lower_32_bits(node->vma[0].offset));
+		PUSH_DATA (chan, upper_32_bits(node->vma[1].offset));
+		PUSH_DATA (chan, lower_32_bits(node->vma[1].offset));
+		PUSH_DATA (chan, 0x00000000 /* COPY */);
+		PUSH_DATA (chan, new_mem->num_pages << PAGE_SHIFT);
 	}
 	return ret;
 }
@@ -663,12 +658,12 @@ nv84_bo_move_exec(struct nouveau_channel *chan, struct ttm_buffer_object *bo,
 	int ret = RING_SPACE(chan, 7);
 	if (ret == 0) {
 		BEGIN_NV04(chan, NvSubCopy, 0x0304, 6);
-		OUT_RING  (chan, new_mem->num_pages << PAGE_SHIFT);
-		OUT_RING  (chan, upper_32_bits(node->vma[0].offset));
-		OUT_RING  (chan, lower_32_bits(node->vma[0].offset));
-		OUT_RING  (chan, upper_32_bits(node->vma[1].offset));
-		OUT_RING  (chan, lower_32_bits(node->vma[1].offset));
-		OUT_RING  (chan, 0x00000000 /* MODE_COPY, QUERY_NONE */);
+		PUSH_DATA (chan, new_mem->num_pages << PAGE_SHIFT);
+		PUSH_DATA (chan, upper_32_bits(node->vma[0].offset));
+		PUSH_DATA (chan, lower_32_bits(node->vma[0].offset));
+		PUSH_DATA (chan, upper_32_bits(node->vma[1].offset));
+		PUSH_DATA (chan, lower_32_bits(node->vma[1].offset));
+		PUSH_DATA (chan, 0x00000000 /* MODE_COPY, QUERY_NONE */);
 	}
 	return ret;
 }
@@ -682,11 +677,11 @@ nv50_bo_move_init(struct nouveau_channel *chan, u32 handle)
 		ret = RING_SPACE(chan, 6);
 		if (ret == 0) {
 			BEGIN_NV04(chan, NvSubCopy, 0x0000, 1);
-			OUT_RING  (chan, handle);
+			PUSH_DATA (chan, handle);
 			BEGIN_NV04(chan, NvSubCopy, 0x0180, 3);
-			OUT_RING  (chan, NvNotify0);
-			OUT_RING  (chan, NvDmaFB);
-			OUT_RING  (chan, NvDmaFB);
+			PUSH_DATA (chan, NvNotify0);
+			PUSH_DATA (chan, NvDmaFB);
+			PUSH_DATA (chan, NvDmaFB);
 		} else {
 			nouveau_ramht_remove(chan, NvNotify0);
 		}
@@ -720,20 +715,20 @@ nv50_bo_move_m2mf(struct nouveau_channel *chan, struct ttm_buffer_object *bo,
 				return ret;
 
 			BEGIN_NV04(chan, NvSubCopy, 0x0200, 7);
-			OUT_RING  (chan, 0);
-			OUT_RING  (chan, 0);
-			OUT_RING  (chan, stride);
-			OUT_RING  (chan, height);
-			OUT_RING  (chan, 1);
-			OUT_RING  (chan, 0);
-			OUT_RING  (chan, 0);
+			PUSH_DATA (chan, 0);
+			PUSH_DATA (chan, 0);
+			PUSH_DATA (chan, stride);
+			PUSH_DATA (chan, height);
+			PUSH_DATA (chan, 1);
+			PUSH_DATA (chan, 0);
+			PUSH_DATA (chan, 0);
 		} else {
 			ret = RING_SPACE(chan, 2);
 			if (ret)
 				return ret;
 
 			BEGIN_NV04(chan, NvSubCopy, 0x0200, 1);
-			OUT_RING  (chan, 1);
+			PUSH_DATA (chan, 1);
 		}
 		if (old_mem->mem_type == TTM_PL_VRAM &&
 		    nouveau_bo_tile_layout(nvbo)) {
@@ -742,20 +737,20 @@ nv50_bo_move_m2mf(struct nouveau_channel *chan, struct ttm_buffer_object *bo,
 				return ret;
 
 			BEGIN_NV04(chan, NvSubCopy, 0x021c, 7);
-			OUT_RING  (chan, 0);
-			OUT_RING  (chan, 0);
-			OUT_RING  (chan, stride);
-			OUT_RING  (chan, height);
-			OUT_RING  (chan, 1);
-			OUT_RING  (chan, 0);
-			OUT_RING  (chan, 0);
+			PUSH_DATA (chan, 0);
+			PUSH_DATA (chan, 0);
+			PUSH_DATA (chan, stride);
+			PUSH_DATA (chan, height);
+			PUSH_DATA (chan, 1);
+			PUSH_DATA (chan, 0);
+			PUSH_DATA (chan, 0);
 		} else {
 			ret = RING_SPACE(chan, 2);
 			if (ret)
 				return ret;
 
 			BEGIN_NV04(chan, NvSubCopy, 0x021c, 1);
-			OUT_RING  (chan, 1);
+			PUSH_DATA (chan, 1);
 		}
 
 		ret = RING_SPACE(chan, 14);
@@ -763,19 +758,19 @@ nv50_bo_move_m2mf(struct nouveau_channel *chan, struct ttm_buffer_object *bo,
 			return ret;
 
 		BEGIN_NV04(chan, NvSubCopy, 0x0238, 2);
-		OUT_RING  (chan, upper_32_bits(src_offset));
-		OUT_RING  (chan, upper_32_bits(dst_offset));
+		PUSH_DATA (chan, upper_32_bits(src_offset));
+		PUSH_DATA (chan, upper_32_bits(dst_offset));
 		BEGIN_NV04(chan, NvSubCopy, 0x030c, 8);
-		OUT_RING  (chan, lower_32_bits(src_offset));
-		OUT_RING  (chan, lower_32_bits(dst_offset));
-		OUT_RING  (chan, stride);
-		OUT_RING  (chan, stride);
-		OUT_RING  (chan, stride);
-		OUT_RING  (chan, height);
-		OUT_RING  (chan, 0x00000101);
-		OUT_RING  (chan, 0x00000000);
+		PUSH_DATA (chan, lower_32_bits(src_offset));
+		PUSH_DATA (chan, lower_32_bits(dst_offset));
+		PUSH_DATA (chan, stride);
+		PUSH_DATA (chan, stride);
+		PUSH_DATA (chan, stride);
+		PUSH_DATA (chan, height);
+		PUSH_DATA (chan, 0x00000101);
+		PUSH_DATA (chan, 0x00000000);
 		BEGIN_NV04(chan, NvSubCopy, NV_MEMORY_TO_MEMORY_FORMAT_NOP, 1);
-		OUT_RING  (chan, 0);
+		PUSH_DATA (chan, 0);
 
 		length -= amount;
 		src_offset += amount;
@@ -794,16 +789,16 @@ nv04_bo_move_init(struct nouveau_channel *chan, u32 handle)
 		ret = RING_SPACE(chan, 4);
 		if (ret == 0) {
 			BEGIN_NV04(chan, NvSubCopy, 0x0000, 1);
-			OUT_RING  (chan, handle);
+			PUSH_DATA (chan, handle);
 			BEGIN_NV04(chan, NvSubCopy, 0x0180, 1);
-			OUT_RING  (chan, NvNotify0);
+			PUSH_DATA (chan, NvNotify0);
 		}
 	}
 
 	return ret;
 }
 
-static inline uint32_t
+static inline u32
 nouveau_bo_mem_ctxdma(struct ttm_buffer_object *bo,
 		      struct nouveau_channel *chan, struct ttm_mem_reg *mem)
 {
@@ -826,8 +821,8 @@ nv04_bo_move_m2mf(struct nouveau_channel *chan, struct ttm_buffer_object *bo,
 		return ret;
 
 	BEGIN_NV04(chan, NvSubCopy, NV_MEMORY_TO_MEMORY_FORMAT_DMA_SOURCE, 2);
-	OUT_RING  (chan, nouveau_bo_mem_ctxdma(bo, chan, old_mem));
-	OUT_RING  (chan, nouveau_bo_mem_ctxdma(bo, chan, new_mem));
+	PUSH_DATA (chan, nouveau_bo_mem_ctxdma(bo, chan, old_mem));
+	PUSH_DATA (chan, nouveau_bo_mem_ctxdma(bo, chan, new_mem));
 
 	page_count = new_mem->num_pages;
 	while (page_count) {
@@ -839,16 +834,16 @@ nv04_bo_move_m2mf(struct nouveau_channel *chan, struct ttm_buffer_object *bo,
 
 		BEGIN_NV04(chan, NvSubCopy,
 				 NV_MEMORY_TO_MEMORY_FORMAT_OFFSET_IN, 8);
-		OUT_RING  (chan, src_offset);
-		OUT_RING  (chan, dst_offset);
-		OUT_RING  (chan, PAGE_SIZE); /* src_pitch */
-		OUT_RING  (chan, PAGE_SIZE); /* dst_pitch */
-		OUT_RING  (chan, PAGE_SIZE); /* line_length */
-		OUT_RING  (chan, line_count);
-		OUT_RING  (chan, 0x00000101);
-		OUT_RING  (chan, 0x00000000);
+		PUSH_DATA (chan, src_offset);
+		PUSH_DATA (chan, dst_offset);
+		PUSH_DATA (chan, PAGE_SIZE); /* src_pitch */
+		PUSH_DATA (chan, PAGE_SIZE); /* dst_pitch */
+		PUSH_DATA (chan, PAGE_SIZE); /* line_length */
+		PUSH_DATA (chan, line_count);
+		PUSH_DATA (chan, 0x00000101);
+		PUSH_DATA (chan, 0x00000000);
 		BEGIN_NV04(chan, NvSubCopy, NV_MEMORY_TO_MEMORY_FORMAT_NOP, 1);
-		OUT_RING  (chan, 0);
+		PUSH_DATA (chan, 0);
 
 		page_count -= line_count;
 		src_offset += (PAGE_SIZE * line_count);
@@ -922,7 +917,7 @@ out:
 void
 nouveau_bo_move_init(struct nouveau_channel *chan)
 {
-	struct nouveau_device *ndev = nouveau_device(chan->dev);
+	struct nouveau_device *ndev = chan->device;
 	static const struct {
 		const char *name;
 		int engine;
@@ -959,7 +954,7 @@ nouveau_bo_move_init(struct nouveau_channel *chan)
 		}
 	} while ((++mthd)->exec);
 
-	NV_INFO(chan->dev, "MM: using %s for buffer copies\n", name);
+	NV_INFO(chan->device, "MM: using %s for buffer copies\n", name);
 }
 
 static int
@@ -1064,7 +1059,6 @@ nouveau_bo_vm_bind(struct ttm_buffer_object *bo, struct ttm_mem_reg *new_mem,
 		   struct nouveau_tile_reg **new_tile)
 {
 	struct nouveau_device *ndev = nouveau_bdev(bo->bdev);
-	struct drm_device *dev = ndev->dev;
 	struct nouveau_bo *nvbo = nouveau_bo(bo);
 	u64 offset = new_mem->start << PAGE_SHIFT;
 
@@ -1073,7 +1067,7 @@ nouveau_bo_vm_bind(struct ttm_buffer_object *bo, struct ttm_mem_reg *new_mem,
 		return 0;
 
 	if (ndev->card_type >= NV_10) {
-		*new_tile = nv10_mem_set_tiling(dev, offset, new_mem->size,
+		*new_tile = nv10_mem_set_tiling(ndev, offset, new_mem->size,
 						nvbo->tile_mode,
 						nvbo->tile_flags);
 	}
@@ -1087,9 +1081,8 @@ nouveau_bo_vm_cleanup(struct ttm_buffer_object *bo,
 		      struct nouveau_tile_reg **old_tile)
 {
 	struct nouveau_device *ndev = nouveau_bdev(bo->bdev);
-	struct drm_device *dev = ndev->dev;
 
-	nv10_mem_put_tile_region(dev, *old_tile, bo->sync_obj);
+	nv10_mem_put_tile_region(ndev, *old_tile, bo->sync_obj);
 	*old_tile = new_tile;
 }
 
@@ -1328,17 +1321,14 @@ nouveau_ttm_tt_populate(struct ttm_tt *ttm)
 static void
 nouveau_ttm_tt_unpopulate(struct ttm_tt *ttm)
 {
+	struct nouveau_device *ndev = nouveau_bdev(ttm->bdev);
+	struct drm_device *dev = ndev->dev;
 	struct ttm_dma_tt *ttm_dma = (void *)ttm;
-	struct nouveau_device *ndev;
-	struct drm_device *dev;
 	unsigned i;
 	bool slave = !!(ttm->page_flags & TTM_PAGE_FLAG_SG);
 
 	if (slave)
 		return;
-
-	ndev = nouveau_bdev(ttm->bdev);
-	dev = ndev->dev;
 
 #if __OS_HAS_AGP
 	if (ndev->gart_info.type == NOUVEAU_GART_AGP) {

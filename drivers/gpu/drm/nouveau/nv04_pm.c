@@ -28,16 +28,16 @@
 #include "nouveau_pm.h"
 
 int
-nv04_pm_clocks_get(struct drm_device *dev, struct nouveau_pm_level *perflvl)
+nv04_pm_clocks_get(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
 {
 	int ret;
 
-	ret = nouveau_hw_get_clock(dev, PLL_CORE);
+	ret = nouveau_hw_get_clock(ndev, PLL_CORE);
 	if (ret < 0)
 		return ret;
 	perflvl->core = ret;
 
-	ret = nouveau_hw_get_clock(dev, PLL_MEMORY);
+	ret = nouveau_hw_get_clock(ndev, PLL_MEMORY);
 	if (ret < 0)
 		return ret;
 	perflvl->memory = ret;
@@ -56,15 +56,15 @@ struct nv04_pm_state {
 };
 
 static int
-calc_pll(struct drm_device *dev, u32 id, int khz, struct nv04_pm_clock *clk)
+calc_pll(struct nouveau_device *ndev, u32 id, int khz, struct nv04_pm_clock *clk)
 {
 	int ret;
 
-	ret = get_pll_limits(dev, id, &clk->pll);
+	ret = get_pll_limits(ndev, id, &clk->pll);
 	if (ret)
 		return ret;
 
-	ret = nouveau_calc_pll_mnp(dev, &clk->pll, khz, &clk->calc);
+	ret = nouveau_calc_pll_mnp(ndev, &clk->pll, khz, &clk->calc);
 	if (!ret)
 		return -EINVAL;
 
@@ -72,7 +72,7 @@ calc_pll(struct drm_device *dev, u32 id, int khz, struct nv04_pm_clock *clk)
 }
 
 void *
-nv04_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
+nv04_pm_clocks_pre(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
 {
 	struct nv04_pm_state *info;
 	int ret;
@@ -81,12 +81,12 @@ nv04_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 	if (!info)
 		return ERR_PTR(-ENOMEM);
 
-	ret = calc_pll(dev, PLL_CORE, perflvl->core, &info->core);
+	ret = calc_pll(ndev, PLL_CORE, perflvl->core, &info->core);
 	if (ret)
 		goto error;
 
 	if (perflvl->memory) {
-		ret = calc_pll(dev, PLL_MEMORY, perflvl->memory, &info->memory);
+		ret = calc_pll(ndev, PLL_MEMORY, perflvl->memory, &info->memory);
 		if (ret)
 			goto error;
 	}
@@ -98,39 +98,37 @@ error:
 }
 
 static void
-prog_pll(struct drm_device *dev, struct nv04_pm_clock *clk)
+prog_pll(struct nouveau_device *ndev, struct nv04_pm_clock *clk)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 reg = clk->pll.reg;
 
 	/* thank the insane nouveau_hw_setpll() interface for this */
 	if (ndev->card_type >= NV_40)
 		reg += 4;
 
-	nouveau_hw_setpll(dev, reg, &clk->calc);
+	nouveau_hw_setpll(ndev, reg, &clk->calc);
 }
 
 int
-nv04_pm_clocks_set(struct drm_device *dev, void *pre_state)
+nv04_pm_clocks_set(struct nouveau_device *ndev, void *pre_state)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_timer_engine *ptimer = &ndev->subsys.timer;
 	struct nv04_pm_state *state = pre_state;
 
-	prog_pll(dev, &state->core);
+	prog_pll(ndev, &state->core);
 
 	if (state->memory.pll.reg) {
-		prog_pll(dev, &state->memory);
+		prog_pll(ndev, &state->memory);
 		if (ndev->card_type < NV_30) {
 			if (ndev->card_type == NV_20)
-				nv_mask(dev, 0x1002c4, 0, 1 << 20);
+				nv_mask(ndev, 0x1002c4, 0, 1 << 20);
 
 			/* Reset the DLLs */
-			nv_mask(dev, 0x1002c0, 0, 1 << 8);
+			nv_mask(ndev, 0x1002c0, 0, 1 << 8);
 		}
 	}
 
-	ptimer->init(dev);
+	ptimer->init(ndev);
 
 	kfree(state);
 	return 0;

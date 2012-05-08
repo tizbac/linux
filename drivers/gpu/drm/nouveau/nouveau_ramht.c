@@ -30,13 +30,12 @@
 static u32
 nouveau_ramht_hash_handle(struct nouveau_channel *chan, u32 handle)
 {
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = chan->device;
 	struct nouveau_ramht *ramht = chan->ramht;
 	u32 hash = 0;
 	int i;
 
-	NV_DEBUG(dev, "ch%d handle=0x%08x\n", chan->id, handle);
+	NV_DEBUG(ndev, "ch%d handle=0x%08x\n", chan->id, handle);
 
 	for (i = 32; i > 0; i -= ramht->bits) {
 		hash ^= (handle & ((1 << ramht->bits) - 1));
@@ -47,15 +46,14 @@ nouveau_ramht_hash_handle(struct nouveau_channel *chan, u32 handle)
 		hash ^= chan->id << (ramht->bits - 4);
 	hash <<= 3;
 
-	NV_DEBUG(dev, "hash=0x%08x\n", hash);
+	NV_DEBUG(ndev, "hash=0x%08x\n", hash);
 	return hash;
 }
 
 static int
-nouveau_ramht_entry_valid(struct drm_device *dev, struct nouveau_gpuobj *ramht,
+nouveau_ramht_entry_valid(struct nouveau_device *ndev, struct nouveau_gpuobj *ramht,
 			  u32 offset)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 ctx = nv_ro32(ramht, offset + 4);
 
 	if (ndev->card_type < NV_40)
@@ -67,7 +65,7 @@ static int
 nouveau_ramht_entry_same_channel(struct nouveau_channel *chan,
 				 struct nouveau_gpuobj *ramht, u32 offset)
 {
-	struct nouveau_device *ndev = nouveau_device(chan->dev);
+	struct nouveau_device *ndev = chan->device;
 	u32 ctx = nv_ro32(ramht, offset + 4);
 
 	if (ndev->card_type >= NV_50)
@@ -84,8 +82,7 @@ int
 nouveau_ramht_insert(struct nouveau_channel *chan, u32 handle,
 		     struct nouveau_gpuobj *gpuobj)
 {
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = chan->device;
 	struct nouveau_instmem_engine *instmem = &ndev->subsys.instmem;
 	struct nouveau_ramht_entry *entry;
 	struct nouveau_gpuobj *ramht = chan->ramht->gpuobj;
@@ -129,18 +126,18 @@ nouveau_ramht_insert(struct nouveau_channel *chan, u32 handle,
 
 	co = ho = nouveau_ramht_hash_handle(chan, handle);
 	do {
-		if (!nouveau_ramht_entry_valid(dev, ramht, co)) {
-			NV_DEBUG(dev,
+		if (!nouveau_ramht_entry_valid(ndev, ramht, co)) {
+			NV_DEBUG(ndev,
 				 "insert ch%d 0x%08x: h=0x%08x, c=0x%08x\n",
 				 chan->id, co, handle, ctx);
 			nv_wo32(ramht, co + 0, handle);
 			nv_wo32(ramht, co + 4, ctx);
 
 			spin_unlock_irqrestore(&chan->ramht->lock, flags);
-			instmem->flush(dev);
+			instmem->flush(ndev);
 			return 0;
 		}
-		NV_DEBUG(dev, "collision ch%d 0x%08x: h=0x%08x\n",
+		NV_DEBUG(ndev, "collision ch%d 0x%08x: h=0x%08x\n",
 			 chan->id, co, nv_ro32(ramht, co));
 
 		co += 8;
@@ -148,7 +145,7 @@ nouveau_ramht_insert(struct nouveau_channel *chan, u32 handle,
 			co = 0;
 	} while (co != ho);
 
-	NV_ERROR(dev, "RAMHT space exhausted. ch=%d\n", chan->id);
+	NV_ERROR(ndev, "RAMHT space exhausted. ch=%d\n", chan->id);
 	list_del(&entry->head);
 	spin_unlock_irqrestore(&chan->ramht->lock, flags);
 	kfree(entry);
@@ -183,8 +180,7 @@ nouveau_ramht_remove_entry(struct nouveau_channel *chan, u32 handle)
 static void
 nouveau_ramht_remove_hash(struct nouveau_channel *chan, u32 handle)
 {
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = chan->device;
 	struct nouveau_instmem_engine *instmem = &ndev->subsys.instmem;
 	struct nouveau_gpuobj *ramht = chan->ramht->gpuobj;
 	unsigned long flags;
@@ -193,15 +189,15 @@ nouveau_ramht_remove_hash(struct nouveau_channel *chan, u32 handle)
 	spin_lock_irqsave(&chan->ramht->lock, flags);
 	co = ho = nouveau_ramht_hash_handle(chan, handle);
 	do {
-		if (nouveau_ramht_entry_valid(dev, ramht, co) &&
+		if (nouveau_ramht_entry_valid(ndev, ramht, co) &&
 		    nouveau_ramht_entry_same_channel(chan, ramht, co) &&
 		    (handle == nv_ro32(ramht, co))) {
-			NV_DEBUG(dev,
+			NV_DEBUG(ndev,
 				 "remove ch%d 0x%08x: h=0x%08x, c=0x%08x\n",
 				 chan->id, co, handle, nv_ro32(ramht, co + 4));
 			nv_wo32(ramht, co + 0, 0x00000000);
 			nv_wo32(ramht, co + 4, 0x00000000);
-			instmem->flush(dev);
+			instmem->flush(ndev);
 			goto out;
 		}
 
@@ -210,7 +206,7 @@ nouveau_ramht_remove_hash(struct nouveau_channel *chan, u32 handle)
 			co = 0;
 	} while (co != ho);
 
-	NV_ERROR(dev, "RAMHT entry not found. ch=%d, handle=0x%08x\n",
+	NV_ERROR(ndev, "RAMHT entry not found. ch=%d, handle=0x%08x\n",
 		 chan->id, handle);
 out:
 	spin_unlock_irqrestore(&chan->ramht->lock, flags);
@@ -255,7 +251,7 @@ nouveau_ramht_find(struct nouveau_channel *chan, u32 handle)
 }
 
 int
-nouveau_ramht_new(struct drm_device *dev, struct nouveau_gpuobj *gpuobj,
+nouveau_ramht_new(struct nouveau_device *ndev, struct nouveau_gpuobj *gpuobj,
 		  struct nouveau_ramht **pramht)
 {
 	struct nouveau_ramht *ramht;
@@ -264,7 +260,7 @@ nouveau_ramht_new(struct drm_device *dev, struct nouveau_gpuobj *gpuobj,
 	if (!ramht)
 		return -ENOMEM;
 
-	ramht->dev = dev;
+	ramht->device = ndev;
 	kref_init(&ramht->refcount);
 	ramht->bits = drm_order(gpuobj->size / 8);
 	INIT_LIST_HEAD(&ramht->entries);

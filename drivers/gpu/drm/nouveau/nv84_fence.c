@@ -45,12 +45,12 @@ nv84_fence_emit(struct nouveau_fence *fence)
 	int ret = RING_SPACE(chan, 7);
 	if (ret == 0) {
 		BEGIN_NV04(chan, 0, NV11_SUBCHAN_DMA_SEMAPHORE, 1);
-		OUT_RING  (chan, NvSema);
+		PUSH_DATA (chan, NvSema);
 		BEGIN_NV04(chan, 0, NV84_SUBCHAN_SEMAPHORE_ADDRESS_HIGH, 4);
-		OUT_RING  (chan, upper_32_bits(chan->id * 16));
-		OUT_RING  (chan, lower_32_bits(chan->id * 16));
-		OUT_RING  (chan, fence->sequence);
-		OUT_RING  (chan, NV84_SUBCHAN_SEMAPHORE_TRIGGER_WRITE_LONG);
+		PUSH_DATA (chan, upper_32_bits(chan->id * 16));
+		PUSH_DATA (chan, lower_32_bits(chan->id * 16));
+		PUSH_DATA (chan, fence->sequence);
+		PUSH_DATA (chan, NV84_SUBCHAN_SEMAPHORE_TRIGGER_WRITE_LONG);
 		FIRE_RING (chan);
 	}
 	return ret;
@@ -64,12 +64,12 @@ nv84_fence_sync(struct nouveau_fence *fence,
 	int ret = RING_SPACE(chan, 7);
 	if (ret == 0) {
 		BEGIN_NV04(chan, 0, NV11_SUBCHAN_DMA_SEMAPHORE, 1);
-		OUT_RING  (chan, NvSema);
+		PUSH_DATA (chan, NvSema);
 		BEGIN_NV04(chan, 0, NV84_SUBCHAN_SEMAPHORE_ADDRESS_HIGH, 4);
-		OUT_RING  (chan, upper_32_bits(prev->id * 16));
-		OUT_RING  (chan, lower_32_bits(prev->id * 16));
-		OUT_RING  (chan, fence->sequence);
-		OUT_RING  (chan, NV84_SUBCHAN_SEMAPHORE_TRIGGER_ACQUIRE_GEQUAL);
+		PUSH_DATA (chan, upper_32_bits(prev->id * 16));
+		PUSH_DATA (chan, lower_32_bits(prev->id * 16));
+		PUSH_DATA (chan, fence->sequence);
+		PUSH_DATA (chan, NV84_SUBCHAN_SEMAPHORE_TRIGGER_ACQUIRE_GEQUAL);
 		FIRE_RING (chan);
 	}
 	return ret;
@@ -78,7 +78,7 @@ nv84_fence_sync(struct nouveau_fence *fence,
 static u32
 nv84_fence_read(struct nouveau_channel *chan)
 {
-	struct nv84_fence_priv *priv = nv_engine(chan->dev, NVOBJ_ENGINE_FENCE);
+	struct nv84_fence_priv *priv = nv_engine(chan->device, NVOBJ_ENGINE_FENCE);
 	return nv_ro32(priv->mem, chan->id * 16);
 }
 
@@ -94,7 +94,7 @@ nv84_fence_context_del(struct nouveau_channel *chan, int engine)
 static int
 nv84_fence_context_new(struct nouveau_channel *chan, int engine)
 {
-	struct nv84_fence_priv *priv = nv_engine(chan->dev, engine);
+	struct nv84_fence_priv *priv = nv_engine(chan->device, engine);
 	struct nv84_fence_chan *fctx;
 	struct nouveau_gpuobj *obj;
 	int ret;
@@ -121,22 +121,21 @@ nv84_fence_context_new(struct nouveau_channel *chan, int engine)
 }
 
 static int
-nv84_fence_fini(struct drm_device *dev, int engine, bool suspend)
+nv84_fence_fini(struct nouveau_device *ndev, int engine, bool suspend)
 {
 	return 0;
 }
 
 static int
-nv84_fence_init(struct drm_device *dev, int engine)
+nv84_fence_init(struct nouveau_device *ndev, int engine)
 {
 	return 0;
 }
 
 static void
-nv84_fence_destroy(struct drm_device *dev, int engine)
+nv84_fence_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-	struct nv84_fence_priv *priv = nv_engine(dev, engine);
+	struct nv84_fence_priv *priv = nv_engine(ndev, engine);
 
 	nouveau_gpuobj_ref(NULL, &priv->mem);
 	ndev->engine[engine] = NULL;
@@ -144,10 +143,9 @@ nv84_fence_destroy(struct drm_device *dev, int engine)
 }
 
 int
-nv84_fence_create(struct drm_device *dev)
+nv84_fence_create(struct nouveau_device *ndev)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(dev, NVOBJ_ENGINE_FIFO);
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
 	struct nv84_fence_priv *priv;
 	int ret;
 
@@ -165,13 +163,13 @@ nv84_fence_create(struct drm_device *dev)
 	priv->base.read = nv84_fence_read;
 	ndev->engine[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
 
-	ret = nouveau_gpuobj_new(dev, NULL, 16 * pfifo->channels,
+	ret = nouveau_gpuobj_new(ndev, NULL, 16 * pfifo->channels,
 				 0x1000, 0, &priv->mem);
 	if (ret)
 		goto out;
 
 out:
 	if (ret)
-		nv84_fence_destroy(dev, NVOBJ_ENGINE_FENCE);
+		nv84_fence_destroy(ndev, NVOBJ_ENGINE_FENCE);
 	return ret;
 }

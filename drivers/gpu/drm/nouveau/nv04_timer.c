@@ -5,20 +5,19 @@
 #include "nouveau_hw.h"
 
 int
-nv04_timer_init(struct drm_device *dev)
+nv04_timer_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	u32 m, n, d;
 
-	nv_wr32(dev, NV04_PTIMER_INTR_EN_0, 0x00000000);
-	nv_wr32(dev, NV04_PTIMER_INTR_0, 0xFFFFFFFF);
+	nv_wr32(ndev, NV04_PTIMER_INTR_EN_0, 0x00000000);
+	nv_wr32(ndev, NV04_PTIMER_INTR_0, 0xFFFFFFFF);
 
 	/* aim for 31.25MHz, which gives us nanosecond timestamps */
 	d = 1000000 / 32;
 
 	/* determine base clock for timer source */
 	if (ndev->chipset < 0x40) {
-		n = nouveau_hw_get_clock(dev, PLL_CORE);
+		n = nouveau_hw_get_clock(ndev, PLL_CORE);
 	} else
 	if (ndev->chipset == 0x40) {
 		/*XXX: figure this out */
@@ -31,15 +30,15 @@ nv04_timer_init(struct drm_device *dev)
 			m++;
 		}
 
-		nv_wr32(dev, 0x009220, m - 1);
+		nv_wr32(ndev, 0x009220, m - 1);
 	}
 
 	if (!n) {
-		NV_WARN(dev, "PTIMER: unknown input clock freq\n");
-		if (!nv_rd32(dev, NV04_PTIMER_NUMERATOR) ||
-		    !nv_rd32(dev, NV04_PTIMER_DENOMINATOR)) {
-			nv_wr32(dev, NV04_PTIMER_NUMERATOR, 1);
-			nv_wr32(dev, NV04_PTIMER_DENOMINATOR, 1);
+		NV_WARN(ndev, "PTIMER: unknown input clock freq\n");
+		if (!nv_rd32(ndev, NV04_PTIMER_NUMERATOR) ||
+		    !nv_rd32(ndev, NV04_PTIMER_DENOMINATOR)) {
+			nv_wr32(ndev, NV04_PTIMER_NUMERATOR, 1);
+			nv_wr32(ndev, NV04_PTIMER_DENOMINATOR, 1);
 		}
 		return 0;
 	}
@@ -60,25 +59,25 @@ nv04_timer_init(struct drm_device *dev)
 		d >>= 1;
 	}
 
-	nv_wr32(dev, NV04_PTIMER_NUMERATOR, n);
-	nv_wr32(dev, NV04_PTIMER_DENOMINATOR, d);
+	nv_wr32(ndev, NV04_PTIMER_NUMERATOR, n);
+	nv_wr32(ndev, NV04_PTIMER_DENOMINATOR, d);
 	return 0;
 }
 
 u64
-nv04_timer_read(struct drm_device *dev)
+nv04_timer_read(struct nouveau_device *ndev)
 {
 	u32 hi, lo;
 
 	do {
-		hi = nv_rd32(dev, NV04_PTIMER_TIME_1);
-		lo = nv_rd32(dev, NV04_PTIMER_TIME_0);
-	} while (hi != nv_rd32(dev, NV04_PTIMER_TIME_1));
+		hi = nv_rd32(ndev, NV04_PTIMER_TIME_1);
+		lo = nv_rd32(ndev, NV04_PTIMER_TIME_0);
+	} while (hi != nv_rd32(ndev, NV04_PTIMER_TIME_1));
 
 	return ((u64)hi << 32 | lo);
 }
 
 void
-nv04_timer_takedown(struct drm_device *dev)
+nv04_timer_takedown(struct nouveau_device *ndev)
 {
 }

@@ -38,35 +38,35 @@ struct nv84_vp_engine {
 };
 
 static int
-nv84_vp_fini(struct drm_device *dev, int engine, bool suspend)
+nv84_vp_fini(struct nouveau_device *ndev, int engine, bool suspend)
 {
-	if (!(nv_rd32(dev, 0x000200) & 0x00020000))
+	if (!(nv_rd32(ndev, 0x000200) & 0x00020000))
 		return 0;
 
-	nv_mask(dev, 0x000200, 0x00020000, 0x00000000);
+	nv_mask(ndev, 0x000200, 0x00020000, 0x00000000);
 	return 0;
 }
 
 static int
-nv84_vp_init(struct drm_device *dev, int engine)
+nv84_vp_init(struct nouveau_device *ndev, int engine)
 {
-	nv_mask(dev, 0x000200, 0x00020000, 0x00000000);
-	nv_mask(dev, 0x000200, 0x00020000, 0x00020000);
+	nv_mask(ndev, 0x000200, 0x00020000, 0x00000000);
+	nv_mask(ndev, 0x000200, 0x00020000, 0x00020000);
 	return 0;
 }
 
 static void
-nv84_vp_destroy(struct drm_device *dev, int engine)
+nv84_vp_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv84_vp_engine *pvp = nv_engine(dev, engine);
+	struct nv84_vp_engine *pvp = nv_engine(ndev, engine);
 
-	NVOBJ_ENGINE_DEL(dev, VP);
+	NVOBJ_ENGINE_DEL(ndev, VP);
 
 	kfree(pvp);
 }
 
 int
-nv84_vp_create(struct drm_device *dev)
+nv84_vp_create(struct nouveau_device *ndev)
 {
 	struct nv84_vp_engine *pvp;
 
@@ -78,6 +78,6 @@ nv84_vp_create(struct drm_device *dev)
 	pvp->base.init = nv84_vp_init;
 	pvp->base.fini = nv84_vp_fini;
 
-	NVOBJ_ENGINE_ADD(dev, VP, &pvp->base);
+	NVOBJ_ENGINE_ADD(ndev, VP, &pvp->base);
 	return 0;
 }

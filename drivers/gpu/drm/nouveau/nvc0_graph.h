@@ -73,10 +73,8 @@ int nvc0_grctx_generate(struct nouveau_channel *);
 
 /* nvc0_graph.c uses this also to determine supported chipsets */
 static inline u32
-nvc0_graph_class(struct drm_device *dev)
+nvc0_graph_class(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-
 	switch (ndev->chipset) {
 	case 0xc0:
 	case 0xc3:

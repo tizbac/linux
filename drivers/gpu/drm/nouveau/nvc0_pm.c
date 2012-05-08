@@ -27,23 +27,23 @@
 #include "nouveau_bios.h"
 #include "nouveau_pm.h"
 
-static u32 read_div(struct drm_device *, int, u32, u32);
-static u32 read_pll(struct drm_device *, u32);
+static u32 read_div(struct nouveau_device *, int, u32, u32);
+static u32 read_pll(struct nouveau_device *, u32);
 
 static u32
-read_vco(struct drm_device *dev, u32 dsrc)
+read_vco(struct nouveau_device *ndev, u32 dsrc)
 {
-	u32 ssrc = nv_rd32(dev, dsrc);
+	u32 ssrc = nv_rd32(ndev, dsrc);
 	if (!(ssrc & 0x00000100))
-		return read_pll(dev, 0x00e800);
-	return read_pll(dev, 0x00e820);
+		return read_pll(ndev, 0x00e800);
+	return read_pll(ndev, 0x00e820);
 }
 
 static u32
-read_pll(struct drm_device *dev, u32 pll)
+read_pll(struct nouveau_device *ndev, u32 pll)
 {
-	u32 ctrl = nv_rd32(dev, pll + 0);
-	u32 coef = nv_rd32(dev, pll + 4);
+	u32 ctrl = nv_rd32(ndev, pll + 0);
+	u32 coef = nv_rd32(ndev, pll + 4);
 	u32 P = (coef & 0x003f0000) >> 16;
 	u32 N = (coef & 0x0000ff00) >> 8;
 	u32 M = (coef & 0x000000ff) >> 0;
@@ -59,15 +59,15 @@ read_pll(struct drm_device *dev, u32 pll)
 		break;
 	case 0x137000:
 		doff = (pll - 0x137000) / 0x20;
-		sclk = read_div(dev, doff, 0x137120, 0x137140);
+		sclk = read_div(ndev, doff, 0x137120, 0x137140);
 		break;
 	case 0x132000:
 		switch (pll) {
 		case 0x132000:
-			sclk = read_pll(dev, 0x132020);
+			sclk = read_pll(ndev, 0x132020);
 			break;
 		case 0x132020:
-			sclk = read_div(dev, 0, 0x137320, 0x137330);
+			sclk = read_div(ndev, 0, 0x137320, 0x137330);
 			break;
 		default:
 			return 0;
@@ -81,10 +81,10 @@ read_pll(struct drm_device *dev, u32 pll)
 }
 
 static u32
-read_div(struct drm_device *dev, int doff, u32 dsrc, u32 dctl)
+read_div(struct nouveau_device *ndev, int doff, u32 dsrc, u32 dctl)
 {
-	u32 ssrc = nv_rd32(dev, dsrc + (doff * 4));
-	u32 sctl = nv_rd32(dev, dctl + (doff * 4));
+	u32 ssrc = nv_rd32(ndev, dsrc + (doff * 4));
+	u32 sctl = nv_rd32(ndev, dctl + (doff * 4));
 
 	switch (ssrc & 0x00000003) {
 	case 0:
@@ -95,41 +95,41 @@ read_div(struct drm_device *dev, int doff, u32 dsrc, u32 dctl)
 		return 100000;
 	case 3:
 		if (sctl & 0x80000000) {
-			u32 sclk = read_vco(dev, dsrc + (doff * 4));
+			u32 sclk = read_vco(ndev, dsrc + (doff * 4));
 			u32 sdiv = (sctl & 0x0000003f) + 2;
 			return (sclk * 2) / sdiv;
 		}
 
-		return read_vco(dev, dsrc + (doff * 4));
+		return read_vco(ndev, dsrc + (doff * 4));
 	default:
 		return 0;
 	}
 }
 
 static u32
-read_mem(struct drm_device *dev)
+read_mem(struct nouveau_device *ndev)
 {
-	u32 ssel = nv_rd32(dev, 0x1373f0);
+	u32 ssel = nv_rd32(ndev, 0x1373f0);
 	if (ssel & 0x00000001)
-		return read_div(dev, 0, 0x137300, 0x137310);
-	return read_pll(dev, 0x132000);
+		return read_div(ndev, 0, 0x137300, 0x137310);
+	return read_pll(ndev, 0x132000);
 }
 
 static u32
-read_clk(struct drm_device *dev, int clk)
+read_clk(struct nouveau_device *ndev, int clk)
 {
-	u32 sctl = nv_rd32(dev, 0x137250 + (clk * 4));
-	u32 ssel = nv_rd32(dev, 0x137100);
+	u32 sctl = nv_rd32(ndev, 0x137250 + (clk * 4));
+	u32 ssel = nv_rd32(ndev, 0x137100);
 	u32 sclk, sdiv;
 
 	if (ssel & (1 << clk)) {
 		if (clk < 7)
-			sclk = read_pll(dev, 0x137000 + (clk * 0x20));
+			sclk = read_pll(ndev, 0x137000 + (clk * 0x20));
 		else
-			sclk = read_pll(dev, 0x1370e0);
+			sclk = read_pll(ndev, 0x1370e0);
 		sdiv = ((sctl & 0x00003f00) >> 8) + 2;
 	} else {
-		sclk = read_div(dev, clk, 0x137160, 0x1371d0);
+		sclk = read_div(ndev, clk, 0x137160, 0x1371d0);
 		sdiv = ((sctl & 0x0000003f) >> 0) + 2;
 	}
 
@@ -139,18 +139,18 @@ read_clk(struct drm_device *dev, int clk)
 }
 
 int
-nvc0_pm_clocks_get(struct drm_device *dev, struct nouveau_pm_level *perflvl)
+nvc0_pm_clocks_get(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
 {
-	perflvl->shader = read_clk(dev, 0x00);
+	perflvl->shader = read_clk(ndev, 0x00);
 	perflvl->core   = perflvl->shader / 2;
-	perflvl->memory = read_mem(dev);
-	perflvl->rop    = read_clk(dev, 0x01);
-	perflvl->hub07  = read_clk(dev, 0x02);
-	perflvl->hub06  = read_clk(dev, 0x07);
-	perflvl->hub01  = read_clk(dev, 0x08);
-	perflvl->copy   = read_clk(dev, 0x09);
-	perflvl->daemon = read_clk(dev, 0x0c);
-	perflvl->vdec   = read_clk(dev, 0x0e);
+	perflvl->memory = read_mem(ndev);
+	perflvl->rop    = read_clk(ndev, 0x01);
+	perflvl->hub07  = read_clk(ndev, 0x02);
+	perflvl->hub06  = read_clk(ndev, 0x07);
+	perflvl->hub01  = read_clk(ndev, 0x08);
+	perflvl->copy   = read_clk(ndev, 0x09);
+	perflvl->daemon = read_clk(ndev, 0x0c);
+	perflvl->vdec   = read_clk(ndev, 0x0e);
 	return 0;
 }
 
@@ -170,7 +170,7 @@ struct nvc0_pm_state {
 };
 
 static u32
-calc_div(struct drm_device *dev, int clk, u32 ref, u32 freq, u32 *ddiv)
+calc_div(struct nouveau_device *ndev, int clk, u32 ref, u32 freq, u32 *ddiv)
 {
 	u32 div = min((ref * 2) / freq, (u32)65);
 	if (div < 2)
@@ -181,7 +181,7 @@ calc_div(struct drm_device *dev, int clk, u32 ref, u32 freq, u32 *ddiv)
 }
 
 static u32
-calc_src(struct drm_device *dev, int clk, u32 freq, u32 *dsrc, u32 *ddiv)
+calc_src(struct nouveau_device *ndev, int clk, u32 freq, u32 *dsrc, u32 *ddiv)
 {
 	u32 sclk;
 
@@ -203,27 +203,27 @@ calc_src(struct drm_device *dev, int clk, u32 freq, u32 *dsrc, u32 *ddiv)
 	}
 
 	/* otherwise, calculate the closest divider */
-	sclk = read_vco(dev, clk);
+	sclk = read_vco(ndev, clk);
 	if (clk < 7)
-		sclk = calc_div(dev, clk, sclk, freq, ddiv);
+		sclk = calc_div(ndev, clk, sclk, freq, ddiv);
 	return sclk;
 }
 
 static u32
-calc_pll(struct drm_device *dev, int clk, u32 freq, u32 *coef)
+calc_pll(struct nouveau_device *ndev, int clk, u32 freq, u32 *coef)
 {
 	struct pll_lims limits;
 	int N, M, P, ret;
 
-	ret = get_pll_limits(dev, 0x137000 + (clk * 0x20), &limits);
+	ret = get_pll_limits(ndev, 0x137000 + (clk * 0x20), &limits);
 	if (ret)
 		return 0;
 
-	limits.refclk = read_div(dev, clk, 0x137120, 0x137140);
+	limits.refclk = read_div(ndev, clk, 0x137120, 0x137140);
 	if (!limits.refclk)
 		return 0;
 
-	ret = nva3_calc_pll(dev, &limits, freq, &N, NULL, &M, &P);
+	ret = nva3_calc_pll(ndev, &limits, freq, &N, NULL, &M, &P);
 	if (ret <= 0)
 		return 0;
 
@@ -257,7 +257,7 @@ calc_pll(struct drm_device *dev, int clk, u32 freq, u32 *coef)
  */
 
 static int
-calc_clk(struct drm_device *dev, int clk, struct nvc0_pm_clock *info, u32 freq)
+calc_clk(struct nouveau_device *ndev, int clk, struct nvc0_pm_clock *info, u32 freq)
 {
 	u32 src0, div0, div1D, div1P = 0;
 	u32 clk0, clk1 = 0;
@@ -267,16 +267,16 @@ calc_clk(struct drm_device *dev, int clk, struct nvc0_pm_clock *info, u32 freq)
 		return 0;
 
 	/* first possible path, using only dividers */
-	clk0 = calc_src(dev, clk, freq, &src0, &div0);
-	clk0 = calc_div(dev, clk, clk0, freq, &div1D);
+	clk0 = calc_src(ndev, clk, freq, &src0, &div0);
+	clk0 = calc_div(ndev, clk, clk0, freq, &div1D);
 
 	/* see if we can get any closer using PLLs */
 	if (clk0 != freq && (0x00004387 & (1 << clk))) {
 		if (clk < 7)
-			clk1 = calc_pll(dev, clk, freq, &info->coef);
+			clk1 = calc_pll(ndev, clk, freq, &info->coef);
 		else
-			clk1 = read_pll(dev, 0x1370e0);
-		clk1 = calc_div(dev, clk, clk1, freq, &div1P);
+			clk1 = read_pll(ndev, 0x1370e0);
+		clk1 = calc_div(ndev, clk, clk1, freq, &div1P);
 	}
 
 	/* select the method which gets closest to target freq */
@@ -306,37 +306,37 @@ calc_clk(struct drm_device *dev, int clk, struct nvc0_pm_clock *info, u32 freq)
 }
 
 static int
-calc_mem(struct drm_device *dev, struct nvc0_pm_clock *info, u32 freq)
+calc_mem(struct nouveau_device *ndev, struct nvc0_pm_clock *info, u32 freq)
 {
 	struct pll_lims pll;
 	int N, M, P, ret;
 	u32 ctrl;
 
 	/* mclk pll input freq comes from another pll, make sure it's on */
-	ctrl = nv_rd32(dev, 0x132020);
+	ctrl = nv_rd32(ndev, 0x132020);
 	if (!(ctrl & 0x00000001)) {
 		/* if not, program it to 567MHz.  nfi where this value comes
 		 * from - it looks like it's in the pll limits table for
 		 * 132000 but the binary driver ignores all my attempts to
 		 * change this value.
 		 */
-		nv_wr32(dev, 0x137320, 0x00000103);
-		nv_wr32(dev, 0x137330, 0x81200606);
-		nv_wait(dev, 0x132020, 0x00010000, 0x00010000);
-		nv_wr32(dev, 0x132024, 0x0001150f);
-		nv_mask(dev, 0x132020, 0x00000001, 0x00000001);
-		nv_wait(dev, 0x137390, 0x00020000, 0x00020000);
-		nv_mask(dev, 0x132020, 0x00000004, 0x00000004);
+		nv_wr32(ndev, 0x137320, 0x00000103);
+		nv_wr32(ndev, 0x137330, 0x81200606);
+		nv_wait(ndev, 0x132020, 0x00010000, 0x00010000);
+		nv_wr32(ndev, 0x132024, 0x0001150f);
+		nv_mask(ndev, 0x132020, 0x00000001, 0x00000001);
+		nv_wait(ndev, 0x137390, 0x00020000, 0x00020000);
+		nv_mask(ndev, 0x132020, 0x00000004, 0x00000004);
 	}
 
 	/* for the moment, until the clock tree is better understood, use
 	 * pll mode for all clock frequencies
 	 */
-	ret = get_pll_limits(dev, 0x132000, &pll);
+	ret = get_pll_limits(ndev, 0x132000, &pll);
 	if (ret == 0) {
-		pll.refclk = read_pll(dev, 0x132020);
+		pll.refclk = read_pll(ndev, 0x132020);
 		if (pll.refclk) {
-			ret = nva3_calc_pll(dev, &pll, freq, &N, NULL, &M, &P);
+			ret = nva3_calc_pll(ndev, &pll, freq, &N, NULL, &M, &P);
 			if (ret > 0) {
 				info->coef = (P << 16) | (N << 8) | M;
 				return 0;
@@ -348,9 +348,8 @@ calc_mem(struct drm_device *dev, struct nvc0_pm_clock *info, u32 freq)
 }
 
 void *
-nvc0_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
+nvc0_pm_clocks_pre(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvc0_pm_state *info;
 	int ret;
 
@@ -367,20 +366,20 @@ nvc0_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 	if (ndev->chipset == 0xd9)
 		perflvl->rop = 0;
 
-	if ((ret = calc_clk(dev, 0x00, &info->eng[0x00], perflvl->shader)) ||
-	    (ret = calc_clk(dev, 0x01, &info->eng[0x01], perflvl->rop)) ||
-	    (ret = calc_clk(dev, 0x02, &info->eng[0x02], perflvl->hub07)) ||
-	    (ret = calc_clk(dev, 0x07, &info->eng[0x07], perflvl->hub06)) ||
-	    (ret = calc_clk(dev, 0x08, &info->eng[0x08], perflvl->hub01)) ||
-	    (ret = calc_clk(dev, 0x09, &info->eng[0x09], perflvl->copy)) ||
-	    (ret = calc_clk(dev, 0x0c, &info->eng[0x0c], perflvl->daemon)) ||
-	    (ret = calc_clk(dev, 0x0e, &info->eng[0x0e], perflvl->vdec))) {
+	if ((ret = calc_clk(ndev, 0x00, &info->eng[0x00], perflvl->shader)) ||
+	    (ret = calc_clk(ndev, 0x01, &info->eng[0x01], perflvl->rop)) ||
+	    (ret = calc_clk(ndev, 0x02, &info->eng[0x02], perflvl->hub07)) ||
+	    (ret = calc_clk(ndev, 0x07, &info->eng[0x07], perflvl->hub06)) ||
+	    (ret = calc_clk(ndev, 0x08, &info->eng[0x08], perflvl->hub01)) ||
+	    (ret = calc_clk(ndev, 0x09, &info->eng[0x09], perflvl->copy)) ||
+	    (ret = calc_clk(ndev, 0x0c, &info->eng[0x0c], perflvl->daemon)) ||
+	    (ret = calc_clk(ndev, 0x0e, &info->eng[0x0e], perflvl->vdec))) {
 		kfree(info);
 		return ERR_PTR(ret);
 	}
 
 	if (perflvl->memory) {
-		ret = calc_mem(dev, &info->mem, perflvl->memory);
+		ret = calc_mem(ndev, &info->mem, perflvl->memory);
 		if (ret) {
 			kfree(info);
 			return ERR_PTR(ret);
@@ -392,40 +391,40 @@ nvc0_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 }
 
 static void
-prog_clk(struct drm_device *dev, int clk, struct nvc0_pm_clock *info)
+prog_clk(struct nouveau_device *ndev, int clk, struct nvc0_pm_clock *info)
 {
 	/* program dividers at 137160/1371d0 first */
 	if (clk < 7 && !info->ssel) {
-		nv_mask(dev, 0x1371d0 + (clk * 0x04), 0x80003f3f, info->ddiv);
-		nv_wr32(dev, 0x137160 + (clk * 0x04), info->dsrc);
+		nv_mask(ndev, 0x1371d0 + (clk * 0x04), 0x80003f3f, info->ddiv);
+		nv_wr32(ndev, 0x137160 + (clk * 0x04), info->dsrc);
 	}
 
 	/* switch clock to non-pll mode */
-	nv_mask(dev, 0x137100, (1 << clk), 0x00000000);
-	nv_wait(dev, 0x137100, (1 << clk), 0x00000000);
+	nv_mask(ndev, 0x137100, (1 << clk), 0x00000000);
+	nv_wait(ndev, 0x137100, (1 << clk), 0x00000000);
 
 	/* reprogram pll */
 	if (clk < 7) {
 		/* make sure it's disabled first... */
 		u32 base = 0x137000 + (clk * 0x20);
-		u32 ctrl = nv_rd32(dev, base + 0x00);
+		u32 ctrl = nv_rd32(ndev, base + 0x00);
 		if (ctrl & 0x00000001) {
-			nv_mask(dev, base + 0x00, 0x00000004, 0x00000000);
-			nv_mask(dev, base + 0x00, 0x00000001, 0x00000000);
+			nv_mask(ndev, base + 0x00, 0x00000004, 0x00000000);
+			nv_mask(ndev, base + 0x00, 0x00000001, 0x00000000);
 		}
 		/* program it to new values, if necessary */
 		if (info->ssel) {
-			nv_wr32(dev, base + 0x04, info->coef);
-			nv_mask(dev, base + 0x00, 0x00000001, 0x00000001);
-			nv_wait(dev, base + 0x00, 0x00020000, 0x00020000);
-			nv_mask(dev, base + 0x00, 0x00020004, 0x00000004);
+			nv_wr32(ndev, base + 0x04, info->coef);
+			nv_mask(ndev, base + 0x00, 0x00000001, 0x00000001);
+			nv_wait(ndev, base + 0x00, 0x00020000, 0x00020000);
+			nv_mask(ndev, base + 0x00, 0x00020004, 0x00000004);
 		}
 	}
 
 	/* select pll/non-pll mode, and program final clock divider */
-	nv_mask(dev, 0x137100, (1 << clk), info->ssel);
-	nv_wait(dev, 0x137100, (1 << clk), info->ssel);
-	nv_mask(dev, 0x137250 + (clk * 0x04), 0x00003f3f, info->mdiv);
+	nv_mask(ndev, 0x137100, (1 << clk), info->ssel);
+	nv_wait(ndev, 0x137100, (1 << clk), info->ssel);
+	nv_mask(ndev, 0x137250 + (clk * 0x04), 0x00003f3f, info->mdiv);
 }
 
 static void
@@ -441,7 +440,7 @@ mclk_refresh(struct nouveau_mem_exec_func *exec)
 static void
 mclk_refresh_auto(struct nouveau_mem_exec_func *exec, bool enable)
 {
-	nv_wr32(exec->dev, 0x10f210, enable ? 0x80000000 : 0x00000000);
+	nv_wr32(exec->device, 0x10f210, enable ? 0x80000000 : 0x00000000);
 }
 
 static void
@@ -458,42 +457,40 @@ mclk_wait(struct nouveau_mem_exec_func *exec, u32 nsec)
 static u32
 mclk_mrg(struct nouveau_mem_exec_func *exec, int mr)
 {
-	struct drm_device *dev = exec->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = exec->device;
 	if (ndev->vram_type != NV_MEM_TYPE_GDDR5) {
 		if (mr <= 1)
-			return nv_rd32(dev, 0x10f300 + ((mr - 0) * 4));
-		return nv_rd32(dev, 0x10f320 + ((mr - 2) * 4));
+			return nv_rd32(ndev, 0x10f300 + ((mr - 0) * 4));
+		return nv_rd32(ndev, 0x10f320 + ((mr - 2) * 4));
 	} else {
 		if (mr == 0)
-			return nv_rd32(dev, 0x10f300 + (mr * 4));
+			return nv_rd32(ndev, 0x10f300 + (mr * 4));
 		else
 		if (mr <= 7)
-			return nv_rd32(dev, 0x10f32c + (mr * 4));
-		return nv_rd32(dev, 0x10f34c);
+			return nv_rd32(ndev, 0x10f32c + (mr * 4));
+		return nv_rd32(ndev, 0x10f34c);
 	}
 }
 
 static void
 mclk_mrs(struct nouveau_mem_exec_func *exec, int mr, u32 data)
 {
-	struct drm_device *dev = exec->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = exec->device;
 	if (ndev->vram_type != NV_MEM_TYPE_GDDR5) {
 		if (mr <= 1) {
-			nv_wr32(dev, 0x10f300 + ((mr - 0) * 4), data);
+			nv_wr32(ndev, 0x10f300 + ((mr - 0) * 4), data);
 			if (ndev->vram_rank_B)
-				nv_wr32(dev, 0x10f308 + ((mr - 0) * 4), data);
+				nv_wr32(ndev, 0x10f308 + ((mr - 0) * 4), data);
 		} else
 		if (mr <= 3) {
-			nv_wr32(dev, 0x10f320 + ((mr - 2) * 4), data);
+			nv_wr32(ndev, 0x10f320 + ((mr - 2) * 4), data);
 			if (ndev->vram_rank_B)
-				nv_wr32(dev, 0x10f328 + ((mr - 2) * 4), data);
+				nv_wr32(ndev, 0x10f328 + ((mr - 2) * 4), data);
 		}
 	} else {
-		if      (mr ==  0) nv_wr32(dev, 0x10f300 + (mr * 4), data);
-		else if (mr <=  7) nv_wr32(dev, 0x10f32c + (mr * 4), data);
-		else if (mr == 15) nv_wr32(dev, 0x10f34c, data);
+		if      (mr ==  0) nv_wr32(ndev, 0x10f300 + (mr * 4), data);
+		else if (mr <=  7) nv_wr32(ndev, 0x10f32c + (mr * 4), data);
+		else if (mr == 15) nv_wr32(ndev, 0x10f34c, data);
 	}
 }
 
@@ -501,23 +498,23 @@ static void
 mclk_clock_set(struct nouveau_mem_exec_func *exec)
 {
 	struct nvc0_pm_state *info = exec->priv;
-	struct drm_device *dev = exec->dev;
-	u32 ctrl = nv_rd32(dev, 0x132000);
+	struct nouveau_device *ndev = exec->device;
+	u32 ctrl = nv_rd32(ndev, 0x132000);
 
-	nv_wr32(dev, 0x137360, 0x00000001);
-	nv_wr32(dev, 0x137370, 0x00000000);
-	nv_wr32(dev, 0x137380, 0x00000000);
+	nv_wr32(ndev, 0x137360, 0x00000001);
+	nv_wr32(ndev, 0x137370, 0x00000000);
+	nv_wr32(ndev, 0x137380, 0x00000000);
 	if (ctrl & 0x00000001)
-		nv_wr32(dev, 0x132000, (ctrl &= ~0x00000001));
+		nv_wr32(ndev, 0x132000, (ctrl &= ~0x00000001));
 
-	nv_wr32(dev, 0x132004, info->mem.coef);
-	nv_wr32(dev, 0x132000, (ctrl |= 0x00000001));
-	nv_wait(dev, 0x137390, 0x00000002, 0x00000002);
-	nv_wr32(dev, 0x132018, 0x00005000);
+	nv_wr32(ndev, 0x132004, info->mem.coef);
+	nv_wr32(ndev, 0x132000, (ctrl |= 0x00000001));
+	nv_wait(ndev, 0x137390, 0x00000002, 0x00000002);
+	nv_wr32(ndev, 0x132018, 0x00005000);
 
-	nv_wr32(dev, 0x137370, 0x00000001);
-	nv_wr32(dev, 0x137380, 0x00000001);
-	nv_wr32(dev, 0x137360, 0x00000000);
+	nv_wr32(ndev, 0x137370, 0x00000001);
+	nv_wr32(ndev, 0x137380, 0x00000001);
+	nv_wr32(ndev, 0x137360, 0x00000000);
 }
 
 static void
@@ -528,15 +525,14 @@ mclk_timing_set(struct nouveau_mem_exec_func *exec)
 	int i;
 
 	for (i = 0; i < 5; i++)
-		nv_wr32(exec->dev, 0x10f290 + (i * 4), perflvl->timing.reg[i]);
+		nv_wr32(exec->device, 0x10f290 + (i * 4), perflvl->timing.reg[i]);
 }
 
 static void
-prog_mem(struct drm_device *dev, struct nvc0_pm_state *info)
+prog_mem(struct nouveau_device *ndev, struct nvc0_pm_state *info)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_mem_exec_func exec = {
-		.dev = dev,
+		.device = ndev,
 		.precharge = mclk_precharge,
 		.refresh = mclk_refresh,
 		.refresh_auto = mclk_refresh_auto,
@@ -550,30 +546,30 @@ prog_mem(struct drm_device *dev, struct nvc0_pm_state *info)
 	};
 
 	if (ndev->chipset < 0xd0)
-		nv_wr32(dev, 0x611200, 0x00003300);
+		nv_wr32(ndev, 0x611200, 0x00003300);
 	else
-		nv_wr32(dev, 0x62c000, 0x03030000);
+		nv_wr32(ndev, 0x62c000, 0x03030000);
 
 	nouveau_mem_exec(&exec, info->perflvl);
 
 	if (ndev->chipset < 0xd0)
-		nv_wr32(dev, 0x611200, 0x00003300);
+		nv_wr32(ndev, 0x611200, 0x00003300);
 	else
-		nv_wr32(dev, 0x62c000, 0x03030300);
+		nv_wr32(ndev, 0x62c000, 0x03030300);
 }
 int
-nvc0_pm_clocks_set(struct drm_device *dev, void *data)
+nvc0_pm_clocks_set(struct nouveau_device *ndev, void *data)
 {
 	struct nvc0_pm_state *info = data;
 	int i;
 
 	if (info->mem.coef)
-		prog_mem(dev, info);
+		prog_mem(ndev, info);
 
 	for (i = 0; i < 16; i++) {
 		if (!info->eng[i].freq)
 			continue;
-		prog_clk(dev, i, &info->eng[i]);
+		prog_clk(ndev, i, &info->eng[i]);
 	}
 
 	kfree(info);

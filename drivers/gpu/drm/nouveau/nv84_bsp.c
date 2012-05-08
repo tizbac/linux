@@ -38,35 +38,35 @@ struct nv84_bsp_engine {
 };
 
 static int
-nv84_bsp_fini(struct drm_device *dev, int engine, bool suspend)
+nv84_bsp_fini(struct nouveau_device *ndev, int engine, bool suspend)
 {
-	if (!(nv_rd32(dev, 0x000200) & 0x00008000))
+	if (!(nv_rd32(ndev, 0x000200) & 0x00008000))
 		return 0;
 
-	nv_mask(dev, 0x000200, 0x00008000, 0x00000000);
+	nv_mask(ndev, 0x000200, 0x00008000, 0x00000000);
 	return 0;
 }
 
 static int
-nv84_bsp_init(struct drm_device *dev, int engine)
+nv84_bsp_init(struct nouveau_device *ndev, int engine)
 {
-	nv_mask(dev, 0x000200, 0x00008000, 0x00000000);
-	nv_mask(dev, 0x000200, 0x00008000, 0x00008000);
+	nv_mask(ndev, 0x000200, 0x00008000, 0x00000000);
+	nv_mask(ndev, 0x000200, 0x00008000, 0x00008000);
 	return 0;
 }
 
 static void
-nv84_bsp_destroy(struct drm_device *dev, int engine)
+nv84_bsp_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv84_bsp_engine *pbsp = nv_engine(dev, engine);
+	struct nv84_bsp_engine *pbsp = nv_engine(ndev, engine);
 
-	NVOBJ_ENGINE_DEL(dev, BSP);
+	NVOBJ_ENGINE_DEL(ndev, BSP);
 
 	kfree(pbsp);
 }
 
 int
-nv84_bsp_create(struct drm_device *dev)
+nv84_bsp_create(struct nouveau_device *ndev)
 {
 	struct nv84_bsp_engine *pbsp;
 
@@ -78,6 +78,6 @@ nv84_bsp_create(struct drm_device *dev)
 	pbsp->base.init = nv84_bsp_init;
 	pbsp->base.fini = nv84_bsp_fini;
 
-	NVOBJ_ENGINE_ADD(dev, BSP, &pbsp->base);
+	NVOBJ_ENGINE_ADD(ndev, BSP, &pbsp->base);
 	return 0;
 }

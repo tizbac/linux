@@ -34,18 +34,18 @@ i2c_drive_scl(void *data, int state)
 {
 	struct nouveau_i2c_chan *port = data;
 	if (port->type == 0) {
-		u8 val = NVReadVgaCrtc(port->dev, 0, port->drive);
+		u8 val = NVReadVgaCrtc(port->device, 0, port->drive);
 		if (state) val |= 0x20;
 		else	   val &= 0xdf;
-		NVWriteVgaCrtc(port->dev, 0, port->drive, val | 0x01);
+		NVWriteVgaCrtc(port->device, 0, port->drive, val | 0x01);
 	} else
 	if (port->type == 4) {
-		nv_mask(port->dev, port->drive, 0x2f, state ? 0x21 : 0x01);
+		nv_mask(port->device, port->drive, 0x2f, state ? 0x21 : 0x01);
 	} else
 	if (port->type == 5) {
 		if (state) port->state |= 0x01;
 		else	   port->state &= 0xfe;
-		nv_wr32(port->dev, port->drive, 4 | port->state);
+		nv_wr32(port->device, port->drive, 4 | port->state);
 	}
 }
 
@@ -54,18 +54,18 @@ i2c_drive_sda(void *data, int state)
 {
 	struct nouveau_i2c_chan *port = data;
 	if (port->type == 0) {
-		u8 val = NVReadVgaCrtc(port->dev, 0, port->drive);
+		u8 val = NVReadVgaCrtc(port->device, 0, port->drive);
 		if (state) val |= 0x10;
 		else	   val &= 0xef;
-		NVWriteVgaCrtc(port->dev, 0, port->drive, val | 0x01);
+		NVWriteVgaCrtc(port->device, 0, port->drive, val | 0x01);
 	} else
 	if (port->type == 4) {
-		nv_mask(port->dev, port->drive, 0x1f, state ? 0x11 : 0x01);
+		nv_mask(port->device, port->drive, 0x1f, state ? 0x11 : 0x01);
 	} else
 	if (port->type == 5) {
 		if (state) port->state |= 0x02;
 		else	   port->state &= 0xfd;
-		nv_wr32(port->dev, port->drive, 4 | port->state);
+		nv_wr32(port->device, port->drive, 4 | port->state);
 	}
 }
 
@@ -73,18 +73,18 @@ static int
 i2c_sense_scl(void *data)
 {
 	struct nouveau_i2c_chan *port = data;
-	struct nouveau_device *ndev = nouveau_device(port->dev);
+	struct nouveau_device *ndev = port->device;
 	if (port->type == 0) {
-		return !!(NVReadVgaCrtc(port->dev, 0, port->sense) & 0x04);
+		return !!(NVReadVgaCrtc(ndev, 0, port->sense) & 0x04);
 	} else
 	if (port->type == 4) {
-		return !!(nv_rd32(port->dev, port->sense) & 0x00040000);
+		return !!(nv_rd32(ndev, port->sense) & 0x00040000);
 	} else
 	if (port->type == 5) {
 		if (ndev->card_type < NV_D0)
-			return !!(nv_rd32(port->dev, port->sense) & 0x01);
+			return !!(nv_rd32(ndev, port->sense) & 0x01);
 		else
-			return !!(nv_rd32(port->dev, port->sense) & 0x10);
+			return !!(nv_rd32(ndev, port->sense) & 0x10);
 	}
 	return 0;
 }
@@ -93,37 +93,37 @@ static int
 i2c_sense_sda(void *data)
 {
 	struct nouveau_i2c_chan *port = data;
-	struct nouveau_device *ndev = nouveau_device(port->dev);
+	struct nouveau_device *ndev = port->device;
 	if (port->type == 0) {
-		return !!(NVReadVgaCrtc(port->dev, 0, port->sense) & 0x08);
+		return !!(NVReadVgaCrtc(ndev, 0, port->sense) & 0x08);
 	} else
 	if (port->type == 4) {
-		return !!(nv_rd32(port->dev, port->sense) & 0x00080000);
+		return !!(nv_rd32(ndev, port->sense) & 0x00080000);
 	} else
 	if (port->type == 5) {
 		if (ndev->card_type < NV_D0)
-			return !!(nv_rd32(port->dev, port->sense) & 0x02);
+			return !!(nv_rd32(ndev, port->sense) & 0x02);
 		else
-			return !!(nv_rd32(port->dev, port->sense) & 0x20);
+			return !!(nv_rd32(ndev, port->sense) & 0x20);
 	}
 	return 0;
 }
 
-static const uint32_t nv50_i2c_port[] = {
+static const u32 nv50_i2c_port[] = {
 	0x00e138, 0x00e150, 0x00e168, 0x00e180,
 	0x00e254, 0x00e274, 0x00e764, 0x00e780,
 	0x00e79c, 0x00e7b8
 };
 
 static u8 *
-i2c_table(struct drm_device *dev, u8 *version)
+i2c_table(struct nouveau_device *ndev, u8 *version)
 {
-	u8 *dcb = dcb_table(dev), *i2c = NULL;
+	u8 *dcb = dcb_table(ndev), *i2c = NULL;
 	if (dcb) {
 		if (dcb[0] >= 0x15)
-			i2c = ROMPTR(dev, dcb[2]);
+			i2c = ROMPTR(ndev, dcb[2]);
 		if (dcb[0] >= 0x30)
-			i2c = ROMPTR(dev, dcb[4]);
+			i2c = ROMPTR(ndev, dcb[4]);
 	}
 
 	/* early revisions had no version number, use dcb version */
@@ -137,9 +137,8 @@ i2c_table(struct drm_device *dev, u8 *version)
 }
 
 int
-nouveau_i2c_init(struct drm_device *dev)
+nouveau_i2c_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nvbios *bios = &ndev->vbios;
 	struct nouveau_i2c_chan *port;
 	u8 version = 0x00, entries, recordlen;
@@ -148,7 +147,7 @@ nouveau_i2c_init(struct drm_device *dev)
 
 	INIT_LIST_HEAD(&ndev->i2c_ports);
 
-	i2c = i2c_table(dev, &version);
+	i2c = i2c_table(ndev, &version);
 	if (!i2c) {
 		u8 *bmp = &bios->data[bios->offset];
 		if (bios->type != NVBIOS_BMP)
@@ -191,7 +190,7 @@ nouveau_i2c_init(struct drm_device *dev)
 	for (i = 0; i < entries; i++, entry += recordlen) {
 		port = kzalloc(sizeof(*port), GFP_KERNEL);
 		if (port == NULL) {
-			nouveau_i2c_fini(dev);
+			nouveau_i2c_fini(ndev);
 			return -ENOMEM;
 		}
 
@@ -238,17 +237,17 @@ nouveau_i2c_init(struct drm_device *dev)
 		}
 
 		if (!port->adapter.algo && !port->drive) {
-			NV_ERROR(dev, "I2C%d: type %d index %x/%x unknown\n",
+			NV_ERROR(ndev, "I2C%d: type %d index %x/%x unknown\n",
 				 i, port->type, port->drive, port->sense);
 			kfree(port);
 			continue;
 		}
 
 		snprintf(port->adapter.name, sizeof(port->adapter.name),
-			 "nouveau-%s-%d", pci_name(dev->pdev), i);
+			 "nouveau-%s-%d", pci_name(ndev->dev->pdev), i);
 		port->adapter.owner = THIS_MODULE;
-		port->adapter.dev.parent = &dev->pdev->dev;
-		port->dev = dev;
+		port->adapter.dev.parent = &ndev->dev->pdev->dev;
+		port->device = ndev;
 		port->index = i;
 		port->dcb = ROM32(entry[0]);
 		i2c_set_adapdata(&port->adapter, i2c);
@@ -274,7 +273,7 @@ nouveau_i2c_init(struct drm_device *dev)
 		}
 
 		if (ret) {
-			NV_ERROR(dev, "I2C%d: failed register: %d\n", i, ret);
+			NV_ERROR(ndev, "I2C%d: failed register: %d\n", i, ret);
 			kfree(port);
 			continue;
 		}
@@ -286,9 +285,8 @@ nouveau_i2c_init(struct drm_device *dev)
 }
 
 void
-nouveau_i2c_fini(struct drm_device *dev)
+nouveau_i2c_fini(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_i2c_chan *port, *tmp;
 
 	list_for_each_entry_safe(port, tmp, &ndev->i2c_ports, head) {
@@ -298,14 +296,13 @@ nouveau_i2c_fini(struct drm_device *dev)
 }
 
 struct nouveau_i2c_chan *
-nouveau_i2c_find(struct drm_device *dev, u8 index)
+nouveau_i2c_find(struct nouveau_device *ndev, u8 index)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_i2c_chan *port;
 
 	if (index == NV_I2C_DEFAULT(0) ||
 	    index == NV_I2C_DEFAULT(1)) {
-		u8 version, *i2c = i2c_table(dev, &version);
+		u8 version, *i2c = i2c_table(ndev, &version);
 		if (i2c && version >= 0x30) {
 			if (index == NV_I2C_DEFAULT(0))
 				index = (i2c[4] & 0x0f);
@@ -335,9 +332,9 @@ nouveau_i2c_find(struct drm_device *dev, u8 index)
 		}
 
 		/* nfi, but neither auxch or i2c work if it's 1 */
-		nv_mask(dev, reg + 0x0c, 0x00000001, 0x00000000);
+		nv_mask(ndev, reg + 0x0c, 0x00000001, 0x00000000);
 		/* nfi, but switches auxch vs normal i2c */
-		nv_mask(dev, reg + 0x00, 0x0000f003, val);
+		nv_mask(ndev, reg + 0x00, 0x0000f003, val);
 	}
 
 	return port;
@@ -346,7 +343,7 @@ nouveau_i2c_find(struct drm_device *dev, u8 index)
 bool
 nouveau_probe_i2c_addr(struct nouveau_i2c_chan *i2c, int addr)
 {
-	uint8_t buf[] = { 0 };
+	u8 buf[] = { 0 };
 	struct i2c_msg msgs[] = {
 		{
 			.addr = addr,
@@ -366,29 +363,29 @@ nouveau_probe_i2c_addr(struct nouveau_i2c_chan *i2c, int addr)
 }
 
 int
-nouveau_i2c_identify(struct drm_device *dev, const char *what,
+nouveau_i2c_identify(struct nouveau_device *ndev, const char *what,
 		     struct i2c_board_info *info,
 		     bool (*match)(struct nouveau_i2c_chan *,
 				   struct i2c_board_info *),
 		     int index)
 {
-	struct nouveau_i2c_chan *i2c = nouveau_i2c_find(dev, index);
+	struct nouveau_i2c_chan *i2c = nouveau_i2c_find(ndev, index);
 	int i;
 
 	if (!i2c) {
-		NV_DEBUG(dev, "No bus when probing %s on %d\n", what, index);
+		NV_DEBUG(ndev, "No bus when probing %s on %d\n", what, index);
 		return -ENODEV;
 	}
 
-	NV_DEBUG(dev, "Probing %ss on I2C bus: %d\n", what, i2c->index);
+	NV_DEBUG(ndev, "Probing %ss on I2C bus: %d\n", what, i2c->index);
 	for (i = 0; info[i].addr; i++) {
 		if (nouveau_probe_i2c_addr(i2c, info[i].addr) &&
 		    (!match || match(i2c, &info[i]))) {
-			NV_INFO(dev, "Detected %s: %s\n", what, info[i].type);
+			NV_INFO(ndev, "Detected %s: %s\n", what, info[i].type);
 			return i;
 		}
 	}
 
-	NV_DEBUG(dev, "No devices found.\n");
+	NV_DEBUG(ndev, "No devices found.\n");
 	return -ENODEV;
 }

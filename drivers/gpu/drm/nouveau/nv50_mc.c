@@ -29,12 +29,12 @@
 #include "nouveau_drv.h"
 
 int
-nv50_mc_init(struct drm_device *dev)
+nv50_mc_init(struct nouveau_device *ndev)
 {
-	nv_wr32(dev, NV03_PMC_ENABLE, 0xFFFFFFFF);
+	nv_wr32(ndev, NV03_PMC_ENABLE, 0xFFFFFFFF);
 	return 0;
 }
 
-void nv50_mc_takedown(struct drm_device *dev)
+void nv50_mc_takedown(struct nouveau_device *ndev)
 {
 }

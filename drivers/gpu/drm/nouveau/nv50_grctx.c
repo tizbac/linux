@@ -175,7 +175,7 @@ static void nv50_graph_construct_xfer2(struct nouveau_grctx *ctx);
 static int
 nv50_grctx_generate(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 
 	switch (ndev->chipset) {
 	case 0x50:
@@ -194,9 +194,9 @@ nv50_grctx_generate(struct nouveau_grctx *ctx)
 	case 0xaf:
 		break;
 	default:
-		NV_ERROR(ctx->dev, "I don't know how to make a ctxprog for "
+		NV_ERROR(ctx->device, "I don't know how to make a ctxprog for "
 				   "your NV%x card.\n", ndev->chipset);
-		NV_ERROR(ctx->dev, "Disabling acceleration. Please contact "
+		NV_ERROR(ctx->device, "Disabling acceleration. Please contact "
 				   "the devs.\n");
 		return -ENOSYS;
 	}
@@ -278,20 +278,20 @@ nv50_grctx_generate(struct nouveau_grctx *ctx)
 }
 
 void
-nv50_grctx_fill(struct drm_device *dev, struct nouveau_gpuobj *mem)
+nv50_grctx_fill(struct nouveau_device *ndev, struct nouveau_gpuobj *mem)
 {
 	nv50_grctx_generate(&(struct nouveau_grctx) {
-			     .dev = dev,
+			     .device = ndev,
 			     .mode = NOUVEAU_GRCTX_VALS,
 			     .data = mem,
 			   });
 }
 
 int
-nv50_grctx_init(struct drm_device *dev, u32 *data, u32 max, u32 *len, u32 *cnt)
+nv50_grctx_init(struct nouveau_device *ndev, u32 *data, u32 max, u32 *len, u32 *cnt)
 {
 	struct nouveau_grctx ctx = {
-		.dev = dev,
+		.device = ndev,
 		.mode = NOUVEAU_GRCTX_PROG,
 		.data = data,
 		.ctxprog_max = max
@@ -315,10 +315,10 @@ nv50_graph_construct_mmio_ddata(struct nouveau_grctx *ctx);
 static void
 nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int i, j;
 	int offset, base;
-	uint32_t units = nv_rd32 (ctx->dev, 0x1540);
+	u32 units = nv_rd32 (ctx->device, 0x1540);
 
 	/* 0800: DISPATCH */
 	cp_ctx(ctx, 0x400808, 7);
@@ -797,7 +797,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 }
 
 static void
-dd_emit(struct nouveau_grctx *ctx, int num, uint32_t val) {
+dd_emit(struct nouveau_grctx *ctx, int num, u32 val) {
 	int i;
 	if (val && ctx->mode == NOUVEAU_GRCTX_VALS)
 		for (i = 0; i < num; i++)
@@ -808,7 +808,7 @@ dd_emit(struct nouveau_grctx *ctx, int num, uint32_t val) {
 static void
 nv50_graph_construct_mmio_ddata(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int base, num;
 	base = ctx->ctxvals_pos;
 
@@ -1169,7 +1169,7 @@ nv50_graph_construct_mmio_ddata(struct nouveau_grctx *ctx)
  */
 
 static void
-xf_emit(struct nouveau_grctx *ctx, int num, uint32_t val) {
+xf_emit(struct nouveau_grctx *ctx, int num, u32 val) {
 	int i;
 	if (val && ctx->mode == NOUVEAU_GRCTX_VALS)
 		for (i = 0; i < num; i++)
@@ -1201,11 +1201,11 @@ static void nv50_graph_construct_xfer_tp(struct nouveau_grctx *ctx);
 static void
 nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int i;
 	int offset;
 	int size = 0;
-	uint32_t units = nv_rd32 (ctx->dev, 0x1540);
+	u32 units = nv_rd32 (ctx->device, 0x1540);
 
 	offset = (ctx->ctxvals_pos+0x3f)&~0x3f;
 	ctx->ctxvals_base = offset;
@@ -1365,7 +1365,7 @@ static void
 nv50_graph_construct_gene_dispatch(struct nouveau_grctx *ctx)
 {
 	/* start of strand 0 */
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	/* SEEK */
 	if (ndev->chipset == 0x50)
 		xf_emit(ctx, 5, 0);
@@ -1421,7 +1421,7 @@ static void
 nv50_graph_construct_gene_m2mf(struct nouveau_grctx *ctx)
 {
 	/* Strand 0, right after dispatch */
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int smallm2mf = 0;
 	if (ndev->chipset < 0x92 || ndev->chipset == 0x98)
 		smallm2mf = 1;
@@ -1472,7 +1472,7 @@ nv50_graph_construct_gene_m2mf(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_ccache(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	xf_emit(ctx, 2, 0);		/* RO */
 	xf_emit(ctx, 0x800, 0);		/* ffffffff */
 	switch (ndev->chipset) {
@@ -1540,7 +1540,7 @@ nv50_graph_construct_gene_ccache(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_unk10xx(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int i;
 	/* end of area 2 on pre-NVA0, area 1 on NVAx */
 	xf_emit(ctx, 1, 4);		/* 000000ff GP_RESULT_MAP_SIZE */
@@ -1600,7 +1600,7 @@ nv50_graph_construct_gene_unk10xx(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_unk34xx(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	/* end of area 2 on pre-NVA0, area 1 on NVAx */
 	xf_emit(ctx, 1, 0);		/* 00000001 VIEWPORT_CLIP_RECTS_EN */
 	xf_emit(ctx, 1, 0);		/* 00000003 VIEWPORT_CLIP_MODE */
@@ -1625,7 +1625,7 @@ nv50_graph_construct_gene_unk34xx(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_unk14xx(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	/* middle of area 2 on pre-NVA0, beginning of area 2 on NVA0, area 7 on >NVA0 */
 	if (ndev->chipset != 0x50) {
 		xf_emit(ctx, 5, 0);		/* ffffffff */
@@ -1736,7 +1736,7 @@ nv50_graph_construct_gene_unk14xx(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_zcull(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	/* end of strand 0 on pre-NVA0, beginning of strand 6 on NVAx */
 	/* SEEK */
 	xf_emit(ctx, 1, 0x3f);		/* 0000003f UNK1590 */
@@ -1817,7 +1817,7 @@ nv50_graph_construct_gene_clipid(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_unk24xx(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int i;
 	/* middle of strand 0 on pre-NVA0 [after m2mf], end of strand 2 on NVAx */
 	/* SEEK */
@@ -1900,7 +1900,7 @@ nv50_graph_construct_gene_unk24xx(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int acnt = 0x10, rep, i;
 	/* beginning of strand 1 on pre-NVA0, strand 3 on NVAx */
 	if (IS_NVA3F(ndev->chipset))
@@ -2086,7 +2086,7 @@ nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_eng2d(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	/* middle of strand 1 on pre-NVA0 [after vfetch], middle of strand 6 on NVAx */
 	/* SEEK */
 	xf_emit(ctx, 2, 0);		/* 0001ffff CLIP_X, CLIP_Y */
@@ -2148,7 +2148,7 @@ nv50_graph_construct_gene_eng2d(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_csched(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	/* middle of strand 1 on pre-NVA0 [after eng2d], middle of strand 0 on NVAx */
 	/* SEEK */
 	xf_emit(ctx, 2, 0);		/* 00007fff WINDOW_OFFSET_XY... what is it doing here??? */
@@ -2247,7 +2247,7 @@ nv50_graph_construct_gene_csched(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_unk1cxx(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	xf_emit(ctx, 2, 0);		/* 00007fff WINDOW_OFFSET_XY */
 	xf_emit(ctx, 1, 0x3f800000);	/* ffffffff LINE_WIDTH */
 	xf_emit(ctx, 1, 0);		/* 00000001 LINE_SMOOTH_ENABLE */
@@ -2343,7 +2343,7 @@ nv50_graph_construct_gene_unk1cxx(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_strmout(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	xf_emit(ctx, 1, 0x102);		/* 0000ffff STRMOUT_BUFFER_CTRL */
 	xf_emit(ctx, 1, 0);		/* ffffffff STRMOUT_PRIMITIVE_COUNT */
 	xf_emit(ctx, 4, 4);		/* 000000ff STRMOUT_NUM_ATTRIBS */
@@ -2385,7 +2385,7 @@ nv50_graph_construct_gene_strmout(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_ropm1(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	xf_emit(ctx, 1, 0x4e3bfdf);	/* ffffffff UNK0D64 */
 	xf_emit(ctx, 1, 0x4e3bfdf);	/* ffffffff UNK0DF4 */
 	xf_emit(ctx, 1, 0);		/* 00000007 */
@@ -2398,7 +2398,7 @@ nv50_graph_construct_gene_ropm1(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_ropm2(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	/* SEEK */
 	xf_emit(ctx, 1, 0);		/* 0000ffff DMA_QUERY */
 	xf_emit(ctx, 1, 0x0fac6881);	/* 0fffffff RT_CONTROL */
@@ -2424,7 +2424,7 @@ nv50_graph_construct_gene_ropm2(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_ropc(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int magic2;
 	if (ndev->chipset == 0x50) {
 		magic2 = 0x00003e60;
@@ -2659,7 +2659,7 @@ nv50_graph_construct_gene_ropc(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_xfer_unk84xx(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int magic3;
 	switch (ndev->chipset) {
 	case 0x50:
@@ -2751,7 +2751,7 @@ nv50_graph_construct_xfer_unk84xx(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int magic1, magic2;
 	if (ndev->chipset == 0x50) {
 		magic1 = 0x3ff;
@@ -3051,7 +3051,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_xfer_tex(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	xf_emit(ctx, 2, 0);		/* 1 LINKED_TSC. yes, 2. */
 	if (ndev->chipset != 0x50)
 		xf_emit(ctx, 1, 0);	/* 3 */
@@ -3097,7 +3097,7 @@ nv50_graph_construct_xfer_tex(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_xfer_unk8cxx(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	xf_emit(ctx, 1, 0);		/* 00000001 UNK1534 */
 	xf_emit(ctx, 1, 0);		/* 7/f MULTISAMPLE_SAMPLES_LOG2 */
 	xf_emit(ctx, 2, 0);		/* 7, ffff0ff3 */
@@ -3136,7 +3136,7 @@ nv50_graph_construct_xfer_unk8cxx(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_xfer_tp(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	if (ndev->chipset < 0xa0) {
 		nv50_graph_construct_xfer_unk84xx(ctx);
 		nv50_graph_construct_xfer_tprop(ctx);
@@ -3153,7 +3153,7 @@ nv50_graph_construct_xfer_tp(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_xfer_mpc(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int i, mpcnt = 2;
 	switch (ndev->chipset) {
 		case 0x98:
@@ -3285,10 +3285,10 @@ nv50_graph_construct_xfer_mpc(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_xfer2(struct nouveau_grctx *ctx)
 {
-	struct nouveau_device *ndev = nouveau_device(ctx->dev);
+	struct nouveau_device *ndev = ctx->device;
 	int i;
-	uint32_t offset;
-	uint32_t units = nv_rd32 (ctx->dev, 0x1540);
+	u32 offset;
+	u32 units = nv_rd32 (ctx->device, 0x1540);
 	int size = 0;
 
 	offset = (ctx->ctxvals_pos+0x3f)&~0x3f;

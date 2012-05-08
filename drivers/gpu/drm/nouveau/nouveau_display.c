@@ -66,16 +66,15 @@ static const struct drm_framebuffer_funcs nouveau_framebuffer_funcs = {
 };
 
 int
-nouveau_framebuffer_init(struct drm_device *dev,
+nouveau_framebuffer_init(struct nouveau_device *ndev,
 			 struct nouveau_framebuffer *nv_fb,
 			 struct drm_mode_fb_cmd2 *mode_cmd,
 			 struct nouveau_bo *nvbo)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_framebuffer *fb = &nv_fb->base;
 	int ret;
 
-	ret = drm_framebuffer_init(dev, fb, &nouveau_framebuffer_funcs);
+	ret = drm_framebuffer_init(ndev->dev, fb, &nouveau_framebuffer_funcs);
 	if (ret) {
 		return ret;
 	}
@@ -102,7 +101,7 @@ nouveau_framebuffer_init(struct drm_device *dev,
 		case 32: nv_fb->r_format = NV50_EVO_CRTC_FB_DEPTH_24; break;
 		case 30: nv_fb->r_format = NV50_EVO_CRTC_FB_DEPTH_30; break;
 		default:
-			 NV_ERROR(dev, "unknown depth %d\n", fb->depth);
+			 NV_ERROR(ndev, "unknown depth %d\n", fb->depth);
 			 return -EINVAL;
 		}
 
@@ -130,6 +129,7 @@ nouveau_user_framebuffer_create(struct drm_device *dev,
 				struct drm_file *file_priv,
 				struct drm_mode_fb_cmd2 *mode_cmd)
 {
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_framebuffer *nouveau_fb;
 	struct drm_gem_object *gem;
 	int ret;
@@ -142,7 +142,7 @@ nouveau_user_framebuffer_create(struct drm_device *dev,
 	if (!nouveau_fb)
 		return ERR_PTR(-ENOMEM);
 
-	ret = nouveau_framebuffer_init(dev, nouveau_fb, mode_cmd, nouveau_gem_object(gem));
+	ret = nouveau_framebuffer_init(ndev, nouveau_fb, mode_cmd, nouveau_gem_object(gem));
 	if (ret) {
 		drm_gem_object_unreference(gem);
 		return ERR_PTR(ret);
@@ -196,7 +196,7 @@ static struct nouveau_drm_prop_enum_list dither_depth[] = {
 		l++;                                                           \
 	}                                                                      \
 	if (c) {                                                               \
-		p = drm_property_create(dev, DRM_MODE_PROP_ENUM, n, c);        \
+		p = drm_property_create(ndev->dev, DRM_MODE_PROP_ENUM, n, c);  \
 		l = (list);                                                    \
 		c = 0;                                                         \
 		while (p && l->gen_mask) {                                     \
@@ -210,14 +210,14 @@ static struct nouveau_drm_prop_enum_list dither_depth[] = {
 } while(0)
 
 int
-nouveau_display_init(struct drm_device *dev)
+nouveau_display_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_display_engine *disp = &ndev->subsys.display;
+	struct drm_device *dev = ndev->dev;
 	struct drm_connector *connector;
 	int ret;
 
-	ret = disp->init(dev);
+	ret = disp->init(ndev);
 	if (ret)
 		return ret;
 
@@ -225,8 +225,8 @@ nouveau_display_init(struct drm_device *dev)
 	 * some vbios default this to off for some reason, causing the
 	 * panel to not work after resume
 	 */
-	if (nouveau_gpio_func_get(dev, DCB_GPIO_PANEL_POWER) == 0) {
-		nouveau_gpio_func_set(dev, DCB_GPIO_PANEL_POWER, true);
+	if (nouveau_gpio_func_get(ndev, DCB_GPIO_PANEL_POWER) == 0) {
+		nouveau_gpio_func_set(ndev, DCB_GPIO_PANEL_POWER, true);
 		msleep(300);
 	}
 
@@ -236,34 +236,34 @@ nouveau_display_init(struct drm_device *dev)
 	/* enable hotplug interrupts */
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
 		struct nouveau_connector *conn = nouveau_connector(connector);
-		nouveau_gpio_irq(dev, 0, conn->hpd, 0xff, true);
+		nouveau_gpio_irq(ndev, 0, conn->hpd, 0xff, true);
 	}
 
 	return ret;
 }
 
 void
-nouveau_display_fini(struct drm_device *dev)
+nouveau_display_fini(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_display_engine *disp = &ndev->subsys.display;
+	struct drm_device *dev = ndev->dev;
 	struct drm_connector *connector;
 
 	/* disable hotplug interrupts */
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
 		struct nouveau_connector *conn = nouveau_connector(connector);
-		nouveau_gpio_irq(dev, 0, conn->hpd, 0xff, false);
+		nouveau_gpio_irq(ndev, 0, conn->hpd, 0xff, false);
 	}
 
 	drm_kms_helper_poll_disable(dev);
-	disp->fini(dev);
+	disp->fini(ndev);
 }
 
 int
-nouveau_display_create(struct drm_device *dev)
+nouveau_display_create(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_display_engine *disp = &ndev->subsys.display;
+	struct drm_device *dev = ndev->dev;
 	int ret, gen;
 
 	drm_mode_config_init(dev);
@@ -325,7 +325,7 @@ nouveau_display_create(struct drm_device *dev)
 	drm_kms_helper_poll_init(dev);
 	drm_kms_helper_poll_disable(dev);
 
-	ret = disp->create(dev);
+	ret = disp->create(ndev);
 	if (ret)
 		goto disp_create_err;
 
@@ -338,7 +338,7 @@ nouveau_display_create(struct drm_device *dev)
 	return 0;
 
 vblank_err:
-	disp->destroy(dev);
+	disp->destroy(ndev);
 disp_create_err:
 	drm_kms_helper_poll_fini(dev);
 	drm_mode_config_cleanup(dev);
@@ -346,14 +346,14 @@ disp_create_err:
 }
 
 void
-nouveau_display_destroy(struct drm_device *dev)
+nouveau_display_destroy(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_display_engine *disp = &ndev->subsys.display;
+	struct drm_device *dev = ndev->dev;
 
 	drm_vblank_cleanup(dev);
 
-	disp->destroy(dev);
+	disp->destroy(ndev);
 
 	drm_kms_helper_poll_fini(dev);
 	drm_mode_config_cleanup(dev);
@@ -365,10 +365,10 @@ nouveau_vblank_enable(struct drm_device *dev, int crtc)
 	struct nouveau_device *ndev = nouveau_device(dev);
 
 	if (ndev->card_type >= NV_50)
-		nv_mask(dev, NV50_PDISPLAY_INTR_EN_1, 0,
+		nv_mask(ndev, NV50_PDISPLAY_INTR_EN_1, 0,
 			NV50_PDISPLAY_INTR_EN_1_VBLANK_CRTC_(crtc));
 	else
-		NVWriteCRTC(dev, crtc, NV_PCRTC_INTR_EN_0,
+		NVWriteCRTC(ndev, crtc, NV_PCRTC_INTR_EN_0,
 			    NV_PCRTC_INTR_0_VBLANK);
 
 	return 0;
@@ -380,10 +380,10 @@ nouveau_vblank_disable(struct drm_device *dev, int crtc)
 	struct nouveau_device *ndev = nouveau_device(dev);
 
 	if (ndev->card_type >= NV_50)
-		nv_mask(dev, NV50_PDISPLAY_INTR_EN_1,
+		nv_mask(ndev, NV50_PDISPLAY_INTR_EN_1,
 			NV50_PDISPLAY_INTR_EN_1_VBLANK_CRTC_(crtc), 0);
 	else
-		NVWriteCRTC(dev, crtc, NV_PCRTC_INTR_EN_0, 0);
+		NVWriteCRTC(ndev, crtc, NV_PCRTC_INTR_EN_0, 0);
 }
 
 static int
@@ -435,15 +435,14 @@ nouveau_page_flip_emit(struct nouveau_channel *chan,
 		       struct nouveau_fence **pfence)
 {
 	struct nouveau_software_chan *swch = chan->engctx[NVOBJ_ENGINE_SW];
-	struct nouveau_device *ndev = nouveau_device(chan->dev);
-	struct drm_device *dev = chan->dev;
+	struct nouveau_device *ndev = chan->device;
 	unsigned long flags;
 	int ret;
 
 	/* Queue it to the pending list */
-	spin_lock_irqsave(&dev->event_lock, flags);
+	spin_lock_irqsave(&ndev->dev->event_lock, flags);
 	list_add_tail(&s->head, &swch->flip);
-	spin_unlock_irqrestore(&dev->event_lock, flags);
+	spin_unlock_irqrestore(&ndev->dev->event_lock, flags);
 
 	/* Synchronize with the old framebuffer */
 	ret = nouveau_fence_sync(old_bo->bo.sync_obj, chan);
@@ -457,11 +456,11 @@ nouveau_page_flip_emit(struct nouveau_channel *chan,
 
 	if (ndev->card_type < NV_C0) {
 		BEGIN_NV04(chan, NvSubSw, NV_SW_PAGE_FLIP, 1);
-		OUT_RING  (chan, 0x00000000);
-		OUT_RING  (chan, 0x00000000);
+		PUSH_DATA (chan, 0x00000000);
+		PUSH_DATA (chan, 0x00000000);
 	} else {
 		BEGIN_NVC0(chan, 0, NV10_SUBCHAN_REF_CNT, 1);
-		OUT_RING  (chan, 0);
+		PUSH_DATA (chan, 0);
 		BEGIN_IMC0(chan, 0, NVSW_SUBCHAN_PAGE_FLIP, 0x0000);
 	}
 	FIRE_RING (chan);
@@ -472,9 +471,9 @@ nouveau_page_flip_emit(struct nouveau_channel *chan,
 
 	return 0;
 fail:
-	spin_lock_irqsave(&dev->event_lock, flags);
+	spin_lock_irqsave(&ndev->dev->event_lock, flags);
 	list_del(&s->head);
-	spin_unlock_irqrestore(&dev->event_lock, flags);
+	spin_unlock_irqrestore(&ndev->dev->event_lock, flags);
 	return ret;
 }
 
@@ -482,8 +481,7 @@ int
 nouveau_crtc_page_flip(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 		       struct drm_pending_vblank_event *event)
 {
-	struct drm_device *dev = crtc->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nouveau_device(crtc->dev);
 	struct nouveau_bo *old_bo = nouveau_framebuffer(crtc->fb)->nvbo;
 	struct nouveau_bo *new_bo = nouveau_framebuffer(fb)->nvbo;
 	struct nouveau_page_flip_state *s;
@@ -553,15 +551,15 @@ nouveau_finish_page_flip(struct nouveau_channel *chan,
 			 struct nouveau_page_flip_state *ps)
 {
 	struct nouveau_software_chan *swch = chan->engctx[NVOBJ_ENGINE_SW];
-	struct drm_device *dev = chan->dev;
+	struct nouveau_device *ndev = chan->device;
 	struct nouveau_page_flip_state *s;
 	unsigned long flags;
 
-	spin_lock_irqsave(&dev->event_lock, flags);
+	spin_lock_irqsave(&ndev->dev->event_lock, flags);
 
 	if (list_empty(&swch->flip)) {
-		NV_ERROR(dev, "Unexpected pageflip in channel %d.\n", chan->id);
-		spin_unlock_irqrestore(&dev->event_lock, flags);
+		NV_ERROR(ndev, "Unexpected pageflip in channel %d.\n", chan->id);
+		spin_unlock_irqrestore(&ndev->dev->event_lock, flags);
 		return -EINVAL;
 	}
 
@@ -583,7 +581,7 @@ nouveau_finish_page_flip(struct nouveau_channel *chan,
 		*ps = *s;
 	kfree(s);
 
-	spin_unlock_irqrestore(&dev->event_lock, flags);
+	spin_unlock_irqrestore(&ndev->dev->event_lock, flags);
 	return 0;
 }
 
@@ -591,6 +589,7 @@ int
 nouveau_display_dumb_create(struct drm_file *file_priv, struct drm_device *dev,
 			    struct drm_mode_create_dumb *args)
 {
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_bo *bo;
 	int ret;
 
@@ -598,7 +597,7 @@ nouveau_display_dumb_create(struct drm_file *file_priv, struct drm_device *dev,
 	args->size = args->pitch * args->height;
 	args->size = roundup(args->size, PAGE_SIZE);
 
-	ret = nouveau_gem_new(dev, args->size, 0, TTM_PL_FLAG_VRAM, 0, 0, &bo);
+	ret = nouveau_gem_new(ndev, args->size, 0, TTM_PL_FLAG_VRAM, 0, 0, &bo);
 	if (ret)
 		return ret;
 
@@ -609,7 +608,7 @@ nouveau_display_dumb_create(struct drm_file *file_priv, struct drm_device *dev,
 
 int
 nouveau_display_dumb_destroy(struct drm_file *file_priv, struct drm_device *dev,
-			     uint32_t handle)
+			     u32 handle)
 {
 	return drm_gem_handle_delete(file_priv, handle);
 }
@@ -617,7 +616,7 @@ nouveau_display_dumb_destroy(struct drm_file *file_priv, struct drm_device *dev,
 int
 nouveau_display_dumb_map_offset(struct drm_file *file_priv,
 				struct drm_device *dev,
-				uint32_t handle, uint64_t *poffset)
+				u32 handle, u64 *poffset)
 {
 	struct drm_gem_object *gem;
 

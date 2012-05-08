@@ -37,15 +37,14 @@ struct nva3_copy_engine {
 static int
 nva3_copy_context_new(struct nouveau_channel *chan, int engine)
 {
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = chan->device;
 	struct nouveau_gpuobj *ramin = chan->ramin;
 	struct nouveau_gpuobj *ctx = NULL;
 	int ret;
 
-	NV_DEBUG(dev, "ch%d\n", chan->id);
+	NV_DEBUG(ndev, "ch%d\n", chan->id);
 
-	ret = nouveau_gpuobj_new(dev, chan, 256, 0, NVOBJ_FLAG_ZERO_ALLOC |
+	ret = nouveau_gpuobj_new(ndev, chan, 256, 0, NVOBJ_FLAG_ZERO_ALLOC |
 				 NVOBJ_FLAG_ZERO_FREE, &ctx);
 	if (ret)
 		return ret;
@@ -56,7 +55,7 @@ nva3_copy_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(ramin, 0xcc, 0x00000000);
 	nv_wo32(ramin, 0xd0, 0x00000000);
 	nv_wo32(ramin, 0xd4, 0x00000000);
-	ndev->subsys.instmem.flush(dev);
+	ndev->subsys.instmem.flush(ndev);
 
 	atomic_inc(&chan->vm->engref[engine]);
 	chan->engctx[engine] = ctx;
@@ -90,44 +89,44 @@ nva3_copy_context_del(struct nouveau_channel *chan, int engine)
 }
 
 static void
-nva3_copy_tlb_flush(struct drm_device *dev, int engine)
+nva3_copy_tlb_flush(struct nouveau_device *ndev, int engine)
 {
-	nv50_vm_flush_engine(dev, 0x0d);
+	nv50_vm_flush_engine(ndev, 0x0d);
 }
 
 static int
-nva3_copy_init(struct drm_device *dev, int engine)
+nva3_copy_init(struct nouveau_device *ndev, int engine)
 {
 	int i;
 
-	nv_mask(dev, 0x000200, 0x00002000, 0x00000000);
-	nv_mask(dev, 0x000200, 0x00002000, 0x00002000);
-	nv_wr32(dev, 0x104014, 0xffffffff); /* disable all interrupts */
+	nv_mask(ndev, 0x000200, 0x00002000, 0x00000000);
+	nv_mask(ndev, 0x000200, 0x00002000, 0x00002000);
+	nv_wr32(ndev, 0x104014, 0xffffffff); /* disable all interrupts */
 
 	/* upload ucode */
-	nv_wr32(dev, 0x1041c0, 0x01000000);
+	nv_wr32(ndev, 0x1041c0, 0x01000000);
 	for (i = 0; i < sizeof(nva3_pcopy_data) / 4; i++)
-		nv_wr32(dev, 0x1041c4, nva3_pcopy_data[i]);
+		nv_wr32(ndev, 0x1041c4, nva3_pcopy_data[i]);
 
-	nv_wr32(dev, 0x104180, 0x01000000);
+	nv_wr32(ndev, 0x104180, 0x01000000);
 	for (i = 0; i < sizeof(nva3_pcopy_code) / 4; i++) {
 		if ((i & 0x3f) == 0)
-			nv_wr32(dev, 0x104188, i >> 6);
-		nv_wr32(dev, 0x104184, nva3_pcopy_code[i]);
+			nv_wr32(ndev, 0x104188, i >> 6);
+		nv_wr32(ndev, 0x104184, nva3_pcopy_code[i]);
 	}
 
 	/* start it running */
-	nv_wr32(dev, 0x10410c, 0x00000000);
-	nv_wr32(dev, 0x104104, 0x00000000); /* ENTRY */
-	nv_wr32(dev, 0x104100, 0x00000002); /* TRIGGER */
+	nv_wr32(ndev, 0x10410c, 0x00000000);
+	nv_wr32(ndev, 0x104104, 0x00000000); /* ENTRY */
+	nv_wr32(ndev, 0x104100, 0x00000002); /* TRIGGER */
 	return 0;
 }
 
 static int
-nva3_copy_fini(struct drm_device *dev, int engine, bool suspend)
+nva3_copy_fini(struct nouveau_device *ndev, int engine, bool suspend)
 {
-	nv_mask(dev, 0x104048, 0x00000003, 0x00000000);
-	nv_wr32(dev, 0x104014, 0xffffffff);
+	nv_mask(ndev, 0x104048, 0x00000003, 0x00000000);
+	nv_wr32(ndev, 0x104014, 0xffffffff);
 	return 0;
 }
 
@@ -139,47 +138,47 @@ static struct nouveau_enum nva3_copy_isr_error_name[] = {
 };
 
 static void
-nva3_copy_isr(struct drm_device *dev)
+nva3_copy_isr(struct nouveau_device *ndev)
 {
-	u32 dispatch = nv_rd32(dev, 0x10401c);
-	u32 stat = nv_rd32(dev, 0x104008) & dispatch & ~(dispatch >> 16);
-	u32 inst = nv_rd32(dev, 0x104050) & 0x3fffffff;
-	u32 ssta = nv_rd32(dev, 0x104040) & 0x0000ffff;
-	u32 addr = nv_rd32(dev, 0x104040) >> 16;
+	u32 dispatch = nv_rd32(ndev, 0x10401c);
+	u32 stat = nv_rd32(ndev, 0x104008) & dispatch & ~(dispatch >> 16);
+	u32 inst = nv_rd32(ndev, 0x104050) & 0x3fffffff;
+	u32 ssta = nv_rd32(ndev, 0x104040) & 0x0000ffff;
+	u32 addr = nv_rd32(ndev, 0x104040) >> 16;
 	u32 mthd = (addr & 0x07ff) << 2;
 	u32 subc = (addr & 0x3800) >> 11;
-	u32 data = nv_rd32(dev, 0x104044);
-	int chid = nv50_graph_isr_chid(dev, inst);
+	u32 data = nv_rd32(ndev, 0x104044);
+	int chid = nv50_graph_isr_chid(ndev, inst);
 
 	if (stat & 0x00000040) {
-		NV_INFO(dev, "PCOPY: DISPATCH_ERROR [");
+		NV_INFO(ndev, "PCOPY: DISPATCH_ERROR [");
 		nouveau_enum_print(nva3_copy_isr_error_name, ssta);
 		printk("] ch %d [0x%08x] subc %d mthd 0x%04x data 0x%08x\n",
 			chid, inst, subc, mthd, data);
-		nv_wr32(dev, 0x104004, 0x00000040);
+		nv_wr32(ndev, 0x104004, 0x00000040);
 		stat &= ~0x00000040;
 	}
 
 	if (stat) {
-		NV_INFO(dev, "PCOPY: unhandled intr 0x%08x\n", stat);
-		nv_wr32(dev, 0x104004, stat);
+		NV_INFO(ndev, "PCOPY: unhandled intr 0x%08x\n", stat);
+		nv_wr32(ndev, 0x104004, stat);
 	}
-	nv50_fb_vm_trap(dev, 1);
+	nv50_fb_vm_trap(ndev, 1);
 }
 
 static void
-nva3_copy_destroy(struct drm_device *dev, int engine)
+nva3_copy_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nva3_copy_engine *pcopy = nv_engine(dev, engine);
+	struct nva3_copy_engine *pcopy = nv_engine(ndev, engine);
 
-	nouveau_irq_unregister(dev, 22);
+	nouveau_irq_unregister(ndev, 22);
 
-	NVOBJ_ENGINE_DEL(dev, COPY0);
+	NVOBJ_ENGINE_DEL(ndev, COPY0);
 	kfree(pcopy);
 }
 
 int
-nva3_copy_create(struct drm_device *dev)
+nva3_copy_create(struct nouveau_device *ndev)
 {
 	struct nva3_copy_engine *pcopy;
 
@@ -195,9 +194,9 @@ nva3_copy_create(struct drm_device *dev)
 	pcopy->base.object_new = nva3_copy_object_new;
 	pcopy->base.tlb_flush = nva3_copy_tlb_flush;
 
-	nouveau_irq_register(dev, 22, nva3_copy_isr);
+	nouveau_irq_register(ndev, 22, nva3_copy_isr);
 
-	NVOBJ_ENGINE_ADD(dev, COPY0, &pcopy->base);
-	NVOBJ_CLASS(dev, 0x85b5, COPY0);
+	NVOBJ_ENGINE_ADD(ndev, COPY0, &pcopy->base);
+	NVOBJ_CLASS(ndev, 0x85b5, COPY0);
 	return 0;
 }

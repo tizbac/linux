@@ -8,21 +8,23 @@
 static void
 nv04_cursor_show(struct nouveau_crtc *nv_crtc, bool update)
 {
-	nv_show_cursor(nv_crtc->base.dev, nv_crtc->index, true);
+	struct nouveau_device *ndev = nouveau_device(nv_crtc->base.dev);
+	nv_show_cursor(ndev, nv_crtc->index, true);
 }
 
 static void
 nv04_cursor_hide(struct nouveau_crtc *nv_crtc, bool update)
 {
-	nv_show_cursor(nv_crtc->base.dev, nv_crtc->index, false);
+	struct nouveau_device *ndev = nouveau_device(nv_crtc->base.dev);
+	nv_show_cursor(ndev, nv_crtc->index, false);
 }
 
 static void
 nv04_cursor_set_pos(struct nouveau_crtc *nv_crtc, int x, int y)
 {
+	struct nouveau_device *ndev = nouveau_device(nv_crtc->base.dev);
 	nv_crtc->cursor_saved_x = x; nv_crtc->cursor_saved_y = y;
-	NVWriteRAMDAC(nv_crtc->base.dev, nv_crtc->index,
-		      NV_PRAMDAC_CU_START_POS,
+	NVWriteRAMDAC(ndev, nv_crtc->index, NV_PRAMDAC_CU_START_POS,
 		      XLATE(y, 0, NV_PRAMDAC_CU_START_POS_Y) |
 		      XLATE(x, 0, NV_PRAMDAC_CU_START_POS_X));
 }
@@ -30,15 +32,15 @@ nv04_cursor_set_pos(struct nouveau_crtc *nv_crtc, int x, int y)
 static void
 crtc_wr_cio_state(struct drm_crtc *crtc, struct nv04_crtc_reg *crtcstate, int index)
 {
-	NVWriteVgaCrtc(crtc->dev, nouveau_crtc(crtc)->index, index,
+	struct nouveau_device *ndev = nouveau_device(crtc->dev);
+	NVWriteVgaCrtc(ndev, nouveau_crtc(crtc)->index, index,
 		       crtcstate->CRTC[index]);
 }
 
 static void
-nv04_cursor_set_offset(struct nouveau_crtc *nv_crtc, uint32_t offset)
+nv04_cursor_set_offset(struct nouveau_crtc *nv_crtc, u32 offset)
 {
-	struct drm_device *dev = nv_crtc->base.dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nouveau_device(nv_crtc->base.dev);
 	struct nv04_crtc_reg *regp = &ndev->mode_reg.crtc_reg[nv_crtc->index];
 	struct drm_crtc *crtc = &nv_crtc->base;
 
@@ -56,7 +58,7 @@ nv04_cursor_set_offset(struct nouveau_crtc *nv_crtc, uint32_t offset)
 	crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_HCUR_ADDR1_INDEX);
 	crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_HCUR_ADDR2_INDEX);
 	if (ndev->card_type == NV_40)
-		nv_fix_nv40_hw_cursor(dev, nv_crtc->index);
+		nv_fix_nv40_hw_cursor(ndev, nv_crtc->index);
 }
 
 int

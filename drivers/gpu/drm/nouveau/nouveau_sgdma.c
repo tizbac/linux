@@ -12,7 +12,7 @@ struct nouveau_sgdma_be {
 	 * nouve_bo.c works properly, otherwise have to move them here
 	 */
 	struct ttm_dma_tt ttm;
-	struct drm_device *dev;
+	struct nouveau_device *device;
 	u64 offset;
 };
 
@@ -22,7 +22,7 @@ nouveau_sgdma_destroy(struct ttm_tt *ttm)
 	struct nouveau_sgdma_be *nvbe = (struct nouveau_sgdma_be *)ttm;
 
 	if (ttm) {
-		NV_DEBUG(nvbe->dev, "\n");
+		NV_DEBUG(nvbe->device, "\n");
 		ttm_dma_tt_fini(&nvbe->ttm);
 		kfree(nvbe);
 	}
@@ -32,18 +32,17 @@ static int
 nv04_sgdma_bind(struct ttm_tt *ttm, struct ttm_mem_reg *mem)
 {
 	struct nouveau_sgdma_be *nvbe = (struct nouveau_sgdma_be *)ttm;
-	struct drm_device *dev = nvbe->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nvbe->device;
 	struct nouveau_gpuobj *gpuobj = ndev->gart_info.sg_ctxdma;
 	unsigned i, j, pte;
 
-	NV_DEBUG(dev, "pg=0x%lx\n", mem->start);
+	NV_DEBUG(ndev, "pg=0x%lx\n", mem->start);
 
 	nvbe->offset = mem->start << PAGE_SHIFT;
 	pte = (nvbe->offset >> NV_CTXDMA_PAGE_SHIFT) + 2;
 	for (i = 0; i < ttm->num_pages; i++) {
 		dma_addr_t dma_offset = nvbe->ttm.dma_address[i];
-		uint32_t offset_l = lower_32_bits(dma_offset);
+		u32 offset_l = lower_32_bits(dma_offset);
 
 		for (j = 0; j < PAGE_SIZE / NV_CTXDMA_PAGE_SIZE; j++, pte++) {
 			nv_wo32(gpuobj, (pte * 4) + 0, offset_l | 3);
@@ -58,12 +57,11 @@ static int
 nv04_sgdma_unbind(struct ttm_tt *ttm)
 {
 	struct nouveau_sgdma_be *nvbe = (struct nouveau_sgdma_be *)ttm;
-	struct drm_device *dev = nvbe->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nvbe->device;
 	struct nouveau_gpuobj *gpuobj = ndev->gart_info.sg_ctxdma;
 	unsigned i, j, pte;
 
-	NV_DEBUG(dev, "\n");
+	NV_DEBUG(ndev, "\n");
 
 	if (ttm->state != tt_bound)
 		return 0;
@@ -86,20 +84,20 @@ static struct ttm_backend_func nv04_sgdma_backend = {
 static void
 nv41_sgdma_flush(struct nouveau_sgdma_be *nvbe)
 {
-	struct drm_device *dev = nvbe->dev;
+	struct nouveau_device *ndev = nvbe->device;
 
-	nv_wr32(dev, 0x100810, 0x00000022);
-	if (!nv_wait(dev, 0x100810, 0x00000100, 0x00000100))
-		NV_ERROR(dev, "vm flush timeout: 0x%08x\n",
-			 nv_rd32(dev, 0x100810));
-	nv_wr32(dev, 0x100810, 0x00000000);
+	nv_wr32(ndev, 0x100810, 0x00000022);
+	if (!nv_wait(ndev, 0x100810, 0x00000100, 0x00000100))
+		NV_ERROR(ndev, "vm flush timeout: 0x%08x\n",
+			 nv_rd32(ndev, 0x100810));
+	nv_wr32(ndev, 0x100810, 0x00000000);
 }
 
 static int
 nv41_sgdma_bind(struct ttm_tt *ttm, struct ttm_mem_reg *mem)
 {
 	struct nouveau_sgdma_be *nvbe = (struct nouveau_sgdma_be *)ttm;
-	struct nouveau_device *ndev = nouveau_device(nvbe->dev);
+	struct nouveau_device *ndev = nvbe->device;
 	struct nouveau_gpuobj *pgt = ndev->gart_info.sg_ctxdma;
 	dma_addr_t *list = nvbe->ttm.dma_address;
 	u32 pte = mem->start << 2;
@@ -120,7 +118,7 @@ static int
 nv41_sgdma_unbind(struct ttm_tt *ttm)
 {
 	struct nouveau_sgdma_be *nvbe = (struct nouveau_sgdma_be *)ttm;
-	struct nouveau_device *ndev = nouveau_device(nvbe->dev);
+	struct nouveau_device *ndev = nvbe->device;
 	struct nouveau_gpuobj *pgt = ndev->gart_info.sg_ctxdma;
 	u32 pte = (nvbe->offset >> 12) << 2;
 	u32 cnt = ttm->num_pages;
@@ -144,20 +142,20 @@ static void
 nv44_sgdma_flush(struct ttm_tt *ttm)
 {
 	struct nouveau_sgdma_be *nvbe = (struct nouveau_sgdma_be *)ttm;
-	struct drm_device *dev = nvbe->dev;
+	struct nouveau_device *ndev = nvbe->device;
 
-	nv_wr32(dev, 0x100814, (ttm->num_pages - 1) << 12);
-	nv_wr32(dev, 0x100808, nvbe->offset | 0x20);
-	if (!nv_wait(dev, 0x100808, 0x00000001, 0x00000001))
-		NV_ERROR(dev, "gart flush timeout: 0x%08x\n",
-			 nv_rd32(dev, 0x100808));
-	nv_wr32(dev, 0x100808, 0x00000000);
+	nv_wr32(ndev, 0x100814, (ttm->num_pages - 1) << 12);
+	nv_wr32(ndev, 0x100808, nvbe->offset | 0x20);
+	if (!nv_wait(ndev, 0x100808, 0x00000001, 0x00000001))
+		NV_ERROR(ndev, "gart flush timeout: 0x%08x\n",
+			 nv_rd32(ndev, 0x100808));
+	nv_wr32(ndev, 0x100808, 0x00000000);
 }
 
 static void
 nv44_sgdma_fill(struct nouveau_gpuobj *pgt, dma_addr_t *list, u32 base, u32 cnt)
 {
-	struct nouveau_device *ndev = nouveau_device(pgt->dev);
+	struct nouveau_device *ndev = pgt->device;
 	dma_addr_t dummy = ndev->gart_info.dummy.addr;
 	u32 pte, tmp[4];
 
@@ -208,7 +206,7 @@ static int
 nv44_sgdma_bind(struct ttm_tt *ttm, struct ttm_mem_reg *mem)
 {
 	struct nouveau_sgdma_be *nvbe = (struct nouveau_sgdma_be *)ttm;
-	struct nouveau_device *ndev = nouveau_device(nvbe->dev);
+	struct nouveau_device *ndev = nvbe->device;
 	struct nouveau_gpuobj *pgt = ndev->gart_info.sg_ctxdma;
 	dma_addr_t *list = nvbe->ttm.dma_address;
 	u32 pte = mem->start << 2, tmp[4];
@@ -248,7 +246,7 @@ static int
 nv44_sgdma_unbind(struct ttm_tt *ttm)
 {
 	struct nouveau_sgdma_be *nvbe = (struct nouveau_sgdma_be *)ttm;
-	struct nouveau_device *ndev = nouveau_device(nvbe->dev);
+	struct nouveau_device *ndev = nvbe->device;
 	struct nouveau_gpuobj *pgt = ndev->gart_info.sg_ctxdma;
 	u32 pte = (nvbe->offset >> 12) << 2;
 	u32 cnt = ttm->num_pages;
@@ -312,18 +310,17 @@ static struct ttm_backend_func nv50_sgdma_backend = {
 
 struct ttm_tt *
 nouveau_sgdma_create_ttm(struct ttm_bo_device *bdev,
-			 unsigned long size, uint32_t page_flags,
+			 unsigned long size, u32 page_flags,
 			 struct page *dummy_read_page)
 {
 	struct nouveau_device *ndev = nouveau_bdev(bdev);
-	struct drm_device *dev = ndev->dev;
 	struct nouveau_sgdma_be *nvbe;
 
 	nvbe = kzalloc(sizeof(*nvbe), GFP_KERNEL);
 	if (!nvbe)
 		return NULL;
 
-	nvbe->dev = dev;
+	nvbe->device = ndev;
 	nvbe->ttm.ttm.func = ndev->gart_info.func;
 
 	if (ttm_dma_tt_init(&nvbe->ttm, bdev, size, page_flags, dummy_read_page)) {
@@ -334,9 +331,8 @@ nouveau_sgdma_create_ttm(struct ttm_bo_device *bdev,
 }
 
 int
-nouveau_sgdma_init(struct drm_device *dev)
+nouveau_sgdma_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_gpuobj *gpuobj = NULL;
 	u32 aper_size, align;
 	int ret;
@@ -355,10 +351,10 @@ nouveau_sgdma_init(struct drm_device *dev)
 		return -ENOMEM;
 
 	ndev->gart_info.dummy.addr =
-		pci_map_page(dev->pdev, ndev->gart_info.dummy.page,
+		pci_map_page(ndev->dev->pdev, ndev->gart_info.dummy.page,
 			     0, PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
-	if (pci_dma_mapping_error(dev->pdev, ndev->gart_info.dummy.addr)) {
-		NV_ERROR(dev, "error mapping dummy page\n");
+	if (pci_dma_mapping_error(ndev->dev->pdev, ndev->gart_info.dummy.addr)) {
+		NV_ERROR(ndev, "error mapping dummy page\n");
 		__free_page(ndev->gart_info.dummy.page);
 		ndev->gart_info.dummy.page = NULL;
 		return -ENOMEM;
@@ -370,9 +366,9 @@ nouveau_sgdma_init(struct drm_device *dev)
 		ndev->gart_info.type = NOUVEAU_GART_HW;
 		ndev->gart_info.func = &nv50_sgdma_backend;
 	} else
-	if (0 && pci_is_pcie(dev->pdev) &&
+	if (0 && pci_is_pcie(ndev->dev->pdev) &&
 	    ndev->chipset > 0x40 && ndev->chipset != 0x45) {
-		if (nv44_graph_class(dev)) {
+		if (nv44_graph_class(ndev)) {
 			ndev->gart_info.func = &nv44_sgdma_backend;
 			align = 512 * 1024;
 		} else {
@@ -380,11 +376,11 @@ nouveau_sgdma_init(struct drm_device *dev)
 			align = 16;
 		}
 
-		ret = nouveau_gpuobj_new(dev, NULL, aper_size / 1024, align,
+		ret = nouveau_gpuobj_new(ndev, NULL, aper_size / 1024, align,
 					 NVOBJ_FLAG_ZERO_ALLOC |
 					 NVOBJ_FLAG_ZERO_FREE, &gpuobj);
 		if (ret) {
-			NV_ERROR(dev, "Error creating sgdma object: %d\n", ret);
+			NV_ERROR(ndev, "Error creating sgdma object: %d\n", ret);
 			return ret;
 		}
 
@@ -393,11 +389,11 @@ nouveau_sgdma_init(struct drm_device *dev)
 		ndev->gart_info.aper_size = aper_size;
 		ndev->gart_info.type = NOUVEAU_GART_HW;
 	} else {
-		ret = nouveau_gpuobj_new(dev, NULL, (aper_size / 1024) + 8, 16,
+		ret = nouveau_gpuobj_new(ndev, NULL, (aper_size / 1024) + 8, 16,
 					 NVOBJ_FLAG_ZERO_ALLOC |
 					 NVOBJ_FLAG_ZERO_FREE, &gpuobj);
 		if (ret) {
-			NV_ERROR(dev, "Error creating sgdma object: %d\n", ret);
+			NV_ERROR(ndev, "Error creating sgdma object: %d\n", ret);
 			return ret;
 		}
 
@@ -419,24 +415,21 @@ nouveau_sgdma_init(struct drm_device *dev)
 }
 
 void
-nouveau_sgdma_takedown(struct drm_device *dev)
+nouveau_sgdma_takedown(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-
 	nouveau_gpuobj_ref(NULL, &ndev->gart_info.sg_ctxdma);
 
 	if (ndev->gart_info.dummy.page) {
-		pci_unmap_page(dev->pdev, ndev->gart_info.dummy.addr,
+		pci_unmap_page(ndev->dev->pdev, ndev->gart_info.dummy.addr,
 			       PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
 		__free_page(ndev->gart_info.dummy.page);
 		ndev->gart_info.dummy.page = NULL;
 	}
 }
 
-uint32_t
-nouveau_sgdma_get_physical(struct drm_device *dev, uint32_t offset)
+u32
+nouveau_sgdma_get_physical(struct nouveau_device *ndev, u32 offset)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_gpuobj *gpuobj = ndev->gart_info.sg_ctxdma;
 	int pte = (offset >> NV_CTXDMA_PAGE_SHIFT) + 2;
 

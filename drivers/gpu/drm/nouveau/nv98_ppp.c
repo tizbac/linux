@@ -33,35 +33,35 @@ struct nv98_ppp_engine {
 };
 
 static int
-nv98_ppp_fini(struct drm_device *dev, int engine, bool suspend)
+nv98_ppp_fini(struct nouveau_device *ndev, int engine, bool suspend)
 {
-	if (!(nv_rd32(dev, 0x000200) & 0x00000002))
+	if (!(nv_rd32(ndev, 0x000200) & 0x00000002))
 		return 0;
 
-	nv_mask(dev, 0x000200, 0x00000002, 0x00000000);
+	nv_mask(ndev, 0x000200, 0x00000002, 0x00000000);
 	return 0;
 }
 
 static int
-nv98_ppp_init(struct drm_device *dev, int engine)
+nv98_ppp_init(struct nouveau_device *ndev, int engine)
 {
-	nv_mask(dev, 0x000200, 0x00000002, 0x00000000);
-	nv_mask(dev, 0x000200, 0x00000002, 0x00000002);
+	nv_mask(ndev, 0x000200, 0x00000002, 0x00000000);
+	nv_mask(ndev, 0x000200, 0x00000002, 0x00000002);
 	return 0;
 }
 
 static void
-nv98_ppp_destroy(struct drm_device *dev, int engine)
+nv98_ppp_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv98_ppp_engine *pppp = nv_engine(dev, engine);
+	struct nv98_ppp_engine *pppp = nv_engine(ndev, engine);
 
-	NVOBJ_ENGINE_DEL(dev, PPP);
+	NVOBJ_ENGINE_DEL(ndev, PPP);
 
 	kfree(pppp);
 }
 
 int
-nv98_ppp_create(struct drm_device *dev)
+nv98_ppp_create(struct nouveau_device *ndev)
 {
 	struct nv98_ppp_engine *pppp;
 
@@ -73,6 +73,6 @@ nv98_ppp_create(struct drm_device *dev)
 	pppp->base.init = nv98_ppp_init;
 	pppp->base.fini = nv98_ppp_fini;
 
-	NVOBJ_ENGINE_ADD(dev, PPP, &pppp->base);
+	NVOBJ_ENGINE_ADD(ndev, PPP, &pppp->base);
 	return 0;
 }

@@ -114,47 +114,47 @@ RING_SPACE(struct nouveau_channel *chan, int size)
 }
 
 static inline void
-OUT_RING(struct nouveau_channel *chan, int data)
+PUSH_DATA(struct nouveau_channel *chan, int data)
 {
 	if (NOUVEAU_DMA_DEBUG) {
-		NV_INFO(chan->dev, "Ch%d/0x%08x: 0x%08x\n",
+		NV_INFO(chan->device, "Ch%d/0x%08x: 0x%08x\n",
 			chan->id, chan->dma.cur << 2, data);
 	}
 
 	nouveau_bo_wr32(chan->pushbuf_bo, chan->dma.cur++, data);
 }
 
-extern void
-OUT_RINGp(struct nouveau_channel *chan, const void *data, unsigned nr_dwords);
+void
+PUSH_DATAp(struct nouveau_channel *chan, const void *data, unsigned nr_dwords);
 
 static inline void
 BEGIN_NV04(struct nouveau_channel *chan, int subc, int mthd, int size)
 {
-	OUT_RING(chan, 0x00000000 | (subc << 13) | (size << 18) | mthd);
+	PUSH_DATA (chan, 0x00000000 | (subc << 13) | (size << 18) | mthd);
 }
 
 static inline void
 BEGIN_NI04(struct nouveau_channel *chan, int subc, int mthd, int size)
 {
-	OUT_RING(chan, 0x40000000 | (subc << 13) | (size << 18) | mthd);
+	PUSH_DATA (chan, 0x40000000 | (subc << 13) | (size << 18) | mthd);
 }
 
 static inline void
 BEGIN_NVC0(struct nouveau_channel *chan, int subc, int mthd, int size)
 {
-	OUT_RING(chan, 0x20000000 | (size << 16) | (subc << 13) | (mthd >> 2));
+	PUSH_DATA (chan, 0x20000000 | (size << 16) | (subc << 13) | (mthd >> 2));
 }
 
 static inline void
 BEGIN_NIC0(struct nouveau_channel *chan, int subc, int mthd, int size)
 {
-	OUT_RING(chan, 0x60000000 | (size << 16) | (subc << 13) | (mthd >> 2));
+	PUSH_DATA (chan, 0x60000000 | (size << 16) | (subc << 13) | (mthd >> 2));
 }
 
 static inline void
 BEGIN_IMC0(struct nouveau_channel *chan, int subc, int mthd, u16 data)
 {
-	OUT_RING(chan, 0x80000000 | (data << 16) | (subc << 13) | (mthd >> 2));
+	PUSH_DATA (chan, 0x80000000 | (data << 16) | (subc << 13) | (mthd >> 2));
 }
 
 #define WRITE_PUT(val) do {                                                    \
@@ -167,7 +167,7 @@ static inline void
 FIRE_RING(struct nouveau_channel *chan)
 {
 	if (NOUVEAU_DMA_DEBUG) {
-		NV_INFO(chan->dev, "Ch%d/0x%08x: PUSH!\n",
+		NV_INFO(chan->device, "Ch%d/0x%08x: PUSH!\n",
 			chan->id, chan->dma.cur << 2);
 	}
 

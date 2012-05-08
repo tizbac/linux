@@ -250,7 +250,7 @@ nouveau_vm_map_pgt(struct nouveau_vm *vm, u32 pde, u32 type)
 	pgt_size *= 8;
 
 	mutex_unlock(&vm->mm.mutex);
-	ret = nouveau_gpuobj_new(vm->dev, NULL, pgt_size, 0x1000,
+	ret = nouveau_gpuobj_new(vm->device, NULL, pgt_size, 0x1000,
 				 NVOBJ_FLAG_ZERO_ALLOC, &pgt);
 	mutex_lock(&vm->mm.mutex);
 	if (unlikely(ret))
@@ -336,10 +336,9 @@ nouveau_vm_put(struct nouveau_vma *vma)
 }
 
 int
-nouveau_vm_new(struct drm_device *dev, u64 offset, u64 length, u64 mm_offset,
+nouveau_vm_new(struct nouveau_device *ndev, u64 offset, u64 length, u64 mm_offset,
 	       struct nouveau_vm **pvm)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_vm *vm;
 	u64 mm_length = (offset + length) - mm_offset;
 	u32 block, pgt_bits;
@@ -388,7 +387,7 @@ nouveau_vm_new(struct drm_device *dev, u64 offset, u64 length, u64 mm_offset,
 	}
 
 	INIT_LIST_HEAD(&vm->pgd_list);
-	vm->dev = dev;
+	vm->device = ndev;
 	vm->refcount = 1;
 	vm->pgt_bits = pgt_bits - 12;
 

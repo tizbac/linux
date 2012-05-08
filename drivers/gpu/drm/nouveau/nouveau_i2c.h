@@ -33,7 +33,7 @@
 
 struct nouveau_i2c_chan {
 	struct i2c_adapter adapter;
-	struct drm_device *dev;
+	struct nouveau_device *device;
 	struct i2c_algo_bit_data bit;
 	struct list_head head;
 	u8  index;
@@ -44,11 +44,11 @@ struct nouveau_i2c_chan {
 	u32 state;
 };
 
-int  nouveau_i2c_init(struct drm_device *);
-void nouveau_i2c_fini(struct drm_device *);
-struct nouveau_i2c_chan *nouveau_i2c_find(struct drm_device *, u8 index);
+int  nouveau_i2c_init(struct nouveau_device *);
+void nouveau_i2c_fini(struct nouveau_device *);
+struct nouveau_i2c_chan *nouveau_i2c_find(struct nouveau_device *, u8 index);
 bool nouveau_probe_i2c_addr(struct nouveau_i2c_chan *i2c, int addr);
-int nouveau_i2c_identify(struct drm_device *dev, const char *what,
+int nouveau_i2c_identify(struct nouveau_device *, const char *what,
 			 struct i2c_board_info *info,
 			 bool (*match)(struct nouveau_i2c_chan *,
 				       struct i2c_board_info *),

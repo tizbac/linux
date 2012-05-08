@@ -38,20 +38,19 @@
 #define ROM32(x) le32_to_cpu(*(u32 *)&(x))
 #define ROM48(x) ({ u8 *p = &(x); (u64)ROM16(p[4]) << 32 | ROM32(p[0]); })
 #define ROM64(x) le64_to_cpu(*(u64 *)&(x))
-#define ROMPTR(d,x) ({            \
-	struct nouveau_device *ndev = nouveau_device(d); \
-	ROM16(x) ? &ndev->vbios.data[ROM16(x)] : NULL; \
+#define ROMPTR(ndev,x) ({            \
+	ROM16(x) ? &(ndev)->vbios.data[ROM16(x)] : NULL; \
 })
 
 struct bit_entry {
-	uint8_t  id;
-	uint8_t  version;
-	uint16_t length;
-	uint16_t offset;
-	uint8_t *data;
+	u8  id;
+	u8  version;
+	u16 length;
+	u16 offset;
+	u8 *data;
 };
 
-int bit_table(struct drm_device *, u8 id, struct bit_entry *);
+int bit_table(struct nouveau_device *, u8 id, struct bit_entry *);
 
 enum dcb_gpio_tag {
 	DCB_GPIO_PANEL_POWER = 0x01,
@@ -96,12 +95,12 @@ enum dcb_type {
 struct dcb_entry {
 	int index;	/* may not be raw dcb index if merging has happened */
 	enum dcb_type type;
-	uint8_t i2c_index;
-	uint8_t heads;
-	uint8_t connector;
-	uint8_t bus;
-	uint8_t location;
-	uint8_t or;
+	u8 i2c_index;
+	u8 heads;
+	u8 connector;
+	u8 bus;
+	u8 location;
+	u8 or;
 	bool duallink_possible;
 	union {
 		struct sor_conf {
@@ -133,7 +132,7 @@ struct dcb_entry {
 };
 
 struct dcb_table {
-	uint8_t version;
+	u8 version;
 	int entries;
 	struct dcb_entry entry[DCB_MAX_NUM_ENTRIES];
 };
@@ -182,13 +181,13 @@ struct pll_lims {
 		int min_inputfreq;
 		int max_inputfreq;
 
-		uint8_t min_m;
-		uint8_t max_m;
-		uint8_t min_n;
-		uint8_t max_n;
+		u8 min_m;
+		u8 max_m;
+		u8 min_n;
+		u8 max_n;
 	} vco1, vco2;
 
-	uint8_t max_log2p;
+	u8 max_log2p;
 	/*
 	 * for most pre nv50 cards setting a log2P of 7 (the common max_log2p
 	 * value) is no different to 6 (at least for vplls) so allowing the MNP
@@ -197,58 +196,58 @@ struct pll_lims {
 	 * unmodified max_log2p value is still needed for setting mplls, hence
 	 * an additional max_usable_log2p member
 	 */
-	uint8_t max_usable_log2p;
-	uint8_t log2p_bias;
+	u8 max_usable_log2p;
+	u8 log2p_bias;
 
-	uint8_t min_p;
-	uint8_t max_p;
+	u8 min_p;
+	u8 max_p;
 
 	int refclk;
 };
 
 struct nvbios {
-	struct drm_device *dev;
+	struct nouveau_device *device;
 	enum {
 		NVBIOS_BMP,
 		NVBIOS_BIT
 	} type;
-	uint16_t offset;
-	uint32_t length;
-	uint8_t *data;
+	u16 offset;
+	u32 length;
+	u8 *data;
 
-	uint8_t chip_version;
+	u8 chip_version;
 
-	uint32_t dactestval;
-	uint32_t tvdactestval;
-	uint8_t digital_min_front_porch;
+	u32 dactestval;
+	u32 tvdactestval;
+	u8 digital_min_front_porch;
 	bool fp_no_ddc;
 
 	spinlock_t lock;
 
 	bool execute;
 
-	uint8_t major_version;
-	uint8_t feature_byte;
+	u8 major_version;
+	u8 feature_byte;
 	bool is_mobile;
 
-	uint32_t fmaxvco, fminvco;
+	u32 fmaxvco, fminvco;
 
 	bool old_style_init;
-	uint16_t init_script_tbls_ptr;
-	uint16_t extra_init_script_tbl_ptr;
-	uint16_t macro_index_tbl_ptr;
-	uint16_t macro_tbl_ptr;
-	uint16_t condition_tbl_ptr;
-	uint16_t io_condition_tbl_ptr;
-	uint16_t io_flag_condition_tbl_ptr;
-	uint16_t init_function_tbl_ptr;
+	u16 init_script_tbls_ptr;
+	u16 extra_init_script_tbl_ptr;
+	u16 macro_index_tbl_ptr;
+	u16 macro_tbl_ptr;
+	u16 condition_tbl_ptr;
+	u16 io_condition_tbl_ptr;
+	u16 io_flag_condition_tbl_ptr;
+	u16 init_function_tbl_ptr;
 
-	uint16_t pll_limit_tbl_ptr;
-	uint16_t ram_restrict_tbl_ptr;
-	uint8_t ram_restrict_group_count;
+	u16 pll_limit_tbl_ptr;
+	u16 ram_restrict_tbl_ptr;
+	u8 ram_restrict_group_count;
 
-	uint16_t some_script_ptr; /* BIT I + 14 */
-	uint16_t init96_tbl_ptr; /* BIT I + 16 */
+	u16 some_script_ptr; /* BIT I + 14 */
+	u16 init96_tbl_ptr; /* BIT I + 16 */
 
 	struct dcb_table dcb;
 
@@ -259,25 +258,25 @@ struct nvbios {
 	struct {
 		struct dcb_entry *output;
 		int crtc;
-		uint16_t script_table_ptr;
+		u16 script_table_ptr;
 	} display;
 
 	struct {
-		uint16_t fptablepointer;	/* also used by tmds */
-		uint16_t fpxlatetableptr;
+		u16 fptablepointer;	/* also used by tmds */
+		u16 fpxlatetableptr;
 		int xlatwidth;
-		uint16_t lvdsmanufacturerpointer;
-		uint16_t fpxlatemanufacturertableptr;
-		uint16_t mode_ptr;
-		uint16_t xlated_entry;
+		u16 lvdsmanufacturerpointer;
+		u16 fpxlatemanufacturertableptr;
+		u16 mode_ptr;
+		u16 xlated_entry;
 		bool power_off_for_reset;
 		bool reset_after_pclk_change;
 		bool dual_link;
 		bool link_c_increment;
 		bool if_is_24bit;
 		int duallink_transition_clk;
-		uint8_t strapless_is_24bit;
-		uint8_t *edid;
+		u8 strapless_is_24bit;
+		u8 *edid;
 
 		/* will need resetting after suspend */
 		int last_script_invoc;
@@ -285,28 +284,28 @@ struct nvbios {
 	} fp;
 
 	struct {
-		uint16_t output0_script_ptr;
-		uint16_t output1_script_ptr;
+		u16 output0_script_ptr;
+		u16 output1_script_ptr;
 	} tmds;
 
 	struct {
-		uint16_t mem_init_tbl_ptr;
-		uint16_t sdr_seq_tbl_ptr;
-		uint16_t ddr_seq_tbl_ptr;
+		u16 mem_init_tbl_ptr;
+		u16 sdr_seq_tbl_ptr;
+		u16 ddr_seq_tbl_ptr;
 
 		struct {
-			uint8_t crt, tv, panel;
+			u8 crt, tv, panel;
 		} i2c_indices;
 
-		uint16_t lvds_single_a_script_ptr;
+		u16 lvds_single_a_script_ptr;
 	} legacy;
 };
 
-void *dcb_table(struct drm_device *);
-void *dcb_outp(struct drm_device *, u8 idx);
-int dcb_outp_foreach(struct drm_device *, void *data,
-		     int (*)(struct drm_device *, void *, int idx, u8 *outp));
-u8 *dcb_conntab(struct drm_device *);
-u8 *dcb_conn(struct drm_device *, u8 idx);
+void *dcb_table(struct nouveau_device *);
+void *dcb_outp(struct nouveau_device *, u8 idx);
+int dcb_outp_foreach(struct nouveau_device *, void *data,
+		     int (*)(struct nouveau_device *, void *, int idx, u8 *outp));
+u8 *dcb_conntab(struct nouveau_device *);
+u8 *dcb_conn(struct nouveau_device *, u8 idx);
 
 #endif

@@ -33,10 +33,9 @@
 int
 nouveau_notifier_init_channel(struct nouveau_channel *chan)
 {
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = chan->device;
 	struct nouveau_bo *ntfy = NULL;
-	uint32_t flags, ttmpl;
+	u32 flags, ttmpl;
 	int ret;
 
 	if (nouveau_vram_notify) {
@@ -47,7 +46,7 @@ nouveau_notifier_init_channel(struct nouveau_channel *chan)
 		ttmpl = TTM_PL_FLAG_TT;
 	}
 
-	ret = nouveau_gem_new(dev, PAGE_SIZE, 0, flags, 0, 0, &ntfy);
+	ret = nouveau_gem_new(ndev, PAGE_SIZE, 0, flags, 0, 0, &ntfy);
 	if (ret)
 		return ret;
 
@@ -82,40 +81,39 @@ out_err:
 void
 nouveau_notifier_takedown_channel(struct nouveau_channel *chan)
 {
-	struct drm_device *dev = chan->dev;
+	struct nouveau_device *ndev = chan->device;
 
 	if (!chan->notifier_bo)
 		return;
 
 	nouveau_bo_vma_del(chan->notifier_bo, &chan->notifier_vma);
 	nouveau_bo_unmap(chan->notifier_bo);
-	mutex_lock(&dev->struct_mutex);
+	mutex_lock(&ndev->dev->struct_mutex);
 	nouveau_bo_unpin(chan->notifier_bo);
-	mutex_unlock(&dev->struct_mutex);
+	mutex_unlock(&ndev->dev->struct_mutex);
 	drm_gem_object_unreference_unlocked(chan->notifier_bo->gem);
 	drm_mm_takedown(&chan->notifier_heap);
 }
 
 static void
-nouveau_notifier_gpuobj_dtor(struct drm_device *dev,
+nouveau_notifier_gpuobj_dtor(struct nouveau_device *ndev,
 			     struct nouveau_gpuobj *gpuobj)
 {
-	NV_DEBUG(dev, "\n");
+	NV_DEBUG(ndev, "\n");
 
 	if (gpuobj->priv)
 		drm_mm_put_block(gpuobj->priv);
 }
 
 int
-nouveau_notifier_alloc(struct nouveau_channel *chan, uint32_t handle,
-		       int size, uint32_t start, uint32_t end,
-		       uint32_t *b_offset)
+nouveau_notifier_alloc(struct nouveau_channel *chan, u32 handle,
+		       int size, u32 start, u32 end,
+		       u32 *b_offset)
 {
-	struct drm_device *dev = chan->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = chan->device;
 	struct nouveau_gpuobj *nobj = NULL;
 	struct drm_mm_node *mem;
-	uint64_t offset;
+	u64 offset;
 	int target, ret;
 
 	mem = drm_mm_search_free_in_range(&chan->notifier_heap, size, 0,
@@ -123,7 +121,7 @@ nouveau_notifier_alloc(struct nouveau_channel *chan, uint32_t handle,
 	if (mem)
 		mem = drm_mm_get_block_range(mem, size, 0, start, end);
 	if (!mem) {
-		NV_ERROR(dev, "Channel %d notifier block full\n", chan->id);
+		NV_ERROR(ndev, "Channel %d notifier block full\n", chan->id);
 		return -ENOMEM;
 	}
 
@@ -144,7 +142,7 @@ nouveau_notifier_alloc(struct nouveau_channel *chan, uint32_t handle,
 				     &nobj);
 	if (ret) {
 		drm_mm_put_block(mem);
-		NV_ERROR(dev, "Error creating notifier ctxdma: %d\n", ret);
+		NV_ERROR(ndev, "Error creating notifier ctxdma: %d\n", ret);
 		return ret;
 	}
 	nobj->dtor = nouveau_notifier_gpuobj_dtor;
@@ -154,7 +152,7 @@ nouveau_notifier_alloc(struct nouveau_channel *chan, uint32_t handle,
 	nouveau_gpuobj_ref(NULL, &nobj);
 	if (ret) {
 		drm_mm_put_block(mem);
-		NV_ERROR(dev, "Error adding notifier to ramht: %d\n", ret);
+		NV_ERROR(ndev, "Error adding notifier to ramht: %d\n", ret);
 		return ret;
 	}
 

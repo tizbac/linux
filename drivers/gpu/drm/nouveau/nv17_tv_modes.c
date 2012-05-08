@@ -318,12 +318,12 @@ static void tv_setup_filter(struct drm_encoder *encoder)
 	struct nv17_tv_encoder *tv_enc = to_tv_enc(encoder);
 	struct nv17_tv_norm_params *tv_norm = get_tv_norm(encoder);
 	struct drm_display_mode *mode = &encoder->crtc->mode;
-	uint32_t (*filters[])[4][7] = {&tv_enc->state.hfilter,
+	u32 (*filters[])[4][7] = {&tv_enc->state.hfilter,
 				       &tv_enc->state.vfilter};
 	int i, j, k;
 	int32_t overscan = calc_overscan(tv_enc->overscan);
 	int64_t flicker = (tv_enc->flicker - 50) * (id3 / 100);
-	uint64_t rs[] = {mode->hdisplay * id3,
+	u64 rs[] = {mode->hdisplay * id3,
 			 mode->vdisplay * id3};
 
 	do_div(rs[0], overscan * tv_norm->tv_enc_mode.hdisplay);
@@ -354,86 +354,86 @@ static void tv_setup_filter(struct drm_encoder *encoder)
 
 /* Hardware state saving/restoring */
 
-static void tv_save_filter(struct drm_device *dev, uint32_t base,
-			   uint32_t regs[4][7])
+static void tv_save_filter(struct nouveau_device *ndev, u32 base,
+			   u32 regs[4][7])
 {
 	int i, j;
-	uint32_t offsets[] = { base, base + 0x1c, base + 0x40, base + 0x5c };
+	u32 offsets[] = { base, base + 0x1c, base + 0x40, base + 0x5c };
 
 	for (i = 0; i < 4; i++) {
 		for (j = 0; j < 7; j++)
-			regs[i][j] = nv_read_ptv(dev, offsets[i]+4*j);
+			regs[i][j] = nv_read_ptv(ndev, offsets[i]+4*j);
 	}
 }
 
-static void tv_load_filter(struct drm_device *dev, uint32_t base,
-			   uint32_t regs[4][7])
+static void tv_load_filter(struct nouveau_device *ndev, u32 base,
+			   u32 regs[4][7])
 {
 	int i, j;
-	uint32_t offsets[] = { base, base + 0x1c, base + 0x40, base + 0x5c };
+	u32 offsets[] = { base, base + 0x1c, base + 0x40, base + 0x5c };
 
 	for (i = 0; i < 4; i++) {
 		for (j = 0; j < 7; j++)
-			nv_write_ptv(dev, offsets[i]+4*j, regs[i][j]);
+			nv_write_ptv(ndev, offsets[i]+4*j, regs[i][j]);
 	}
 }
 
-void nv17_tv_state_save(struct drm_device *dev, struct nv17_tv_state *state)
+void nv17_tv_state_save(struct nouveau_device *ndev, struct nv17_tv_state *state)
 {
 	int i;
 
 	for (i = 0; i < 0x40; i++)
-		state->tv_enc[i] = nv_read_tv_enc(dev, i);
+		state->tv_enc[i] = nv_read_tv_enc(ndev, i);
 
-	tv_save_filter(dev, NV_PTV_HFILTER, state->hfilter);
-	tv_save_filter(dev, NV_PTV_HFILTER2, state->hfilter2);
-	tv_save_filter(dev, NV_PTV_VFILTER, state->vfilter);
+	tv_save_filter(ndev, NV_PTV_HFILTER, state->hfilter);
+	tv_save_filter(ndev, NV_PTV_HFILTER2, state->hfilter2);
+	tv_save_filter(ndev, NV_PTV_VFILTER, state->vfilter);
 
-	nv_save_ptv(dev, state, 200);
-	nv_save_ptv(dev, state, 204);
-	nv_save_ptv(dev, state, 208);
-	nv_save_ptv(dev, state, 20c);
-	nv_save_ptv(dev, state, 304);
-	nv_save_ptv(dev, state, 500);
-	nv_save_ptv(dev, state, 504);
-	nv_save_ptv(dev, state, 508);
-	nv_save_ptv(dev, state, 600);
-	nv_save_ptv(dev, state, 604);
-	nv_save_ptv(dev, state, 608);
-	nv_save_ptv(dev, state, 60c);
-	nv_save_ptv(dev, state, 610);
-	nv_save_ptv(dev, state, 614);
+	nv_save_ptv(ndev, state, 200);
+	nv_save_ptv(ndev, state, 204);
+	nv_save_ptv(ndev, state, 208);
+	nv_save_ptv(ndev, state, 20c);
+	nv_save_ptv(ndev, state, 304);
+	nv_save_ptv(ndev, state, 500);
+	nv_save_ptv(ndev, state, 504);
+	nv_save_ptv(ndev, state, 508);
+	nv_save_ptv(ndev, state, 600);
+	nv_save_ptv(ndev, state, 604);
+	nv_save_ptv(ndev, state, 608);
+	nv_save_ptv(ndev, state, 60c);
+	nv_save_ptv(ndev, state, 610);
+	nv_save_ptv(ndev, state, 614);
 }
 
-void nv17_tv_state_load(struct drm_device *dev, struct nv17_tv_state *state)
+void nv17_tv_state_load(struct nouveau_device *ndev, struct nv17_tv_state *state)
 {
 	int i;
 
 	for (i = 0; i < 0x40; i++)
-		nv_write_tv_enc(dev, i, state->tv_enc[i]);
+		nv_write_tv_enc(ndev, i, state->tv_enc[i]);
 
-	tv_load_filter(dev, NV_PTV_HFILTER, state->hfilter);
-	tv_load_filter(dev, NV_PTV_HFILTER2, state->hfilter2);
-	tv_load_filter(dev, NV_PTV_VFILTER, state->vfilter);
+	tv_load_filter(ndev, NV_PTV_HFILTER, state->hfilter);
+	tv_load_filter(ndev, NV_PTV_HFILTER2, state->hfilter2);
+	tv_load_filter(ndev, NV_PTV_VFILTER, state->vfilter);
 
-	nv_load_ptv(dev, state, 200);
-	nv_load_ptv(dev, state, 204);
-	nv_load_ptv(dev, state, 208);
-	nv_load_ptv(dev, state, 20c);
-	nv_load_ptv(dev, state, 304);
-	nv_load_ptv(dev, state, 500);
-	nv_load_ptv(dev, state, 504);
-	nv_load_ptv(dev, state, 508);
-	nv_load_ptv(dev, state, 600);
-	nv_load_ptv(dev, state, 604);
-	nv_load_ptv(dev, state, 608);
-	nv_load_ptv(dev, state, 60c);
-	nv_load_ptv(dev, state, 610);
-	nv_load_ptv(dev, state, 614);
+	nv_load_ptv(ndev, state, 200);
+	nv_load_ptv(ndev, state, 204);
+	nv_load_ptv(ndev, state, 208);
+	nv_load_ptv(ndev, state, 20c);
+	nv_load_ptv(ndev, state, 304);
+	nv_load_ptv(ndev, state, 500);
+	nv_load_ptv(ndev, state, 504);
+	nv_load_ptv(ndev, state, 508);
+	nv_load_ptv(ndev, state, 600);
+	nv_load_ptv(ndev, state, 604);
+	nv_load_ptv(ndev, state, 608);
+	nv_load_ptv(ndev, state, 60c);
+	nv_load_ptv(ndev, state, 610);
+	nv_load_ptv(ndev, state, 614);
 
 	/* This is required for some settings to kick in. */
-	nv_write_tv_enc(dev, 0x3e, 1);
-	nv_write_tv_enc(dev, 0x3e, 0);
+	nv_write_tv_enc(ndev, 0x3e, 1);
+	nv_write_tv_enc(ndev, 0x3e, 0);
 }
 
 /* Timings similar to the ones the blob sets */
@@ -471,7 +471,7 @@ const struct drm_display_mode nv17_tv_modes[] = {
 
 void nv17_tv_update_properties(struct drm_encoder *encoder)
 {
-	struct drm_device *dev = encoder->dev;
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct nv17_tv_encoder *tv_enc = to_tv_enc(encoder);
 	struct nv17_tv_state *regs = &tv_enc->state;
 	struct nv17_tv_norm_params *tv_norm = get_tv_norm(encoder);
@@ -517,16 +517,16 @@ void nv17_tv_update_properties(struct drm_encoder *encoder)
 					 255, tv_enc->saturation);
 	regs->tv_enc[0x25] = tv_enc->hue * 255 / 100;
 
-	nv_load_ptv(dev, regs, 204);
-	nv_load_tv_enc(dev, regs, 7);
-	nv_load_tv_enc(dev, regs, 20);
-	nv_load_tv_enc(dev, regs, 22);
-	nv_load_tv_enc(dev, regs, 25);
+	nv_load_ptv(ndev, regs, 204);
+	nv_load_tv_enc(ndev, regs, 7);
+	nv_load_tv_enc(ndev, regs, 20);
+	nv_load_tv_enc(ndev, regs, 22);
+	nv_load_tv_enc(ndev, regs, 25);
 }
 
 void nv17_tv_update_rescaler(struct drm_encoder *encoder)
 {
-	struct drm_device *dev = encoder->dev;
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct nv17_tv_encoder *tv_enc = to_tv_enc(encoder);
 	struct nv17_tv_state *regs = &tv_enc->state;
 
@@ -534,16 +534,15 @@ void nv17_tv_update_rescaler(struct drm_encoder *encoder)
 
 	tv_setup_filter(encoder);
 
-	nv_load_ptv(dev, regs, 208);
-	tv_load_filter(dev, NV_PTV_HFILTER, regs->hfilter);
-	tv_load_filter(dev, NV_PTV_HFILTER2, regs->hfilter2);
-	tv_load_filter(dev, NV_PTV_VFILTER, regs->vfilter);
+	nv_load_ptv(ndev, regs, 208);
+	tv_load_filter(ndev, NV_PTV_HFILTER, regs->hfilter);
+	tv_load_filter(ndev, NV_PTV_HFILTER2, regs->hfilter2);
+	tv_load_filter(ndev, NV_PTV_VFILTER, regs->vfilter);
 }
 
 void nv17_ctv_update_rescaler(struct drm_encoder *encoder)
 {
-	struct drm_device *dev = encoder->dev;
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct nv17_tv_encoder *tv_enc = to_tv_enc(encoder);
 	int head = nouveau_crtc(encoder->crtc)->index;
 	struct nv04_crtc_reg *regs = &ndev->mode_reg.crtc_reg[head];
@@ -581,13 +580,13 @@ void nv17_ctv_update_rescaler(struct drm_encoder *encoder)
 		NV_PRAMDAC_FP_DEBUG_1_XSCALE_TESTMODE_ENABLE |
 		XLATE(hratio, 0, NV_PRAMDAC_FP_DEBUG_1_XSCALE_VALUE);
 
-	NVWriteRAMDAC(dev, head, NV_PRAMDAC_FP_HVALID_START,
+	NVWriteRAMDAC(ndev, head, NV_PRAMDAC_FP_HVALID_START,
 		      regs->fp_horiz_regs[FP_VALID_START]);
-	NVWriteRAMDAC(dev, head, NV_PRAMDAC_FP_HVALID_END,
+	NVWriteRAMDAC(ndev, head, NV_PRAMDAC_FP_HVALID_END,
 		      regs->fp_horiz_regs[FP_VALID_END]);
-	NVWriteRAMDAC(dev, head, NV_PRAMDAC_FP_VVALID_START,
+	NVWriteRAMDAC(ndev, head, NV_PRAMDAC_FP_VVALID_START,
 		      regs->fp_vert_regs[FP_VALID_START]);
-	NVWriteRAMDAC(dev, head, NV_PRAMDAC_FP_VVALID_END,
+	NVWriteRAMDAC(ndev, head, NV_PRAMDAC_FP_VVALID_END,
 		      regs->fp_vert_regs[FP_VALID_END]);
-	NVWriteRAMDAC(dev, head, NV_PRAMDAC_FP_DEBUG_1, regs->fp_debug_1);
+	NVWriteRAMDAC(ndev, head, NV_PRAMDAC_FP_DEBUG_1, regs->fp_debug_1);
 }

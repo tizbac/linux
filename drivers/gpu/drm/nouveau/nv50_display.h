@@ -60,32 +60,31 @@ struct nv50_display {
 };
 
 static inline struct nv50_display *
-nv50_display(struct drm_device *dev)
+nv50_display(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	return ndev->subsys.display.priv;
 }
 
-int nv50_display_early_init(struct drm_device *dev);
-void nv50_display_late_takedown(struct drm_device *dev);
-int nv50_display_create(struct drm_device *dev);
-int nv50_display_init(struct drm_device *dev);
-void nv50_display_fini(struct drm_device *dev);
-void nv50_display_destroy(struct drm_device *dev);
+int nv50_display_early_init(struct nouveau_device *);
+void nv50_display_late_takedown(struct nouveau_device *);
+int nv50_display_create(struct nouveau_device *);
+int nv50_display_init(struct nouveau_device *);
+void nv50_display_fini(struct nouveau_device *);
+void nv50_display_destroy(struct nouveau_device *);
 int nv50_crtc_blank(struct nouveau_crtc *, bool blank);
-int nv50_crtc_set_clock(struct drm_device *, int head, int pclk);
+int nv50_crtc_set_clock(struct nouveau_device *, int head, int pclk);
 
-u32  nv50_display_active_crtcs(struct drm_device *);
+u32  nv50_display_active_crtcs(struct nouveau_device *);
 
-int  nv50_display_sync(struct drm_device *);
+int  nv50_display_sync(struct nouveau_device *);
 int  nv50_display_flip_next(struct drm_crtc *, struct drm_framebuffer *,
 			    struct nouveau_channel *chan);
 void nv50_display_flip_stop(struct drm_crtc *);
 
-int  nv50_evo_create(struct drm_device *dev);
-void nv50_evo_destroy(struct drm_device *dev);
-int  nv50_evo_init(struct drm_device *dev);
-void nv50_evo_fini(struct drm_device *dev);
+int  nv50_evo_create(struct nouveau_device *);
+void nv50_evo_destroy(struct nouveau_device *);
+int  nv50_evo_init(struct nouveau_device *);
+void nv50_evo_fini(struct nouveau_device *);
 void nv50_evo_dmaobj_init(struct nouveau_gpuobj *, u32 memtype, u64 base,
 			  u64 size);
 int  nv50_evo_dmaobj_new(struct nouveau_channel *, u32 handle, u32 memtype,

@@ -122,13 +122,14 @@ nouveau_prime_new(struct drm_device *dev,
 		  struct sg_table *sg,
 		  struct nouveau_bo **pnvbo)
 {
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_bo *nvbo;
 	u32 flags = 0;
 	int ret;
 
 	flags = TTM_PL_FLAG_TT;
 
-	ret = nouveau_bo_new(dev, size, 0, flags, 0, 0,
+	ret = nouveau_bo_new(ndev, size, 0, flags, 0, 0,
 			     sg, pnvbo);
 	if (ret)
 		return ret;

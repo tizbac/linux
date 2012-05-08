@@ -30,10 +30,9 @@
 #include "nouveau_drm.h"
 
 void
-nv30_fb_init_tile_region(struct drm_device *dev, int i, uint32_t addr,
-			 uint32_t size, uint32_t pitch, uint32_t flags)
+nv30_fb_init_tile_region(struct nouveau_device *ndev, int i, u32 addr,
+			 u32 size, u32 pitch, u32 flags)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	tile->addr = addr | 1;
@@ -42,32 +41,30 @@ nv30_fb_init_tile_region(struct drm_device *dev, int i, uint32_t addr,
 }
 
 void
-nv30_fb_free_tile_region(struct drm_device *dev, int i)
+nv30_fb_free_tile_region(struct nouveau_device *ndev, int i)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	tile->addr = tile->limit = tile->pitch = 0;
 }
 
 static int
-calc_bias(struct drm_device *dev, int k, int i, int j)
+calc_bias(struct nouveau_device *ndev, int k, int i, int j)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	int b = (ndev->chipset > 0x30 ?
-		 nv_rd32(dev, 0x122c + 0x10 * k + 0x4 * j) >> (4 * (i ^ 1)) :
+		 nv_rd32(ndev, 0x122c + 0x10 * k + 0x4 * j) >> (4 * (i ^ 1)) :
 		 0) & 0xf;
 
 	return 2 * (b & 0x8 ? b - 0x10 : b);
 }
 
 static int
-calc_ref(struct drm_device *dev, int l, int k, int i)
+calc_ref(struct nouveau_device *ndev, int l, int k, int i)
 {
 	int j, x = 0;
 
 	for (j = 0; j < 4; j++) {
-		int m = (l >> (8 * i) & 0xff) + calc_bias(dev, k, i, j);
+		int m = (l >> (8 * i) & 0xff) + calc_bias(ndev, k, i, j);
 
 		x |= (0x80 | clamp(m, 0, 0x1f)) << (8 * j);
 	}
@@ -76,9 +73,8 @@ calc_ref(struct drm_device *dev, int l, int k, int i)
 }
 
 int
-nv30_fb_init(struct drm_device *dev)
+nv30_fb_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
 	int i, j;
 
@@ -86,7 +82,7 @@ nv30_fb_init(struct drm_device *dev)
 
 	/* Turn all the tiling regions off. */
 	for (i = 0; i < pfb->num_tiles; i++)
-		pfb->set_tile_region(dev, i);
+		pfb->set_tile_region(ndev, i);
 
 	/* Init the memory timing regs at 0x10037c/0x1003ac */
 	if (ndev->chipset == 0x30 ||
@@ -94,16 +90,16 @@ nv30_fb_init(struct drm_device *dev)
 	    ndev->chipset == 0x35) {
 		/* Related to ROP count */
 		int n = (ndev->chipset == 0x31 ? 2 : 4);
-		int l = nv_rd32(dev, 0x1003d0);
+		int l = nv_rd32(ndev, 0x1003d0);
 
 		for (i = 0; i < n; i++) {
 			for (j = 0; j < 3; j++)
-				nv_wr32(dev, 0x10037c + 0xc * i + 0x4 * j,
-					calc_ref(dev, l, 0, j));
+				nv_wr32(ndev, 0x10037c + 0xc * i + 0x4 * j,
+					calc_ref(ndev, l, 0, j));
 
 			for (j = 0; j < 2; j++)
-				nv_wr32(dev, 0x1003ac + 0x8 * i + 0x4 * j,
-					calc_ref(dev, l, 1, j));
+				nv_wr32(ndev, 0x1003ac + 0x8 * i + 0x4 * j,
+					calc_ref(ndev, l, 1, j));
 		}
 	}
 
@@ -111,6 +107,6 @@ nv30_fb_init(struct drm_device *dev)
 }
 
 void
-nv30_fb_takedown(struct drm_device *dev)
+nv30_fb_takedown(struct nouveau_device *ndev)
 {
 }

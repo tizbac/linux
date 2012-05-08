@@ -42,8 +42,8 @@
 static int
 nv40_get_intensity(struct backlight_device *bd)
 {
-	struct drm_device *dev = bl_get_data(bd);
-	int val = (nv_rd32(dev, NV40_PMC_BACKLIGHT) & NV40_PMC_BACKLIGHT_MASK)
+	struct nouveau_device *ndev = bl_get_data(bd);
+	int val = (nv_rd32(ndev, NV40_PMC_BACKLIGHT) & NV40_PMC_BACKLIGHT_MASK)
 									>> 16;
 
 	return val;
@@ -52,11 +52,11 @@ nv40_get_intensity(struct backlight_device *bd)
 static int
 nv40_set_intensity(struct backlight_device *bd)
 {
-	struct drm_device *dev = bl_get_data(bd);
+	struct nouveau_device *ndev = bl_get_data(bd);
 	int val = bd->props.brightness;
-	int reg = nv_rd32(dev, NV40_PMC_BACKLIGHT);
+	int reg = nv_rd32(ndev, NV40_PMC_BACKLIGHT);
 
-	nv_wr32(dev, NV40_PMC_BACKLIGHT,
+	nv_wr32(ndev, NV40_PMC_BACKLIGHT,
 		 (val << 16) | (reg & ~NV40_PMC_BACKLIGHT_MASK));
 
 	return 0;
@@ -76,13 +76,13 @@ nv40_backlight_init(struct drm_connector *connector)
 	struct backlight_properties props;
 	struct backlight_device *bd;
 
-	if (!(nv_rd32(dev, NV40_PMC_BACKLIGHT) & NV40_PMC_BACKLIGHT_MASK))
+	if (!(nv_rd32(ndev, NV40_PMC_BACKLIGHT) & NV40_PMC_BACKLIGHT_MASK))
 		return 0;
 
 	memset(&props, 0, sizeof(struct backlight_properties));
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = 31;
-	bd = backlight_device_register("nv_backlight", &connector->kdev, dev,
+	bd = backlight_device_register("nv_backlight", &connector->kdev, ndev,
 				       &nv40_bl_ops, &props);
 	if (IS_ERR(bd))
 		return PTR_ERR(bd);
@@ -98,12 +98,12 @@ static int
 nv50_get_intensity(struct backlight_device *bd)
 {
 	struct nouveau_encoder *nv_encoder = bl_get_data(bd);
-	struct drm_device *dev = nv_encoder->base.base.dev;
+	struct nouveau_device *ndev = nouveau_device(nv_encoder->base.base.dev);
 	int or = nv_encoder->or;
 	u32 div = 1025;
 	u32 val;
 
-	val  = nv_rd32(dev, NV50_PDISP_SOR_PWM_CTL(or));
+	val  = nv_rd32(ndev, NV50_PDISP_SOR_PWM_CTL(or));
 	val &= NV50_PDISP_SOR_PWM_CTL_VAL;
 	return ((val * 100) + (div / 2)) / div;
 }
@@ -112,13 +112,13 @@ static int
 nv50_set_intensity(struct backlight_device *bd)
 {
 	struct nouveau_encoder *nv_encoder = bl_get_data(bd);
-	struct drm_device *dev = nv_encoder->base.base.dev;
+	struct nouveau_device *ndev = nouveau_device(nv_encoder->base.base.dev);
 	int or = nv_encoder->or;
 	u32 div = 1025;
 	u32 val = (bd->props.brightness * div) / 100;
 
-	nv_wr32(dev, NV50_PDISP_SOR_PWM_CTL(or),
-		     NV50_PDISP_SOR_PWM_CTL_NEW | val);
+	nv_wr32(ndev, NV50_PDISP_SOR_PWM_CTL(or),
+		      NV50_PDISP_SOR_PWM_CTL_NEW | val);
 	return 0;
 }
 
@@ -132,12 +132,12 @@ static int
 nva3_get_intensity(struct backlight_device *bd)
 {
 	struct nouveau_encoder *nv_encoder = bl_get_data(bd);
-	struct drm_device *dev = nv_encoder->base.base.dev;
+	struct nouveau_device *ndev = nouveau_device(nv_encoder->base.base.dev);
 	int or = nv_encoder->or;
 	u32 div, val;
 
-	div  = nv_rd32(dev, NV50_PDISP_SOR_PWM_DIV(or));
-	val  = nv_rd32(dev, NV50_PDISP_SOR_PWM_CTL(or));
+	div  = nv_rd32(ndev, NV50_PDISP_SOR_PWM_DIV(or));
+	val  = nv_rd32(ndev, NV50_PDISP_SOR_PWM_CTL(or));
 	val &= NVA3_PDISP_SOR_PWM_CTL_VAL;
 	if (div && div >= val)
 		return ((val * 100) + (div / 2)) / div;
@@ -149,16 +149,16 @@ static int
 nva3_set_intensity(struct backlight_device *bd)
 {
 	struct nouveau_encoder *nv_encoder = bl_get_data(bd);
-	struct drm_device *dev = nv_encoder->base.base.dev;
+	struct nouveau_device *ndev = nouveau_device(nv_encoder->base.base.dev);
 	int or = nv_encoder->or;
 	u32 div, val;
 
-	div = nv_rd32(dev, NV50_PDISP_SOR_PWM_DIV(or));
+	div = nv_rd32(ndev, NV50_PDISP_SOR_PWM_DIV(or));
 	val = (bd->props.brightness * div) / 100;
 	if (div) {
-		nv_wr32(dev, NV50_PDISP_SOR_PWM_CTL(or), val |
-			     NV50_PDISP_SOR_PWM_CTL_NEW |
-			     NVA3_PDISP_SOR_PWM_CTL_UNK);
+		nv_wr32(ndev, NV50_PDISP_SOR_PWM_CTL(or), val |
+			      NV50_PDISP_SOR_PWM_CTL_NEW |
+			      NVA3_PDISP_SOR_PWM_CTL_UNK);
 		return 0;
 	}
 
@@ -188,7 +188,7 @@ nv50_backlight_init(struct drm_connector *connector)
 			return -ENODEV;
 	}
 
-	if (!nv_rd32(dev, NV50_PDISP_SOR_PWM_CTL(nv_encoder->or)))
+	if (!nv_rd32(ndev, NV50_PDISP_SOR_PWM_CTL(nv_encoder->or)))
 		return 0;
 
 	if (ndev->chipset <= 0xa0 ||
@@ -213,15 +213,15 @@ nv50_backlight_init(struct drm_connector *connector)
 }
 
 int
-nouveau_backlight_init(struct drm_device *dev)
+nouveau_backlight_init(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
+	struct drm_device *dev = ndev->dev;
 	struct drm_connector *connector;
 
 #ifdef CONFIG_ACPI
 	if (acpi_video_backlight_support()) {
-		NV_INFO(dev, "ACPI backlight interface available, "
-			     "not registering our own\n");
+		NV_INFO(ndev, "ACPI backlight interface available, "
+			      "not registering our own\n");
 		return 0;
 	}
 #endif
@@ -246,10 +246,8 @@ nouveau_backlight_init(struct drm_device *dev)
 }
 
 void
-nouveau_backlight_exit(struct drm_device *dev)
+nouveau_backlight_exit(struct nouveau_device *ndev)
 {
-	struct nouveau_device *ndev = nouveau_device(dev);
-
 	if (ndev->backlight) {
 		backlight_device_unregister(ndev->backlight);
 		ndev->backlight = NULL;

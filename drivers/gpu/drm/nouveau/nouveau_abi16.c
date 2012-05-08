@@ -64,7 +64,7 @@ nouveau_abi16_ioctl_getparam(ABI16_IOCTL_ARGS)
 		getparam->value = 0; /* deprecated */
 		break;
 	case NOUVEAU_GETPARAM_PTIMER_TIME:
-		getparam->value = ndev->subsys.timer.read(dev);
+		getparam->value = ndev->subsys.timer.read(ndev);
 		break;
 	case NOUVEAU_GETPARAM_HAS_BO_USAGE:
 		getparam->value = 1;
@@ -77,12 +77,12 @@ nouveau_abi16_ioctl_getparam(ABI16_IOCTL_ARGS)
 		 * address is the same. User is supposed to know the card
 		 * family anyway... */
 		if (ndev->chipset >= 0x40) {
-			getparam->value = nv_rd32(dev, NV40_PMC_GRAPH_UNITS);
+			getparam->value = nv_rd32(ndev, NV40_PMC_GRAPH_UNITS);
 			break;
 		}
 		/* FALLTHRU */
 	default:
-		NV_DEBUG(dev, "unknown parameter %lld\n", getparam->param);
+		NV_DEBUG(ndev, "unknown parameter %lld\n", getparam->param);
 		return -EINVAL;
 	}
 
@@ -109,7 +109,7 @@ nouveau_abi16_ioctl_channel_alloc(ABI16_IOCTL_ARGS)
 	if (init->fb_ctxdma_handle == ~0 || init->tt_ctxdma_handle == ~0)
 		return -EINVAL;
 
-	ret = nouveau_channel_alloc(dev, &chan, file_priv,
+	ret = nouveau_channel_alloc(ndev, &chan, file_priv,
 				    init->fb_ctxdma_handle,
 				    init->tt_ctxdma_handle);
 	if (ret)
@@ -165,6 +165,7 @@ nouveau_abi16_ioctl_channel_free(ABI16_IOCTL_ARGS)
 int
 nouveau_abi16_ioctl_grobj_alloc(ABI16_IOCTL_ARGS)
 {
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct drm_nouveau_grobj_alloc *init = data;
 	struct nouveau_channel *chan;
 	int ret;
@@ -174,12 +175,12 @@ nouveau_abi16_ioctl_grobj_alloc(ABI16_IOCTL_ARGS)
 
 	/* compatibility with userspace that assumes 506e for all chipsets */
 	if (init->class == 0x506e) {
-		init->class = nouveau_software_class(dev);
+		init->class = nouveau_software_class(ndev);
 		if (init->class == 0x906e)
 			return 0;
 	} else
 	if (init->class == 0x906e) {
-		NV_ERROR(dev, "906e not supported yet\n");
+		NV_ERROR(ndev, "906e not supported yet\n");
 		return -EINVAL;
 	}
 
@@ -194,7 +195,7 @@ nouveau_abi16_ioctl_grobj_alloc(ABI16_IOCTL_ARGS)
 
 	ret = nouveau_gpuobj_gr_new(chan, init->handle, init->class);
 	if (ret) {
-		NV_ERROR(dev, "Error creating object: %d (%d/0x%08x)\n",
+		NV_ERROR(ndev, "Error creating object: %d (%d/0x%08x)\n",
 			 ret, init->channel, init->handle);
 	}
 
