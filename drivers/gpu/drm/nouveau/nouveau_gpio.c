@@ -57,7 +57,7 @@ dcb_gpio_entry(struct nouveau_device *ndev, int idx, int ent, u8 *version)
 int
 nouveau_gpio_drive(struct nouveau_device *ndev, int idx, int line, int dir, int out)
 {
-	struct nouveau_gpio_engine *pgpio = &ndev->subsys.gpio;
+	struct nouveau_gpio *pgpio = nv_subdev(ndev, NVDEV_SUBDEV_GPIO);
 
 	return pgpio->drive ? pgpio->drive(ndev, line, dir, out) : -ENODEV;
 }
@@ -65,7 +65,7 @@ nouveau_gpio_drive(struct nouveau_device *ndev, int idx, int line, int dir, int 
 int
 nouveau_gpio_sense(struct nouveau_device *ndev, int idx, int line)
 {
-	struct nouveau_gpio_engine *pgpio = &ndev->subsys.gpio;
+	struct nouveau_gpio *pgpio = nv_subdev(ndev, NVDEV_SUBDEV_GPIO);
 
 	return pgpio->sense ? pgpio->sense(ndev, line) : -ENODEV;
 }
@@ -175,7 +175,7 @@ nouveau_gpio_get(struct nouveau_device *ndev, int idx, u8 tag, u8 line)
 int
 nouveau_gpio_irq(struct nouveau_device *ndev, int idx, u8 tag, u8 line, bool on)
 {
-	struct nouveau_gpio_engine *pgpio = &ndev->subsys.gpio;
+	struct nouveau_gpio *pgpio = nv_subdev(ndev, NVDEV_SUBDEV_GPIO);
 	struct gpio_func gpio;
 	int ret;
 
@@ -206,7 +206,7 @@ nouveau_gpio_isr_bh(struct work_struct *work)
 {
 	struct gpio_isr *isr = container_of(work, struct gpio_isr, work);
 	struct nouveau_device *ndev = isr->device;
-	struct nouveau_gpio_engine *pgpio = &ndev->subsys.gpio;
+	struct nouveau_gpio *pgpio = nv_subdev(ndev, NVDEV_SUBDEV_GPIO);
 	unsigned long flags;
 	int state;
 
@@ -222,7 +222,7 @@ nouveau_gpio_isr_bh(struct work_struct *work)
 void
 nouveau_gpio_isr(struct nouveau_device *ndev, int idx, u32 line_mask)
 {
-	struct nouveau_gpio_engine *pgpio = &ndev->subsys.gpio;
+	struct nouveau_gpio *pgpio = nv_subdev(ndev, NVDEV_SUBDEV_GPIO);
 	struct gpio_isr *isr;
 
 	if (idx != 0)
@@ -244,7 +244,7 @@ int
 nouveau_gpio_isr_add(struct nouveau_device *ndev, int idx, u8 tag, u8 line,
 		     void (*handler)(void *, int), void *data)
 {
-	struct nouveau_gpio_engine *pgpio = &ndev->subsys.gpio;
+	struct nouveau_gpio *pgpio = nv_subdev(ndev, NVDEV_SUBDEV_GPIO);
 	struct gpio_isr *isr;
 	unsigned long flags;
 	int ret;
@@ -275,7 +275,7 @@ void
 nouveau_gpio_isr_del(struct nouveau_device *ndev, int idx, u8 tag, u8 line,
 		     void (*handler)(void *, int), void *data)
 {
-	struct nouveau_gpio_engine *pgpio = &ndev->subsys.gpio;
+	struct nouveau_gpio *pgpio = nv_subdev(ndev, NVDEV_SUBDEV_GPIO);
 	struct gpio_isr *isr, *tmp;
 	struct gpio_func func;
 	unsigned long flags;
@@ -302,44 +302,38 @@ nouveau_gpio_isr_del(struct nouveau_device *ndev, int idx, u8 tag, u8 line,
 }
 
 int
-nouveau_gpio_create(struct nouveau_device *ndev)
+nouveau_gpio_create(struct nouveau_device *ndev, int subdev)
 {
-	struct nouveau_gpio_engine *pgpio = &ndev->subsys.gpio;
+	struct nouveau_gpio *pgpio;
+	int ret;
 
-	INIT_LIST_HEAD(&pgpio->isr);
-	spin_lock_init(&pgpio->lock);
+	switch (ndev->card_type) {
+	case NV_10:
+	case NV_20:
+	case NV_30:
+	case NV_40:
+		ret = nv10_gpio_create(ndev, subdev);
+		break;
+	case NV_50:
+	case NV_C0:
+		ret = nv50_gpio_create(ndev, subdev);
+		break;
+	case NV_D0:
+	case NV_E0:
+		ret = nvd0_gpio_create(ndev, subdev);
+		break;
+	case NV_04:
+	default:
+		return 0;
+	}
 
-	return nouveau_gpio_init(ndev);
-}
-
-void
-nouveau_gpio_destroy(struct nouveau_device *ndev)
-{
-	struct nouveau_gpio_engine *pgpio = &ndev->subsys.gpio;
-
-	nouveau_gpio_fini(ndev);
-	BUG_ON(!list_empty(&pgpio->isr));
-}
-
-int
-nouveau_gpio_init(struct nouveau_device *ndev)
-{
-	struct nouveau_gpio_engine *pgpio = &ndev->subsys.gpio;
-	int ret = 0;
-
-	if (pgpio->init)
-		ret = pgpio->init(ndev);
+	pgpio = nv_subdev(ndev, subdev);
+	if (pgpio) {
+		INIT_LIST_HEAD(&pgpio->isr);
+		spin_lock_init(&pgpio->lock);
+	}
 
 	return ret;
-}
-
-void
-nouveau_gpio_fini(struct nouveau_device *ndev)
-{
-	struct nouveau_gpio_engine *pgpio = &ndev->subsys.gpio;
-
-	if (pgpio->fini)
-		pgpio->fini(ndev);
 }
 
 void

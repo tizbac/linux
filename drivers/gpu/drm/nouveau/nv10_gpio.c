@@ -25,11 +25,16 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_hw.h"
 #include "nouveau_gpio.h"
 
-int
+struct nv10_gpio_priv {
+	struct nouveau_gpio base;
+};
+
+static int
 nv10_gpio_sense(struct nouveau_device *ndev, int line)
 {
 	if (line < 2) {
@@ -51,7 +56,7 @@ nv10_gpio_sense(struct nouveau_device *ndev, int line)
 	return -EINVAL;
 }
 
-int
+static int
 nv10_gpio_drive(struct nouveau_device *ndev, int line, int dir, int out)
 {
 	u32 reg, mask, data;
@@ -82,13 +87,31 @@ nv10_gpio_drive(struct nouveau_device *ndev, int line, int dir, int out)
 	return 0;
 }
 
-void
+static void
 nv10_gpio_irq_enable(struct nouveau_device *ndev, int line, bool on)
 {
 	u32 mask = 0x00010001 << line;
 
 	nv_wr32(ndev, 0x001104, mask);
 	nv_mask(ndev, 0x001144, mask, on ? mask : 0);
+}
+
+static int
+nv10_gpio_init(struct nouveau_device *ndev, int subdev)
+{
+	nv_wr32(ndev, 0x001140, 0x00000000);
+	nv_wr32(ndev, 0x001100, 0xffffffff);
+	nv_wr32(ndev, 0x001144, 0x00000000);
+	nv_wr32(ndev, 0x001104, 0xffffffff);
+	return 0;
+}
+
+static int
+nv10_gpio_fini(struct nouveau_device *ndev, int subdev, bool suspend)
+{
+	nv_wr32(ndev, 0x001140, 0x00000000);
+	nv_wr32(ndev, 0x001144, 0x00000000);
+	return 0;
 }
 
 static void
@@ -103,21 +126,29 @@ nv10_gpio_isr(struct nouveau_device *ndev)
 	nv_wr32(ndev, 0x001104, intr);
 }
 
-int
-nv10_gpio_init(struct nouveau_device *ndev)
+static void
+nv10_gpio_destroy(struct nouveau_device *ndev, int subdev)
 {
-	nv_wr32(ndev, 0x001140, 0x00000000);
-	nv_wr32(ndev, 0x001100, 0xffffffff);
-	nv_wr32(ndev, 0x001144, 0x00000000);
-	nv_wr32(ndev, 0x001104, 0xffffffff);
-	nouveau_irq_register(ndev, 28, nv10_gpio_isr); /* PBUS */
-	return 0;
+	nouveau_irq_unregister(ndev, 28);
 }
 
-void
-nv10_gpio_fini(struct nouveau_device *ndev)
+int
+nv10_gpio_create(struct nouveau_device *ndev, int subdev)
 {
-	nv_wr32(ndev, 0x001140, 0x00000000);
-	nv_wr32(ndev, 0x001144, 0x00000000);
-	nouveau_irq_unregister(ndev, 28);
+	struct nv10_gpio_priv *priv;
+	int ret;
+
+	ret = nouveau_subdev_create(ndev, subdev, "GPIO", "gpio", &priv);
+	if (ret)
+		return ret;
+
+	priv->base.base.destroy = nv10_gpio_destroy;
+	priv->base.base.init = nv10_gpio_init;
+	priv->base.base.fini = nv10_gpio_fini;
+	priv->base.drive = nv10_gpio_drive;
+	priv->base.sense = nv10_gpio_sense;
+	priv->base.irq_enable = nv10_gpio_irq_enable;
+
+	nouveau_irq_register(ndev, 28, nv10_gpio_isr); /* PBUS */
+	return nouveau_subdev_init(ndev, subdev, ret ? ret : 1);
 }

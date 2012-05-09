@@ -63,6 +63,7 @@ nouveau_fpriv(struct drm_file *file_priv)
 #define NVDEV_SUBDEV_MC    1
 #define NVDEV_SUBDEV_TIMER 2
 #define NVDEV_SUBDEV_FB    3
+#define NVDEV_SUBDEV_GPIO  4
 #define NVDEV_SUBDEV_NR    32
 struct nouveau_device;
 struct nouveau_subdev {
@@ -371,16 +372,6 @@ struct nouveau_display_engine {
 	struct drm_property *color_vibrance_property;
 };
 
-struct nouveau_gpio_engine {
-	spinlock_t lock;
-	struct list_head isr;
-	int (*init)(struct nouveau_device *);
-	void (*fini)(struct nouveau_device *);
-	int (*drive)(struct nouveau_device *, int line, int dir, int out);
-	int (*sense)(struct nouveau_device *, int line);
-	void (*irq_enable)(struct nouveau_device *, int line, bool);
-};
-
 struct nouveau_pm_voltage_level {
 	u32 voltage; /* microvolts */
 	u8  vid;
@@ -545,7 +536,6 @@ struct nouveau_pm_engine {
 struct nouveau_subsys {
 	struct nouveau_instmem_engine instmem;
 	struct nouveau_display_engine display;
-	struct nouveau_gpio_engine    gpio;
 	struct nouveau_pm_engine      pm;
 };
 
@@ -1283,22 +1273,6 @@ int nouveau_display_dumb_map_offset(struct drm_file *, struct drm_device *,
 				    u32 handle, u64 *offset);
 int nouveau_display_dumb_destroy(struct drm_file *, struct drm_device *,
 				 u32 handle);
-
-/* nv10_gpio.c */
-int nv10_gpio_init(struct nouveau_device *);
-void nv10_gpio_fini(struct nouveau_device *);
-int nv10_gpio_drive(struct nouveau_device *, int line, int dir, int out);
-int nv10_gpio_sense(struct nouveau_device *, int line);
-void nv10_gpio_irq_enable(struct nouveau_device *, int line, bool on);
-
-/* nv50_gpio.c */
-int nv50_gpio_init(struct nouveau_device *);
-void nv50_gpio_fini(struct nouveau_device *);
-int nv50_gpio_drive(struct nouveau_device *, int line, int dir, int out);
-int nv50_gpio_sense(struct nouveau_device *, int line);
-void nv50_gpio_irq_enable(struct nouveau_device *, int line, bool on);
-int nvd0_gpio_drive(struct nouveau_device *, int line, int dir, int out);
-int nvd0_gpio_sense(struct nouveau_device *, int line);
 
 /* nv50_calc.c */
 int nv50_calc_pll(struct nouveau_device *, struct pll_lims *, int clk,

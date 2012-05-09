@@ -38,7 +38,7 @@ nouveau-y := nouveau_device.o nouveau_subdev.o \
              nv50_cursor.o nv50_display.o \
              nvd0_display.o \
              nv04_fbcon.o nv50_fbcon.o nvc0_fbcon.o \
-             nv10_gpio.o nv50_gpio.o \
+             nv10_gpio.o nv50_gpio.o nvd0_gpio.o \
 	     nv50_calc.o \
 	     nv04_pm.o nv40_pm.o nv50_pm.o nva3_pm.o nvc0_pm.o \
 	     nv50_vm.o nvc0_vm.o

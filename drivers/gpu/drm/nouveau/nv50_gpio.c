@@ -23,11 +23,14 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_hw.h"
 #include "nouveau_gpio.h"
 
-#include "nv50_display.h"
+struct nv50_gpio_priv {
+	struct nouveau_gpio base;
+};
 
 static int
 nv50_gpio_location(int line, u32 *reg, u32 *shift)
@@ -42,7 +45,7 @@ nv50_gpio_location(int line, u32 *reg, u32 *shift)
 	return 0;
 }
 
-int
+static int
 nv50_gpio_drive(struct nouveau_device *ndev, int line, int dir, int out)
 {
 	u32 reg, shift;
@@ -54,7 +57,7 @@ nv50_gpio_drive(struct nouveau_device *ndev, int line, int dir, int out)
 	return 0;
 }
 
-int
+static int
 nv50_gpio_sense(struct nouveau_device *ndev, int line)
 {
 	u32 reg, shift;
@@ -75,22 +78,7 @@ nv50_gpio_irq_enable(struct nouveau_device *ndev, int line, bool on)
 	nv_mask(ndev, reg + 0, mask, on ? mask : 0);
 }
 
-int
-nvd0_gpio_drive(struct nouveau_device *ndev, int line, int dir, int out)
-{
-	u32 data = ((dir ^ 1) << 13) | (out << 12);
-	nv_mask(ndev, 0x00d610 + (line * 4), 0x00003000, data);
-	nv_mask(ndev, 0x00d604, 0x00000001, 0x00000001); /* update? */
-	return 0;
-}
-
-int
-nvd0_gpio_sense(struct nouveau_device *ndev, int line)
-{
-	return !!(nv_rd32(ndev, 0x00d610 + (line * 4)) & 0x00004000);
-}
-
-static void
+void
 nv50_gpio_isr(struct nouveau_device *ndev)
 {
 	u32 intr0, intr1 = 0;
@@ -110,9 +98,8 @@ nv50_gpio_isr(struct nouveau_device *ndev)
 }
 
 int
-nv50_gpio_init(struct nouveau_device *ndev)
+nv50_gpio_init(struct nouveau_device *ndev, int subdev)
 {
-
 	/* disable, and ack any pending gpio interrupts */
 	nv_wr32(ndev, 0xe050, 0x00000000);
 	nv_wr32(ndev, 0xe054, 0xffffffff);
@@ -121,16 +108,41 @@ nv50_gpio_init(struct nouveau_device *ndev)
 		nv_wr32(ndev, 0xe074, 0xffffffff);
 	}
 
-	nouveau_irq_register(ndev, 21, nv50_gpio_isr);
+	return 0;
+}
+
+int
+nv50_gpio_fini(struct nouveau_device *ndev, int subdev, bool suspend)
+{
+	nv_wr32(ndev, 0xe050, 0x00000000);
+	if (ndev->chipset >= 0x90)
+		nv_wr32(ndev, 0xe070, 0x00000000);
 	return 0;
 }
 
 void
-nv50_gpio_fini(struct nouveau_device *ndev)
+nv50_gpio_destroy(struct nouveau_device *ndev, int subdev)
 {
-
-	nv_wr32(ndev, 0xe050, 0x00000000);
-	if (ndev->chipset >= 0x90)
-		nv_wr32(ndev, 0xe070, 0x00000000);
 	nouveau_irq_unregister(ndev, 21);
+}
+
+int
+nv50_gpio_create(struct nouveau_device *ndev, int subdev)
+{
+	struct nv50_gpio_priv *priv;
+	int ret;
+
+	ret = nouveau_subdev_create(ndev, subdev, "GPIO", "gpio", &priv);
+	if (ret)
+		return ret;
+
+	priv->base.base.destroy = nv50_gpio_destroy;
+	priv->base.base.init = nv50_gpio_init;
+	priv->base.base.fini = nv50_gpio_fini;
+	priv->base.drive = nv50_gpio_drive;
+	priv->base.sense = nv50_gpio_sense;
+	priv->base.irq_enable = nv50_gpio_irq_enable;
+
+	nouveau_irq_register(ndev, 21, nv50_gpio_isr);
+	return nouveau_subdev_init(ndev, subdev, ret ? ret : 1);
 }

@@ -23,6 +23,28 @@
 #ifndef __NOUVEAU_GPIO_H__
 #define __NOUVEAU_GPIO_H__
 
+struct nouveau_gpio {
+	struct nouveau_subdev base;
+	spinlock_t lock;
+
+	int  (*drive)(struct nouveau_device *, int line, int dir, int out);
+	int  (*sense)(struct nouveau_device *, int line);
+
+	void (*irq_enable)(struct nouveau_device *, int line, bool);
+	struct list_head isr;
+};
+
+int  nv10_gpio_create(struct nouveau_device *, int subdev);
+
+int  nv50_gpio_create(struct nouveau_device *, int subdev);
+void nv50_gpio_destroy(struct nouveau_device *, int subdev);
+int  nv50_gpio_init(struct nouveau_device *, int subdev);
+int  nv50_gpio_fini(struct nouveau_device *, int subdev, bool suspend);
+void nv50_gpio_irq_enable(struct nouveau_device *, int line, bool);
+void nv50_gpio_isr(struct nouveau_device *);
+
+int  nvd0_gpio_create(struct nouveau_device *, int subdev);
+
 struct gpio_func {
 	u8 func;
 	u8 line;
@@ -30,7 +52,7 @@ struct gpio_func {
 };
 
 /* nouveau_gpio.c */
-int  nouveau_gpio_create(struct nouveau_device *);
+int  nouveau_gpio_create(struct nouveau_device *, int subdev);
 void nouveau_gpio_destroy(struct nouveau_device *);
 int  nouveau_gpio_init(struct nouveau_device *);
 void nouveau_gpio_fini(struct nouveau_device *);
