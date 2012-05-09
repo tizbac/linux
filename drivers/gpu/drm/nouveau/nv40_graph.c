@@ -25,8 +25,9 @@
  */
 
 #include "drmP.h"
-#include "drm.h"
+
 #include "nouveau_drv.h"
+#include "nouveau_fb.h"
 #include "nouveau_fifo.h"
 #include "nouveau_ramht.h"
 
@@ -174,7 +175,7 @@ int
 nv40_graph_init(struct nouveau_device *ndev, int engine)
 {
 	struct nv40_graph_engine *pgraph = nv_engine(ndev, engine);
-	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	u32 vramsz;
 	int i, j;
 

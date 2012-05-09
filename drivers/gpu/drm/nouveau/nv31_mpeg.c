@@ -23,7 +23,9 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
+#include "nouveau_fb.h"
 #include "nouveau_fifo.h"
 #include "nouveau_ramht.h"
 
@@ -126,6 +128,7 @@ nv31_mpeg_object_new(struct nouveau_channel *chan, int engine,
 static int
 nv31_mpeg_init(struct nouveau_device *ndev, int engine)
 {
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct nv31_mpeg_engine *pmpeg = nv_engine(ndev, engine);
 	int i;
 
@@ -135,7 +138,7 @@ nv31_mpeg_init(struct nouveau_device *ndev, int engine)
 	nv_wr32(ndev, 0x00b0e0, 0x00000020); /* nvidia: rd 0x01, wr 0x20 */
 	nv_wr32(ndev, 0x00b0e8, 0x00000020); /* nvidia: rd 0x01, wr 0x20 */
 
-	for (i = 0; i < ndev->subsys.fb.num_tiles; i++)
+	for (i = 0; i < pfb->num_tiles; i++)
 		pmpeg->base.set_tile_region(ndev, i);
 
 	/* PMPEG init */

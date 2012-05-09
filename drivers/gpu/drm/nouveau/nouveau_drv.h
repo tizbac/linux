@@ -62,6 +62,7 @@ nouveau_fpriv(struct drm_file *file_priv)
 #define NVDEV_SUBDEV_VBIOS 0
 #define NVDEV_SUBDEV_MC    1
 #define NVDEV_SUBDEV_TIMER 2
+#define NVDEV_SUBDEV_FB    3
 #define NVDEV_SUBDEV_NR    32
 struct nouveau_device;
 struct nouveau_subdev {
@@ -351,21 +352,6 @@ struct nouveau_instmem_engine {
 	void	(*flush)(struct nouveau_device *);
 };
 
-struct nouveau_fb_engine {
-	int num_tiles;
-	struct drm_mm tag_heap;
-	void *priv;
-
-	int  (*init)(struct nouveau_device *);
-	void (*takedown)(struct nouveau_device *);
-
-	void (*init_tile_region)(struct nouveau_device *, int i,
-				 u32 addr, u32 size,
-				 u32 pitch, u32 flags);
-	void (*set_tile_region)(struct nouveau_device *, int i);
-	void (*free_tile_region)(struct nouveau_device *, int i);
-};
-
 struct nouveau_display_engine {
 	void *priv;
 	int (*early_init)(struct nouveau_device *);
@@ -556,25 +542,11 @@ struct nouveau_pm_engine {
 	int (*temp_get)(struct nouveau_device *);
 };
 
-struct nouveau_vram_engine {
-	struct nouveau_mm mm;
-
-	int  (*init)(struct nouveau_device *);
-	void (*takedown)(struct nouveau_device *);
-	int  (*get)(struct nouveau_device *, u64, u32 align, u32 size_nc,
-		    u32 type, struct nouveau_mem **);
-	void (*put)(struct nouveau_device *, struct nouveau_mem **);
-
-	bool (*flags_valid)(struct nouveau_device *, u32 tile_flags);
-};
-
 struct nouveau_subsys {
 	struct nouveau_instmem_engine instmem;
-	struct nouveau_fb_engine      fb;
 	struct nouveau_display_engine display;
 	struct nouveau_gpio_engine    gpio;
 	struct nouveau_pm_engine      pm;
-	struct nouveau_vram_engine    vram;
 };
 
 struct nouveau_pll_vals {
@@ -913,7 +885,6 @@ void nouveau_mem_gart_fini(struct nouveau_device *);
 int  nouveau_mem_init_agp(struct nouveau_device *);
 int  nouveau_mem_reset_agp(struct nouveau_device *);
 void nouveau_mem_close(struct nouveau_device *);
-bool nouveau_mem_flags_valid(struct nouveau_device *, u32 tile_flags);
 int  nouveau_mem_timing_calc(struct nouveau_device *, u32 freq,
 				    struct nouveau_pm_memtiming *);
 void nouveau_mem_timing_read(struct nouveau_device *,
@@ -1101,55 +1072,6 @@ int nouveau_ttm_mmap(struct file *, struct vm_area_struct *);
 
 /* nouveau_hdmi.c */
 void nouveau_hdmi_mode_set(struct drm_encoder *, struct drm_display_mode *);
-
-/* nv04_fb.c */
-int  nv04_fb_vram_init(struct nouveau_device *);
-int  nv04_fb_init(struct nouveau_device *);
-void nv04_fb_takedown(struct nouveau_device *);
-
-/* nv10_fb.c */
-int  nv10_fb_vram_init(struct nouveau_device *);
-int  nv1a_fb_vram_init(struct nouveau_device *);
-int  nv10_fb_init(struct nouveau_device *);
-void nv10_fb_takedown(struct nouveau_device *);
-void nv10_fb_init_tile_region(struct nouveau_device *, int i,
-				     u32 addr, u32 size,
-				     u32 pitch, u32 flags);
-void nv10_fb_set_tile_region(struct nouveau_device *, int i);
-void nv10_fb_free_tile_region(struct nouveau_device *, int i);
-
-/* nv20_fb.c */
-int  nv20_fb_vram_init(struct nouveau_device *);
-int  nv20_fb_init(struct nouveau_device *);
-void nv20_fb_takedown(struct nouveau_device *);
-void nv20_fb_init_tile_region(struct nouveau_device *, int i,
-				     u32 addr, u32 size,
-				     u32 pitch, u32 flags);
-void nv20_fb_set_tile_region(struct nouveau_device *, int i);
-void nv20_fb_free_tile_region(struct nouveau_device *, int i);
-
-/* nv30_fb.c */
-int  nv30_fb_init(struct nouveau_device *);
-void nv30_fb_takedown(struct nouveau_device *);
-void nv30_fb_init_tile_region(struct nouveau_device *, int i,
-				     u32 addr, u32 size,
-				     u32 pitch, u32 flags);
-void nv30_fb_free_tile_region(struct nouveau_device *, int i);
-
-/* nv40_fb.c */
-int  nv40_fb_vram_init(struct nouveau_device *);
-int  nv40_fb_init(struct nouveau_device *);
-void nv40_fb_takedown(struct nouveau_device *);
-void nv40_fb_set_tile_region(struct nouveau_device *, int i);
-
-/* nv50_fb.c */
-int  nv50_fb_init(struct nouveau_device *);
-void nv50_fb_takedown(struct nouveau_device *);
-void nv50_fb_vm_trap(struct nouveau_device *, int display);
-
-/* nvc0_fb.c */
-int  nvc0_fb_init(struct nouveau_device *);
-void nvc0_fb_takedown(struct nouveau_device *);
 
 /* nv04_graph.c */
 int  nv04_graph_create(struct nouveau_device *);

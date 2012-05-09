@@ -36,7 +36,7 @@ struct nv04_timer_priv {
 static u64
 nv04_timer_read(struct nouveau_timer *ptimer)
 {
-	struct nouveau_device *ndev = ptimer->device;
+	struct nouveau_device *ndev = ptimer->base.device;
 	u32 hi, lo;
 
 	do {

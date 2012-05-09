@@ -3,7 +3,6 @@
 
 struct nouveau_timer {
 	struct nouveau_subdev base;
-	struct nouveau_device *device;
 	u64 (*read)(struct nouveau_timer *);
 };
 

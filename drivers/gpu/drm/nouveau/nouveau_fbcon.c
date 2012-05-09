@@ -46,7 +46,7 @@
 #include "nouveau_drv.h"
 #include "nouveau_drm.h"
 #include "nouveau_crtc.h"
-#include "nouveau_fb.h"
+#include "nouveau_frb.h"
 #include "nouveau_fbcon.h"
 #include "nouveau_dma.h"
 

@@ -24,10 +24,13 @@
 
 #include <linux/firmware.h>
 #include "drmP.h"
+
 #include "nouveau_drv.h"
+#include "nouveau_fb.h"
 #include "nouveau_util.h"
 #include "nouveau_vm.h"
 #include "nouveau_ramht.h"
+
 #include "nva3_copy.fuc.h"
 
 struct nva3_copy_engine {

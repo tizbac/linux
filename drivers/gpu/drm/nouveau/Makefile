@@ -13,7 +13,7 @@ nouveau-y := nouveau_device.o nouveau_subdev.o \
              nouveau_hdmi.o nouveau_dp.o nouveau_ramht.o \
 	     nouveau_pm.o nouveau_volt.o nouveau_perf.o nouveau_temp.o \
 	     nouveau_mm.o nouveau_vm.o nouveau_mxm.o nouveau_gpio.o \
-	     nouveau_abi16.o \
+	     nouveau_abi16.o nouveau_prime.o \
              nv04_timer.o \
              nv04_mc.o nv40_mc.o nv50_mc.o \
              nv04_fb.o nv10_fb.o nv20_fb.o nv30_fb.o nv40_fb.o \
@@ -41,8 +41,7 @@ nouveau-y := nouveau_device.o nouveau_subdev.o \
              nv10_gpio.o nv50_gpio.o \
 	     nv50_calc.o \
 	     nv04_pm.o nv40_pm.o nv50_pm.o nva3_pm.o nvc0_pm.o \
-	     nv50_vram.o nvc0_vram.o \
-	     nv50_vm.o nvc0_vm.o nouveau_prime.o
+	     nv50_vm.o nvc0_vm.o
 
 nouveau-$(CONFIG_DRM_NOUVEAU_DEBUG) += nouveau_debugfs.o
 nouveau-$(CONFIG_COMPAT) += nouveau_ioc32.o

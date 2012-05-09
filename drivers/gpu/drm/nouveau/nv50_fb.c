@@ -1,82 +1,152 @@
+/*
+ * Copyright 2012 Red Hat Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Authors: Ben Skeggs
+ */
+
 #include "drmP.h"
-#include "drm.h"
+
 #include "nouveau_drv.h"
-#include "nouveau_drm.h"
+#include "nouveau_fb.h"
 #include "nouveau_fifo.h"
 
 struct nv50_fb_priv {
+	struct nouveau_fb base;
 	struct page *r100c08_page;
 	dma_addr_t r100c08;
 };
 
-static void
-nv50_fb_destroy(struct nouveau_device *ndev)
+static int types[0x80] = {
+	1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	1, 1, 1, 1, 0, 0, 0, 0, 2, 2, 2, 2, 0, 0, 0, 0,
+	1, 1, 1, 1, 1, 1, 1, 0, 2, 2, 2, 2, 2, 2, 2, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 0, 0,
+	0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 2, 2, 2, 2,
+	1, 0, 2, 0, 1, 0, 2, 0, 1, 1, 2, 2, 1, 1, 0, 0
+};
+
+static bool
+nv50_fb_memtype_valid(struct nouveau_fb *pfb, u32 tile_flags)
 {
-	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
-	struct nv50_fb_priv *priv = pfb->priv;
+	int type = (tile_flags & NOUVEAU_GEM_TILE_LAYOUT_MASK) >> 8;
 
-	if (drm_mm_initialized(&pfb->tag_heap))
-		drm_mm_takedown(&pfb->tag_heap);
-
-	if (priv->r100c08_page) {
-		pci_unmap_page(ndev->dev->pdev, priv->r100c08, PAGE_SIZE,
-			       PCI_DMA_BIDIRECTIONAL);
-		__free_page(priv->r100c08_page);
-	}
-
-	kfree(priv);
-	pfb->priv = NULL;
+	if (likely(type < ARRAY_SIZE(types) && types[type]))
+		return true;
+	return false;
 }
 
 static int
-nv50_fb_create(struct nouveau_device *ndev)
+nv50_fb_vram_new(struct nouveau_fb *pfb, u64 size, u32 align, u32 size_nc,
+		 u32 memtype, struct nouveau_mem **pmem)
 {
-	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
-	struct nv50_fb_priv *priv;
-	u32 tagmem;
+	struct nouveau_mm *mm = &pfb->mm;
+	struct nouveau_mm_node *r;
+	struct nouveau_mem *mem;
+	int comp = (memtype & 0x300) >> 8;
+	int type = (memtype & 0x07f);
 	int ret;
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv)
+	if (!types[type])
+		return -EINVAL;
+	size >>= 12;
+	align >>= 12;
+	size_nc >>= 12;
+
+	mem = kzalloc(sizeof(*mem), GFP_KERNEL);
+	if (!mem)
 		return -ENOMEM;
-	pfb->priv = priv;
 
-	priv->r100c08_page = alloc_page(GFP_KERNEL | __GFP_ZERO);
-	if (!priv->r100c08_page) {
-		nv50_fb_destroy(ndev);
-		return -ENOMEM;
+	mutex_lock(&mm->mutex);
+	if (comp) {
+		if (align == 16) {
+			int n = (size >> 4) * comp;
+
+			mem->tag = drm_mm_search_free(&pfb->tag_heap, n, 0, 0);
+			if (mem->tag)
+				mem->tag = drm_mm_get_block(mem->tag, n, 0);
+		}
+
+		if (unlikely(!mem->tag))
+			comp = 0;
 	}
 
-	priv->r100c08 = pci_map_page(ndev->dev->pdev, priv->r100c08_page, 0,
-				     PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
-	if (pci_dma_mapping_error(ndev->dev->pdev, priv->r100c08)) {
-		nv50_fb_destroy(ndev);
-		return -EFAULT;
-	}
+	INIT_LIST_HEAD(&mem->regions);
+	mem->device = pfb->base.device;
+	mem->memtype = (comp << 7) | type;
+	mem->size = size;
 
-	tagmem = nv_rd32(ndev, 0x100320);
-	NV_DEBUG(ndev, "%d tags available\n", tagmem);
-	ret = drm_mm_init(&pfb->tag_heap, 0, tagmem);
-	if (ret) {
-		nv50_fb_destroy(ndev);
-		return ret;
-	}
+	do {
+		ret = nouveau_mm_get(mm, types[type], size, size_nc, align, &r);
+		if (ret) {
+			mutex_unlock(&mm->mutex);
+			pfb->vram_put(pfb, &mem);
+			return ret;
+		}
 
+		list_add_tail(&r->rl_entry, &mem->regions);
+		size -= r->length;
+	} while (size);
+	mutex_unlock(&mm->mutex);
+
+	r = list_first_entry(&mem->regions, struct nouveau_mm_node, rl_entry);
+	mem->offset = (u64)r->offset << 12;
+	*pmem = mem;
 	return 0;
 }
 
-int
-nv50_fb_init(struct nouveau_device *ndev)
+void
+nv50_fb_vram_del(struct nouveau_fb *pfb, struct nouveau_mem **pmem)
 {
-	struct nv50_fb_priv *priv;
-	int ret;
+	struct nouveau_mm *mm = &pfb->mm;
+	struct nouveau_mm_node *this;
+	struct nouveau_mem *mem;
 
-	if (!ndev->subsys.fb.priv) {
-		ret = nv50_fb_create(ndev);
-		if (ret)
-			return ret;
+	mem = *pmem;
+	*pmem = NULL;
+	if (unlikely(mem == NULL))
+		return;
+
+	mutex_lock(&mm->mutex);
+	while (!list_empty(&mem->regions)) {
+		this = list_first_entry(&mem->regions, struct nouveau_mm_node, rl_entry);
+
+		list_del(&this->rl_entry);
+		nouveau_mm_put(mm, this);
 	}
-	priv = ndev->subsys.fb.priv;
+
+	if (mem->tag) {
+		drm_mm_put_block(mem->tag);
+		mem->tag = NULL;
+	}
+	mutex_unlock(&mm->mutex);
+
+	kfree(mem);
+}
+
+static int
+nv50_fb_init(struct nouveau_device *ndev, int subdev)
+{
+	struct nv50_fb_priv *priv = nv_subdev(ndev, subdev);
 
 	/* Not a clue what this is exactly.  Without pointing it at a
 	 * scratch page, VRAM->GART blits with M2MF (as in DDX DFS)
@@ -106,10 +176,150 @@ nv50_fb_init(struct nouveau_device *ndev)
 	return 0;
 }
 
-void
-nv50_fb_takedown(struct nouveau_device *ndev)
+static void
+nv50_fb_destroy(struct nouveau_device *ndev, int subdev)
 {
-	nv50_fb_destroy(ndev);
+	struct nv50_fb_priv *priv = nv_subdev(ndev, subdev);
+
+	if (drm_mm_initialized(&priv->base.tag_heap))
+		drm_mm_takedown(&priv->base.tag_heap);
+
+	if (priv->r100c08_page) {
+		pci_unmap_page(ndev->dev->pdev, priv->r100c08, PAGE_SIZE,
+			       PCI_DMA_BIDIRECTIONAL);
+		__free_page(priv->r100c08_page);
+	}
+
+	nouveau_mm_fini(&priv->base.mm);
+}
+
+static u32
+nv50_vram_rblock(struct nouveau_device *ndev)
+{
+	int i, parts, colbits, rowbitsa, rowbitsb, banks;
+	u64 rowsize, predicted;
+	u32 r0, r4, rt, ru, rblock_size;
+
+	r0 = nv_rd32(ndev, 0x100200);
+	r4 = nv_rd32(ndev, 0x100204);
+	rt = nv_rd32(ndev, 0x100250);
+	ru = nv_rd32(ndev, 0x001540);
+	NV_DEBUG(ndev, "memcfg 0x%08x 0x%08x 0x%08x 0x%08x\n", r0, r4, rt, ru);
+
+	for (i = 0, parts = 0; i < 8; i++) {
+		if (ru & (0x00010000 << i))
+			parts++;
+	}
+
+	colbits  =  (r4 & 0x0000f000) >> 12;
+	rowbitsa = ((r4 & 0x000f0000) >> 16) + 8;
+	rowbitsb = ((r4 & 0x00f00000) >> 20) + 8;
+	banks    = 1 << (((r4 & 0x03000000) >> 24) + 2);
+
+	rowsize = parts * banks * (1 << colbits) * 8;
+	predicted = rowsize << rowbitsa;
+	if (r0 & 0x00000004)
+		predicted += rowsize << rowbitsb;
+
+	if (predicted != ndev->vram_size) {
+		NV_WARN(ndev, "memory controller reports %dMiB VRAM\n",
+			(u32)(ndev->vram_size >> 20));
+		NV_WARN(ndev, "we calculated %dMiB VRAM\n",
+			(u32)(predicted >> 20));
+	}
+
+	rblock_size = rowsize;
+	if (rt & 1)
+		rblock_size *= 3;
+
+	NV_DEBUG(ndev, "rblock %d bytes\n", rblock_size);
+	return rblock_size;
+}
+
+static int
+nv50_vram_detect(struct nv50_fb_priv *priv)
+{
+	struct nouveau_device *ndev = priv->base.base.device;
+	const u32 rsvd_head = ( 256 * 1024) >> 12; /* vga memory */
+	const u32 rsvd_tail = (1024 * 1024) >> 12; /* vbios etc */
+	u32 pfb714 = nv_rd32(ndev, 0x100714);
+	u32 rblock, length;
+
+	switch (pfb714 & 0x00000007) {
+	case 0: ndev->vram_type = NV_MEM_TYPE_DDR1; break;
+	case 1:
+		if (nouveau_mem_vbios_type(ndev) == NV_MEM_TYPE_DDR3)
+			ndev->vram_type = NV_MEM_TYPE_DDR3;
+		else
+			ndev->vram_type = NV_MEM_TYPE_DDR2;
+		break;
+	case 2: ndev->vram_type = NV_MEM_TYPE_GDDR3; break;
+	case 3: ndev->vram_type = NV_MEM_TYPE_GDDR4; break;
+	case 4: ndev->vram_type = NV_MEM_TYPE_GDDR5; break;
+	default:
+		break;
+	}
+
+	ndev->vram_rank_B = !!(nv_rd32(ndev, 0x100200) & 0x4);
+	ndev->vram_size  = nv_rd32(ndev, 0x10020c);
+	ndev->vram_size |= (ndev->vram_size & 0xff) << 32;
+	ndev->vram_size &= 0xffffffff00ULL;
+
+	/* IGPs, no funky reordering happens here, they don't have VRAM */
+	if (ndev->chipset == 0xaa ||
+	    ndev->chipset == 0xac ||
+	    ndev->chipset == 0xaf) {
+		ndev->vram_sys_base = (u64)nv_rd32(ndev, 0x100e10) << 12;
+		rblock = 4096 >> 12;
+	} else {
+		rblock = nv50_vram_rblock(ndev) >> 12;
+	}
+
+	length = (ndev->vram_size >> 12) - rsvd_head - rsvd_tail;
+
+	return nouveau_mm_init(&priv->base.mm, rsvd_head, length, rblock);
+}
+
+int
+nv50_fb_create(struct nouveau_device *ndev, int subdev)
+{
+	struct nv50_fb_priv *priv;
+	u32 tagmem;
+	int ret;
+
+	ret = nouveau_subdev_create(ndev, subdev, "PFB", "fb", &priv);
+	if (ret)
+		return ret;
+
+	priv->base.base.destroy = nv50_fb_destroy;
+	priv->base.base.init = nv50_fb_init;
+	priv->base.memtype_valid = nv50_fb_memtype_valid;
+	priv->base.vram_get = nv50_fb_vram_new;
+	priv->base.vram_put = nv50_fb_vram_del;
+
+	ret = nv50_vram_detect(priv);
+	if (ret)
+		goto done;
+
+	priv->r100c08_page = alloc_page(GFP_KERNEL | __GFP_ZERO);
+	if (!priv->r100c08_page) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	priv->r100c08 = pci_map_page(ndev->dev->pdev, priv->r100c08_page, 0,
+				     PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
+	if (pci_dma_mapping_error(ndev->dev->pdev, priv->r100c08)) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	tagmem = nv_rd32(ndev, 0x100320);
+	NV_DEBUG(ndev, "%d tags available\n", tagmem);
+
+	ret = drm_mm_init(&priv->base.tag_heap, 0, tagmem);
+done:
+	return nouveau_subdev_init(ndev, subdev, ret);
 }
 
 static struct nouveau_enum vm_dispatch_subclients[] = {

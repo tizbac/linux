@@ -64,8 +64,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->instmem.map		= nv04_instmem_map;
 		engine->instmem.unmap		= nv04_instmem_unmap;
 		engine->instmem.flush		= nv04_instmem_flush;
-		engine->fb.init			= nv04_fb_init;
-		engine->fb.takedown		= nv04_fb_takedown;
 		engine->display.early_init	= nv04_display_early_init;
 		engine->display.late_takedown	= nv04_display_late_takedown;
 		engine->display.create		= nv04_display_create;
@@ -75,9 +73,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->pm.clocks_get		= nv04_pm_clocks_get;
 		engine->pm.clocks_pre		= nv04_pm_clocks_pre;
 		engine->pm.clocks_set		= nv04_pm_clocks_set;
-		engine->vram.init		= nv04_fb_vram_init;
-		engine->vram.takedown		= nouveau_stub_takedown;
-		engine->vram.flags_valid	= nouveau_mem_flags_valid;
 		break;
 	case 0x10:
 		engine->instmem.init		= nv04_instmem_init;
@@ -89,11 +84,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->instmem.map		= nv04_instmem_map;
 		engine->instmem.unmap		= nv04_instmem_unmap;
 		engine->instmem.flush		= nv04_instmem_flush;
-		engine->fb.init			= nv10_fb_init;
-		engine->fb.takedown		= nv10_fb_takedown;
-		engine->fb.init_tile_region	= nv10_fb_init_tile_region;
-		engine->fb.set_tile_region	= nv10_fb_set_tile_region;
-		engine->fb.free_tile_region	= nv10_fb_free_tile_region;
 		engine->display.early_init	= nv04_display_early_init;
 		engine->display.late_takedown	= nv04_display_late_takedown;
 		engine->display.create		= nv04_display_create;
@@ -105,13 +95,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->pm.clocks_get		= nv04_pm_clocks_get;
 		engine->pm.clocks_pre		= nv04_pm_clocks_pre;
 		engine->pm.clocks_set		= nv04_pm_clocks_set;
-		if (ndev->chipset == 0x1a ||
-		    ndev->chipset == 0x1f)
-			engine->vram.init	= nv1a_fb_vram_init;
-		else
-			engine->vram.init	= nv10_fb_vram_init;
-		engine->vram.takedown		= nouveau_stub_takedown;
-		engine->vram.flags_valid	= nouveau_mem_flags_valid;
 		break;
 	case 0x20:
 		engine->instmem.init		= nv04_instmem_init;
@@ -123,11 +106,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->instmem.map		= nv04_instmem_map;
 		engine->instmem.unmap		= nv04_instmem_unmap;
 		engine->instmem.flush		= nv04_instmem_flush;
-		engine->fb.init			= nv20_fb_init;
-		engine->fb.takedown		= nv20_fb_takedown;
-		engine->fb.init_tile_region	= nv20_fb_init_tile_region;
-		engine->fb.set_tile_region	= nv20_fb_set_tile_region;
-		engine->fb.free_tile_region	= nv20_fb_free_tile_region;
 		engine->display.early_init	= nv04_display_early_init;
 		engine->display.late_takedown	= nv04_display_late_takedown;
 		engine->display.create		= nv04_display_create;
@@ -139,9 +117,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->pm.clocks_get		= nv04_pm_clocks_get;
 		engine->pm.clocks_pre		= nv04_pm_clocks_pre;
 		engine->pm.clocks_set		= nv04_pm_clocks_set;
-		engine->vram.init		= nv20_fb_vram_init;
-		engine->vram.takedown		= nouveau_stub_takedown;
-		engine->vram.flags_valid	= nouveau_mem_flags_valid;
 		break;
 	case 0x30:
 		engine->instmem.init		= nv04_instmem_init;
@@ -153,11 +128,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->instmem.map		= nv04_instmem_map;
 		engine->instmem.unmap		= nv04_instmem_unmap;
 		engine->instmem.flush		= nv04_instmem_flush;
-		engine->fb.init			= nv30_fb_init;
-		engine->fb.takedown		= nv30_fb_takedown;
-		engine->fb.init_tile_region	= nv30_fb_init_tile_region;
-		engine->fb.set_tile_region	= nv10_fb_set_tile_region;
-		engine->fb.free_tile_region	= nv30_fb_free_tile_region;
 		engine->display.early_init	= nv04_display_early_init;
 		engine->display.late_takedown	= nv04_display_late_takedown;
 		engine->display.create		= nv04_display_create;
@@ -171,9 +141,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->pm.clocks_set		= nv04_pm_clocks_set;
 		engine->pm.voltage_get		= nouveau_voltage_gpio_get;
 		engine->pm.voltage_set		= nouveau_voltage_gpio_set;
-		engine->vram.init		= nv20_fb_vram_init;
-		engine->vram.takedown		= nouveau_stub_takedown;
-		engine->vram.flags_valid	= nouveau_mem_flags_valid;
 		break;
 	case 0x40:
 	case 0x60:
@@ -186,11 +153,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->instmem.map		= nv04_instmem_map;
 		engine->instmem.unmap		= nv04_instmem_unmap;
 		engine->instmem.flush		= nv04_instmem_flush;
-		engine->fb.init			= nv40_fb_init;
-		engine->fb.takedown		= nv40_fb_takedown;
-		engine->fb.init_tile_region	= nv30_fb_init_tile_region;
-		engine->fb.set_tile_region	= nv40_fb_set_tile_region;
-		engine->fb.free_tile_region	= nv30_fb_free_tile_region;
 		engine->display.early_init	= nv04_display_early_init;
 		engine->display.late_takedown	= nv04_display_late_takedown;
 		engine->display.create		= nv04_display_create;
@@ -210,9 +172,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->pm.temp_get		= nv40_temp_get;
 		engine->pm.pwm_get		= nv40_pm_pwm_get;
 		engine->pm.pwm_set		= nv40_pm_pwm_set;
-		engine->vram.init		= nv40_fb_vram_init;
-		engine->vram.takedown		= nouveau_stub_takedown;
-		engine->vram.flags_valid	= nouveau_mem_flags_valid;
 		break;
 	case 0x50:
 	case 0x80: /* gotta love NVIDIA's consistency.. */
@@ -230,8 +189,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 			engine->instmem.flush	= nv50_instmem_flush;
 		else
 			engine->instmem.flush	= nv84_instmem_flush;
-		engine->fb.init			= nv50_fb_init;
-		engine->fb.takedown		= nv50_fb_takedown;
 		engine->display.early_init	= nv50_display_early_init;
 		engine->display.late_takedown	= nv50_display_late_takedown;
 		engine->display.create		= nv50_display_create;
@@ -272,11 +229,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 			engine->pm.temp_get	= nv40_temp_get;
 		engine->pm.pwm_get		= nv50_pm_pwm_get;
 		engine->pm.pwm_set		= nv50_pm_pwm_set;
-		engine->vram.init		= nv50_vram_init;
-		engine->vram.takedown		= nv50_vram_fini;
-		engine->vram.get		= nv50_vram_new;
-		engine->vram.put		= nv50_vram_del;
-		engine->vram.flags_valid	= nv50_vram_flags_valid;
 		break;
 	case 0xc0:
 		engine->instmem.init		= nvc0_instmem_init;
@@ -288,8 +240,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->instmem.map		= nv50_instmem_map;
 		engine->instmem.unmap		= nv50_instmem_unmap;
 		engine->instmem.flush		= nv84_instmem_flush;
-		engine->fb.init			= nvc0_fb_init;
-		engine->fb.takedown		= nvc0_fb_takedown;
 		engine->display.early_init	= nv50_display_early_init;
 		engine->display.late_takedown	= nv50_display_late_takedown;
 		engine->display.create		= nv50_display_create;
@@ -301,11 +251,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->gpio.drive		= nv50_gpio_drive;
 		engine->gpio.sense		= nv50_gpio_sense;
 		engine->gpio.irq_enable		= nv50_gpio_irq_enable;
-		engine->vram.init		= nvc0_vram_init;
-		engine->vram.takedown		= nv50_vram_fini;
-		engine->vram.get		= nvc0_vram_new;
-		engine->vram.put		= nv50_vram_del;
-		engine->vram.flags_valid	= nvc0_vram_flags_valid;
 		engine->pm.temp_get		= nv84_temp_get;
 		engine->pm.clocks_get		= nvc0_pm_clocks_get;
 		engine->pm.clocks_pre		= nvc0_pm_clocks_pre;
@@ -325,8 +270,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->instmem.map		= nv50_instmem_map;
 		engine->instmem.unmap		= nv50_instmem_unmap;
 		engine->instmem.flush		= nv84_instmem_flush;
-		engine->fb.init			= nvc0_fb_init;
-		engine->fb.takedown		= nvc0_fb_takedown;
 		engine->display.early_init	= nouveau_stub_init;
 		engine->display.late_takedown	= nouveau_stub_takedown;
 		engine->display.create		= nvd0_display_create;
@@ -338,11 +281,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->gpio.drive		= nvd0_gpio_drive;
 		engine->gpio.sense		= nvd0_gpio_sense;
 		engine->gpio.irq_enable		= nv50_gpio_irq_enable;
-		engine->vram.init		= nvc0_vram_init;
-		engine->vram.takedown		= nv50_vram_fini;
-		engine->vram.get		= nvc0_vram_new;
-		engine->vram.put		= nv50_vram_del;
-		engine->vram.flags_valid	= nvc0_vram_flags_valid;
 		engine->pm.temp_get		= nv84_temp_get;
 		engine->pm.clocks_get		= nvc0_pm_clocks_get;
 		engine->pm.clocks_pre		= nvc0_pm_clocks_pre;
@@ -360,8 +298,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->instmem.map		= nv50_instmem_map;
 		engine->instmem.unmap		= nv50_instmem_unmap;
 		engine->instmem.flush		= nv84_instmem_flush;
-		engine->fb.init			= nvc0_fb_init;
-		engine->fb.takedown		= nvc0_fb_takedown;
 		engine->display.early_init	= nouveau_stub_init;
 		engine->display.late_takedown	= nouveau_stub_takedown;
 		engine->display.create		= nvd0_display_create;
@@ -373,11 +309,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->gpio.drive		= nvd0_gpio_drive;
 		engine->gpio.sense		= nvd0_gpio_sense;
 		engine->gpio.irq_enable		= nv50_gpio_irq_enable;
-		engine->vram.init		= nvc0_vram_init;
-		engine->vram.takedown		= nv50_vram_fini;
-		engine->vram.get		= nvc0_vram_new;
-		engine->vram.put		= nv50_vram_del;
-		engine->vram.flags_valid	= nvc0_vram_flags_valid;
 		break;
 	default:
 		NV_ERROR(ndev, "NV%02x unsupported\n", ndev->chipset);
@@ -517,19 +448,10 @@ nouveau_card_init(struct nouveau_device *ndev)
 		nv_mask(ndev, 0x00088080, 0x00000800, 0x00000000);
 	}
 
-	/* PFB */
-	ret = engine->fb.init(ndev);
-	if (ret)
-		goto out_device_init;
-
-	ret = engine->vram.init(ndev);
-	if (ret)
-		goto out_fb;
-
 	/* PGPIO */
 	ret = nouveau_gpio_create(ndev);
 	if (ret)
-		goto out_vram;
+		goto out_device_init;
 
 	ret = nouveau_gpuobj_init(ndev);
 	if (ret)
@@ -769,10 +691,6 @@ out_gpuobj:
 	nouveau_gpuobj_takedown(ndev);
 out_gpio:
 	nouveau_gpio_destroy(ndev);
-out_vram:
-	engine->vram.takedown(ndev);
-out_fb:
-	engine->fb.takedown(ndev);
 out_device_init:
 	nouveau_device_fini(ndev, false);
 	nouveau_device_destroy(ndev);
@@ -825,8 +743,6 @@ static void nouveau_card_takedown(struct nouveau_device *ndev)
 	nouveau_gpuobj_takedown(ndev);
 
 	nouveau_gpio_destroy(ndev);
-	engine->vram.takedown(ndev);
-	engine->fb.takedown(ndev);
 
 	nouveau_device_fini(ndev, false);
 	nouveau_device_destroy(ndev);

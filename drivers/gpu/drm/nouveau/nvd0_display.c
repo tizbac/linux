@@ -32,7 +32,7 @@
 #include "nouveau_encoder.h"
 #include "nouveau_crtc.h"
 #include "nouveau_dma.h"
-#include "nouveau_fb.h"
+#include "nouveau_frb.h"
 #include "nouveau_software.h"
 #include "nv50_display.h"
 

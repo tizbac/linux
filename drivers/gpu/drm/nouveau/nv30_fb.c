@@ -25,14 +25,19 @@
  */
 
 #include "drmP.h"
-#include "drm.h"
+
 #include "nouveau_drv.h"
-#include "nouveau_drm.h"
+#include "nouveau_fb.h"
+
+struct nv30_fb_priv {
+	struct nouveau_fb base;
+};
 
 void
-nv30_fb_init_tile_region(struct nouveau_device *ndev, int i, u32 addr,
+nv30_fb_init_tile_region(struct nouveau_fb *pfb, int i, u32 addr,
 			 u32 size, u32 pitch, u32 flags)
 {
+	struct nouveau_device *ndev = pfb->base.device;
 	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	tile->addr = addr | 1;
@@ -41,8 +46,9 @@ nv30_fb_init_tile_region(struct nouveau_device *ndev, int i, u32 addr,
 }
 
 void
-nv30_fb_free_tile_region(struct nouveau_device *ndev, int i)
+nv30_fb_free_tile_region(struct nouveau_fb *pfb, int i)
 {
+	struct nouveau_device *ndev = pfb->base.device;
 	struct nouveau_tile_reg *tile = &ndev->tile.reg[i];
 
 	tile->addr = tile->limit = tile->pitch = 0;
@@ -72,17 +78,15 @@ calc_ref(struct nouveau_device *ndev, int l, int k, int i)
 	return x;
 }
 
-int
-nv30_fb_init(struct nouveau_device *ndev)
+static int
+nv30_fb_init(struct nouveau_device *ndev, int subdev)
 {
-	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
+	struct nv30_fb_priv *priv = nv_subdev(ndev, subdev);
 	int i, j;
 
-	pfb->num_tiles = NV10_PFB_TILE__SIZE;
-
 	/* Turn all the tiling regions off. */
-	for (i = 0; i < pfb->num_tiles; i++)
-		pfb->set_tile_region(ndev, i);
+	for (i = 0; i < priv->base.num_tiles; i++)
+		priv->base.set_tile_region(&priv->base, i);
 
 	/* Init the memory timing regs at 0x10037c/0x1003ac */
 	if (ndev->chipset == 0x30 ||
@@ -106,7 +110,32 @@ nv30_fb_init(struct nouveau_device *ndev)
 	return 0;
 }
 
-void
-nv30_fb_takedown(struct nouveau_device *ndev)
+int
+nv30_fb_create(struct nouveau_device *ndev, int subdev)
 {
+	u32 mem_size = nv_rd32(ndev, 0x10020c);
+	u32 pbus1218 = nv_rd32(ndev, 0x001218);
+	struct nv30_fb_priv *priv;
+	int ret;
+
+	ret = nouveau_subdev_create(ndev, subdev, "PFB", "fb", &priv);
+	if (ret)
+		return ret;
+
+	switch (pbus1218 & 0x00000300) {
+	case 0x00000000: ndev->vram_type = NV_MEM_TYPE_SDRAM; break;
+	case 0x00000100: ndev->vram_type = NV_MEM_TYPE_DDR1; break;
+	case 0x00000200: ndev->vram_type = NV_MEM_TYPE_GDDR3; break;
+	case 0x00000300: ndev->vram_type = NV_MEM_TYPE_GDDR2; break;
+	}
+	ndev->vram_size = mem_size & 0xff000000;
+
+	priv->base.base.destroy = nv10_fb_destroy;
+	priv->base.base.init = nv30_fb_init;
+	priv->base.memtype_valid = nv04_fb_memtype_valid;
+	priv->base.num_tiles = NV10_PFB_TILE__SIZE;
+	priv->base.init_tile_region = nv30_fb_init_tile_region;
+	priv->base.set_tile_region = nv10_fb_set_tile_region;
+	priv->base.free_tile_region = nv30_fb_free_tile_region;
+	return nouveau_subdev_init(ndev, subdev, ret);
 }

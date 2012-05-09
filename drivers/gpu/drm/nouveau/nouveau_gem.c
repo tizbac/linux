@@ -29,10 +29,9 @@
 
 #include "nouveau_drv.h"
 #include "nouveau_drm.h"
+#include "nouveau_fb.h"
 #include "nouveau_dma.h"
 #include "nouveau_fence.h"
-
-#define nouveau_gem_pushbuf_sync(chan) 0
 
 int
 nouveau_gem_object_new(struct drm_gem_object *gem)
@@ -202,6 +201,7 @@ nouveau_gem_ioctl_new(struct drm_device *dev, void *data,
 		      struct drm_file *file_priv)
 {
 	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct drm_nouveau_gem_new *req = data;
 	struct nouveau_bo *nvbo = NULL;
 	int ret = 0;
@@ -209,8 +209,8 @@ nouveau_gem_ioctl_new(struct drm_device *dev, void *data,
 	if (unlikely(ndev->ttm.bdev.dev_mapping == NULL))
 		ndev->ttm.bdev.dev_mapping = ndev->dev->dev_mapping;
 
-	if (!ndev->subsys.vram.flags_valid(ndev, req->info.tile_flags)) {
-		NV_ERROR(ndev, "bad page flags: 0x%08x\n", req->info.tile_flags);
+	if (!pfb->memtype_valid(pfb, req->info.tile_flags)) {
+		NV_ERROR(ndev, "bad memtype: 0x%08x\n", req->info.tile_flags);
 		return -EINVAL;
 	}
 

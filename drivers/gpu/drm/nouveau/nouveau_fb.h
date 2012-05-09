@@ -1,49 +1,46 @@
-/*
- * Copyright (C) 2008 Maarten Maathuis.
- * All Rights Reserved.
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice (including the
- * next paragraph) shall be included in all copies or substantial
- * portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE COPYRIGHT OWNER(S) AND/OR ITS SUPPLIERS BE
- * LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
- * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
- * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *
- */
-
 #ifndef __NOUVEAU_FB_H__
 #define __NOUVEAU_FB_H__
 
-struct nouveau_framebuffer {
-	struct drm_framebuffer base;
-	struct nouveau_bo *nvbo;
-	struct nouveau_vma vma;
-	u32 r_dma;
-	u32 r_format;
-	u32 r_pitch;
+struct nouveau_fb {
+	struct nouveau_subdev base;
+
+	bool (*memtype_valid)(struct nouveau_fb *, u32 memtype);
+	int  (*vram_get)(struct nouveau_fb *, u64 size, u32 align, u32 size_nc,
+			 u32 type, struct nouveau_mem **);
+	void (*vram_put)(struct nouveau_fb *, struct nouveau_mem **);
+	struct nouveau_mm mm;
+
+	int num_tiles;
+	void (*init_tile_region)(struct nouveau_fb *, int i, u32 addr,
+				 u32 size, u32 pitch, u32 flags);
+	void (*set_tile_region)(struct nouveau_fb *, int i);
+	void (*free_tile_region)(struct nouveau_fb *, int i);
+
+	struct drm_mm tag_heap;
 };
 
-static inline struct nouveau_framebuffer *
-nouveau_framebuffer(struct drm_framebuffer *fb)
-{
-	return container_of(fb, struct nouveau_framebuffer, base);
-}
+int  nv04_fb_create(struct nouveau_device *, int);
+bool nv04_fb_memtype_valid(struct nouveau_fb *, u32 memtype);
 
-int
-nouveau_framebuffer_init(struct nouveau_device *, struct nouveau_framebuffer *,
-			 struct drm_mode_fb_cmd2 *, struct nouveau_bo *);
+int  nv10_fb_create(struct nouveau_device *, int);
+void nv10_fb_destroy(struct nouveau_device *, int);
+int  nv10_fb_init(struct nouveau_device *, int);
+void nv10_fb_set_tile_region(struct nouveau_fb *, int i);
 
-#endif /* __NOUVEAU_FB_H__ */
+int  nv20_fb_create(struct nouveau_device *, int);
+
+int  nv30_fb_create(struct nouveau_device *, int);
+void nv30_fb_init_tile_region(struct nouveau_fb *, int i, u32 addr,
+			      u32 size, u32 pitch, u32 flags);
+void nv30_fb_free_tile_region(struct nouveau_fb *, int i);
+
+int  nv40_fb_create(struct nouveau_device *, int);
+
+int  nv50_fb_create(struct nouveau_device *, int);
+void nv50_fb_vram_fini(struct nouveau_fb *);
+void nv50_fb_vram_del(struct nouveau_fb *, struct nouveau_mem **);
+void nv50_fb_vm_trap(struct nouveau_device *, int display);
+
+int  nvc0_fb_create(struct nouveau_device *, int);
+
+#endif

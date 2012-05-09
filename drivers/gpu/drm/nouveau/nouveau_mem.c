@@ -36,6 +36,7 @@
 #include "drm_sarea.h"
 
 #include "nouveau_drv.h"
+#include "nouveau_fb.h"
 #include "nouveau_pm.h"
 #include "nouveau_mm.h"
 #include "nouveau_vm.h"
@@ -51,17 +52,17 @@ nv10_mem_update_tile_region(struct nouveau_device *ndev,
 			    struct nouveau_tile_reg *tile, u32 addr,
 			    u32 size, u32 pitch, u32 flags)
 {
-	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	int i = tile - ndev->tile.reg, j;
 	unsigned long save;
 
 	nouveau_fence_unref(&tile->fence);
 
 	if (tile->pitch)
-		pfb->free_tile_region(ndev, i);
+		pfb->free_tile_region(pfb, i);
 
 	if (pitch)
-		pfb->init_tile_region(ndev, i, addr, size, pitch, flags);
+		pfb->init_tile_region(pfb, i, addr, size, pitch, flags);
 
 	spin_lock_irqsave(&ndev->context_switch_lock, save);
 	nv_wr32(ndev, NV03_PFIFO_CACHES, 0);
@@ -69,7 +70,7 @@ nv10_mem_update_tile_region(struct nouveau_device *ndev,
 
 	nouveau_wait_for_idle(ndev);
 
-	pfb->set_tile_region(ndev, i);
+	pfb->set_tile_region(pfb, i);
 	for (j = 0; j < NVOBJ_ENGINE_NR; j++) {
 		if (ndev->engine[j] && ndev->engine[j]->set_tile_region)
 			ndev->engine[j]->set_tile_region(ndev, i);
@@ -118,7 +119,7 @@ struct nouveau_tile_reg *
 nv10_mem_set_tiling(struct nouveau_device *ndev, u32 addr, u32 size,
 		    u32 pitch, u32 flags)
 {
-	struct nouveau_fb_engine *pfb = &ndev->subsys.fb;
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct nouveau_tile_reg *tile, *found = NULL;
 	int i;
 
@@ -187,15 +188,6 @@ nouveau_mem_gart_fini(struct nouveau_device *ndev)
 		dev->agp->acquired = 0;
 		dev->agp->enabled = 0;
 	}
-}
-
-bool
-nouveau_mem_flags_valid(struct nouveau_device *ndev, u32 tile_flags)
-{
-	if (!(tile_flags & NOUVEAU_GEM_TILE_LAYOUT_MASK))
-		return true;
-
-	return false;
 }
 
 #if __OS_HAS_AGP
@@ -1113,10 +1105,10 @@ nouveau_vram_manager_del(struct ttm_mem_type_manager *man,
 			 struct ttm_mem_reg *mem)
 {
 	struct nouveau_device *ndev = nouveau_bdev(man->bdev);
-	struct nouveau_vram_engine *vram = &ndev->subsys.vram;
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 
 	nouveau_mem_node_cleanup(mem->mm_node);
-	vram->put(ndev, (struct nouveau_mem **)&mem->mm_node);
+	pfb->vram_put(pfb, (struct nouveau_mem **)&mem->mm_node);
 }
 
 static int
@@ -1126,7 +1118,7 @@ nouveau_vram_manager_new(struct ttm_mem_type_manager *man,
 			 struct ttm_mem_reg *mem)
 {
 	struct nouveau_device *ndev = nouveau_bdev(man->bdev);
-	struct nouveau_vram_engine *vram = &ndev->subsys.vram;
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct nouveau_bo *nvbo = nouveau_bo(bo);
 	struct nouveau_mem *node;
 	u32 size_nc = 0;
@@ -1135,9 +1127,9 @@ nouveau_vram_manager_new(struct ttm_mem_type_manager *man,
 	if (nvbo->tile_flags & NOUVEAU_GEM_TILE_NONCONTIG)
 		size_nc = 1 << nvbo->page_shift;
 
-	ret = vram->get(ndev, mem->num_pages << PAGE_SHIFT,
-			mem->page_alignment << PAGE_SHIFT, size_nc,
-			(nvbo->tile_flags >> 8) & 0x3ff, &node);
+	ret = pfb->vram_get(pfb, mem->num_pages << PAGE_SHIFT,
+			    mem->page_alignment << PAGE_SHIFT, size_nc,
+			    (nvbo->tile_flags >> 8) & 0x3ff, &node);
 	if (ret) {
 		mem->mm_node = NULL;
 		return (ret == -ENOSPC) ? 0 : ret;

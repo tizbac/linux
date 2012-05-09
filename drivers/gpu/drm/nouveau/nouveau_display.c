@@ -27,7 +27,7 @@
 #include "drmP.h"
 #include "drm_crtc_helper.h"
 #include "nouveau_drv.h"
-#include "nouveau_fb.h"
+#include "nouveau_frb.h"
 #include "nouveau_fbcon.h"
 #include "nouveau_hw.h"
 #include "nouveau_crtc.h"

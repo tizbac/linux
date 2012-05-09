@@ -29,6 +29,7 @@
 #include "drm.h"
 
 #include "nouveau_drv.h"
+#include "nouveau_fb.h"
 #include "nouveau_vm.h"
 
 #define BAR1_VM_BASE 0x0020000000ULL
@@ -305,7 +306,7 @@ nv50_instmem_get(struct nouveau_gpuobj *gpuobj, struct nouveau_channel *chan,
 		 u32 size, u32 align)
 {
 	struct nouveau_device *ndev = gpuobj->device;
-	struct nouveau_vram_engine *vram = &ndev->subsys.vram;
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct nv50_gpuobj_node *node = NULL;
 	int ret;
 
@@ -317,7 +318,7 @@ nv50_instmem_get(struct nouveau_gpuobj *gpuobj, struct nouveau_channel *chan,
 	size  = (size + 4095) & ~4095;
 	align = max(align, (u32)4096);
 
-	ret = vram->get(ndev, size, align, 0, 0, &node->vram);
+	ret = pfb->vram_get(pfb, size, align, 0, 0, &node->vram);
 	if (ret) {
 		kfree(node);
 		return ret;
@@ -333,7 +334,7 @@ nv50_instmem_get(struct nouveau_gpuobj *gpuobj, struct nouveau_channel *chan,
 		ret = nouveau_vm_get(chan->vm, size, 12, flags,
 				     &node->chan_vma);
 		if (ret) {
-			vram->put(ndev, &node->vram);
+			pfb->vram_put(pfb, &node->vram);
 			kfree(node);
 			return ret;
 		}
@@ -351,7 +352,7 @@ void
 nv50_instmem_put(struct nouveau_gpuobj *gpuobj)
 {
 	struct nouveau_device *ndev = gpuobj->device;
-	struct nouveau_vram_engine *vram = &ndev->subsys.vram;
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct nv50_gpuobj_node *node;
 
 	node = gpuobj->node;
@@ -361,7 +362,8 @@ nv50_instmem_put(struct nouveau_gpuobj *gpuobj)
 		nouveau_vm_unmap(&node->chan_vma);
 		nouveau_vm_put(&node->chan_vma);
 	}
-	vram->put(ndev, &node->vram);
+
+	pfb->vram_put(pfb, &node->vram);
 	kfree(node);
 }
 

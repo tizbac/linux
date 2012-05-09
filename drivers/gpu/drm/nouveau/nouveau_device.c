@@ -29,6 +29,7 @@
 #include "nouveau_bios.h"
 #include "nouveau_mc.h"
 #include "nouveau_timer.h"
+#include "nouveau_fb.h"
 
 int
 nouveau_device_init(struct nouveau_device *ndev)
@@ -134,6 +135,35 @@ nouveau_device_create(struct nouveau_device *ndev)
 	case NV_D0:
 	case NV_E0:
 		ret = nv04_timer_create(ndev, NVDEV_SUBDEV_TIMER);
+		break;
+	default:
+		break;
+	}
+
+	/* memory interface */
+	switch (ndev->card_type * !ret) {
+	case NV_04:
+		ret = nv04_fb_create(ndev, NVDEV_SUBDEV_FB);
+		break;
+	case NV_10:
+		ret = nv10_fb_create(ndev, NVDEV_SUBDEV_FB);
+		break;
+	case NV_20:
+		ret = nv20_fb_create(ndev, NVDEV_SUBDEV_FB);
+		break;
+	case NV_30:
+		ret = nv30_fb_create(ndev, NVDEV_SUBDEV_FB);
+		break;
+	case NV_40:
+		ret = nv40_fb_create(ndev, NVDEV_SUBDEV_FB);
+		break;
+	case NV_50:
+		ret = nv50_fb_create(ndev, NVDEV_SUBDEV_FB);
+		break;
+	case NV_C0:
+	case NV_D0:
+	case NV_E0:
+		ret = nvc0_fb_create(ndev, NVDEV_SUBDEV_FB);
 		break;
 	default:
 		break;
