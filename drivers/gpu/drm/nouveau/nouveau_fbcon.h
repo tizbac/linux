@@ -29,7 +29,7 @@
 
 #include "drm_fb_helper.h"
 
-#include "nouveau_frb.h"
+#include "nouveau_crtc.h"
 
 struct nouveau_fbdev {
 	struct drm_fb_helper helper;

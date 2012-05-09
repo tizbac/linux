@@ -32,7 +32,6 @@
 #include "nouveau_device.h"
 #include "nouveau_abi16.h"
 #include "nouveau_hw.h"
-#include "nouveau_frb.h"
 #include "nouveau_fbcon.h"
 #include "nouveau_pm.h"
 #include "nouveau_fifo.h"

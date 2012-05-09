@@ -34,7 +34,6 @@
 #include "nouveau_hw.h"
 #include "nouveau_encoder.h"
 #include "nouveau_crtc.h"
-#include "nouveau_frb.h"
 #include "nouveau_connector.h"
 #include "nv50_display.h"
 

@@ -27,6 +27,25 @@
 #ifndef __NOUVEAU_CRTC_H__
 #define __NOUVEAU_CRTC_H__
 
+struct nouveau_framebuffer {
+	struct drm_framebuffer base;
+	struct nouveau_bo *nvbo;
+	struct nouveau_vma vma;
+	u32 r_dma;
+	u32 r_format;
+	u32 r_pitch;
+};
+
+static inline struct nouveau_framebuffer *
+nouveau_framebuffer(struct drm_framebuffer *fb)
+{
+	return container_of(fb, struct nouveau_framebuffer, base);
+}
+
+int
+nouveau_framebuffer_init(struct nouveau_device *, struct nouveau_framebuffer *,
+			 struct drm_mode_fb_cmd2 *, struct nouveau_bo *);
+
 struct nouveau_crtc {
 	struct drm_crtc base;
 
