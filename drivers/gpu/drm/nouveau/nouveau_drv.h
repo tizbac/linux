@@ -61,6 +61,7 @@ nouveau_fpriv(struct drm_file *file_priv)
 
 #define NVDEV_SUBDEV_VBIOS 0
 #define NVDEV_SUBDEV_MC    1
+#define NVDEV_SUBDEV_TIMER 2
 #define NVDEV_SUBDEV_NR    32
 struct nouveau_device;
 struct nouveau_subdev {
@@ -350,12 +351,6 @@ struct nouveau_instmem_engine {
 	void	(*flush)(struct nouveau_device *);
 };
 
-struct nouveau_timer_engine {
-	int      (*init)(struct nouveau_device *);
-	void     (*takedown)(struct nouveau_device *);
-	u64 (*read)(struct nouveau_device *);
-};
-
 struct nouveau_fb_engine {
 	int num_tiles;
 	struct drm_mm tag_heap;
@@ -575,7 +570,6 @@ struct nouveau_vram_engine {
 
 struct nouveau_subsys {
 	struct nouveau_instmem_engine instmem;
-	struct nouveau_timer_engine   timer;
 	struct nouveau_fb_engine      fb;
 	struct nouveau_display_engine display;
 	struct nouveau_gpio_engine    gpio;
@@ -1251,11 +1245,6 @@ int  nvc0_instmem_init(struct nouveau_device *);
 void nvc0_instmem_takedown(struct nouveau_device *);
 int  nvc0_instmem_suspend(struct nouveau_device *);
 void nvc0_instmem_resume(struct nouveau_device *);
-
-/* nv04_timer.c */
-int  nv04_timer_init(struct nouveau_device *);
-u64 nv04_timer_read(struct nouveau_device *);
-void nv04_timer_takedown(struct nouveau_device *);
 
 long nouveau_compat_ioctl(struct file *file, unsigned int cmd,
 				 unsigned long arg);

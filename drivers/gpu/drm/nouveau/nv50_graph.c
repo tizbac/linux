@@ -31,6 +31,7 @@
 #include "nouveau_ramht.h"
 #include "nouveau_dma.h"
 #include "nouveau_vm.h"
+#include "nouveau_timer.h"
 #include "nv50_evo.h"
 
 struct nv50_graph_engine {
@@ -219,7 +220,7 @@ nv50_graph_tlb_flush(struct nouveau_device *ndev, int engine)
 static void
 nv84_graph_tlb_flush(struct nouveau_device *ndev, int engine)
 {
-	struct nouveau_timer_engine *ptimer = &ndev->subsys.timer;
+	struct nouveau_timer *ptimer = nv_subdev(ndev, NVDEV_SUBDEV_TIMER);
 	bool idle, timeout = false;
 	unsigned long flags;
 	u64 start;
@@ -228,7 +229,7 @@ nv84_graph_tlb_flush(struct nouveau_device *ndev, int engine)
 	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_mask(ndev, 0x400500, 0x00000001, 0x00000000);
 
-	start = ptimer->read(ndev);
+	start = ptimer->read(ptimer);
 	do {
 		idle = true;
 
@@ -246,7 +247,8 @@ nv84_graph_tlb_flush(struct nouveau_device *ndev, int engine)
 			if ((tmp & 7) == 1)
 				idle = false;
 		}
-	} while (!idle && !(timeout = ptimer->read(ndev) - start > 2000000000));
+	} while (!idle &&
+		 !(timeout = ptimer->read(ptimer) - start > 2000000000));
 
 	if (timeout) {
 		NV_ERROR(ndev, "PGRAPH TLB flush idle timeout fail: "

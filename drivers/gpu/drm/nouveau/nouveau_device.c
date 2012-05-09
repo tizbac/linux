@@ -28,6 +28,7 @@
 #include "nouveau_device.h"
 #include "nouveau_bios.h"
 #include "nouveau_mc.h"
+#include "nouveau_timer.h"
 
 int
 nouveau_device_init(struct nouveau_device *ndev)
@@ -116,6 +117,23 @@ nouveau_device_create(struct nouveau_device *ndev)
 	case NV_D0:
 	case NV_E0:
 		ret = nv50_mc_create(ndev, NVDEV_SUBDEV_MC);
+		break;
+	default:
+		break;
+	}
+
+	/* hardware timer and alarms */
+	switch (ndev->card_type * !ret) {
+	case NV_04:
+	case NV_10:
+	case NV_20:
+	case NV_30:
+	case NV_40:
+	case NV_50:
+	case NV_C0:
+	case NV_D0:
+	case NV_E0:
+		ret = nv04_timer_create(ndev, NVDEV_SUBDEV_TIMER);
 		break;
 	default:
 		break;

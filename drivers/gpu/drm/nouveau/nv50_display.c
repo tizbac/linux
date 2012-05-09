@@ -33,6 +33,7 @@
 #include "nouveau_fbcon.h"
 #include "nouveau_ramht.h"
 #include "nouveau_software.h"
+#include "nouveau_timer.h"
 #include "drm_crtc_helper.h"
 
 static void nv50_display_isr(struct nouveau_device *);
@@ -130,7 +131,7 @@ nv50_display_late_takedown(struct nouveau_device *ndev)
 int
 nv50_display_sync(struct nouveau_device *ndev)
 {
-	struct nouveau_timer_engine *ptimer = &ndev->subsys.timer;
+	struct nouveau_timer *ptimer = nv_subdev(ndev, NVDEV_SUBDEV_TIMER);
 	struct nv50_display *disp = nv50_display(ndev);
 	struct nouveau_channel *evo = disp->master;
 	u64 start;
@@ -148,11 +149,11 @@ nv50_display_sync(struct nouveau_device *ndev)
 		nv_wo32(disp->ntfy, 0x000, 0x00000000);
 		FIRE_RING (evo);
 
-		start = ptimer->read(ndev);
+		start = ptimer->read(ptimer);
 		do {
 			if (nv_ro32(disp->ntfy, 0x000))
 				return 0;
-		} while (ptimer->read(ndev) - start < 2000000000ULL);
+		} while (ptimer->read(ptimer) - start < 2000000000ULL);
 	}
 
 	return -EBUSY;

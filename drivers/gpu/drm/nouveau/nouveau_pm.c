@@ -27,6 +27,7 @@
 #include "nouveau_drv.h"
 #include "nouveau_pm.h"
 #include "nouveau_gpio.h"
+#include "nouveau_timer.h"
 
 #ifdef CONFIG_ACPI
 #include <linux/acpi.h>
@@ -167,6 +168,7 @@ error:
 void
 nouveau_pm_trigger(struct nouveau_device *ndev)
 {
+	struct nouveau_timer *ptimer = nv_subdev(ndev, NVDEV_SUBDEV_TIMER);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_profile *profile = NULL;
 	struct nouveau_pm_level *perflvl = NULL;
@@ -189,8 +191,7 @@ nouveau_pm_trigger(struct nouveau_device *ndev)
 
 	/* change perflvl, if necessary */
 	if (perflvl != pm->cur) {
-		struct nouveau_timer_engine *ptimer = &ndev->subsys.timer;
-		u64 time0 = ptimer->read(ndev);
+		u64 time0 = ptimer->read(ptimer);
 
 		NV_INFO(ndev, "setting performance level: %d", perflvl->id);
 		ret = nouveau_pm_perflvl_set(ndev, perflvl);
@@ -198,7 +199,7 @@ nouveau_pm_trigger(struct nouveau_device *ndev)
 			NV_INFO(ndev, "> reclocking failed: %d\n\n", ret);
 
 		NV_INFO(ndev, "> reclocking took %lluns\n\n",
-			     ptimer->read(ndev) - time0);
+			     ptimer->read(ptimer) - time0);
 	}
 }
 
@@ -537,7 +538,7 @@ nouveau_hwmon_show_fan0_input(struct device *d, struct device_attribute *attr,
 			      char *buf)
 {
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
-	struct nouveau_timer_engine *ptimer = &ndev->subsys.timer;
+	struct nouveau_timer *ptimer = nv_subdev(ndev, NVDEV_SUBDEV_TIMER);
 	struct gpio_func gpio;
 	u32 cycles, cur, prev;
 	u64 start;
@@ -551,7 +552,7 @@ nouveau_hwmon_show_fan0_input(struct device *d, struct device_attribute *attr,
 	 * When the fan spins, it changes the value of GPIO FAN_SENSE.
 	 * We get 4 changes (0 -> 1 -> 0 -> 1 -> [...]) per complete rotation.
 	 */
-	start = ptimer->read(ndev);
+	start = ptimer->read(ptimer);
 	prev = nouveau_gpio_sense(ndev, 0, gpio.line);
 	cycles = 0;
 	do {
@@ -562,7 +563,7 @@ nouveau_hwmon_show_fan0_input(struct device *d, struct device_attribute *attr,
 		}
 
 		usleep_range(500, 1000); /* supports 0 < rpm < 7500 */
-	} while (ptimer->read(ndev) - start < 250000000);
+	} while (ptimer->read(ptimer) - start < 250000000);
 
 	/* interpolate to get rpm */
 	return sprintf(buf, "%i\n", cycles / 4 * 4 * 60);

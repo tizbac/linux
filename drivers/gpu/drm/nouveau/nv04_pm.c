@@ -112,7 +112,7 @@ prog_pll(struct nouveau_device *ndev, struct nv04_pm_clock *clk)
 int
 nv04_pm_clocks_set(struct nouveau_device *ndev, void *pre_state)
 {
-	struct nouveau_timer_engine *ptimer = &ndev->subsys.timer;
+	struct nouveau_subdev *ptimer = nv_subdev(ndev, NVDEV_SUBDEV_TIMER);
 	struct nv04_pm_state *state = pre_state;
 
 	prog_pll(ndev, &state->core);
@@ -128,7 +128,7 @@ nv04_pm_clocks_set(struct nouveau_device *ndev, void *pre_state)
 		}
 	}
 
-	ptimer->init(ndev);
+	ptimer->init(ndev, NVDEV_SUBDEV_TIMER);
 
 	kfree(state);
 	return 0;

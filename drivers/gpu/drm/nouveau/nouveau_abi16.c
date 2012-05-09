@@ -28,11 +28,13 @@
 #include "nouveau_abi16.h"
 #include "nouveau_ramht.h"
 #include "nouveau_software.h"
+#include "nouveau_timer.h"
 
 int
 nouveau_abi16_ioctl_getparam(ABI16_IOCTL_ARGS)
 {
 	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_timer *ptimer = nv_subdev(ndev, NVDEV_SUBDEV_TIMER);
 	struct drm_nouveau_getparam *getparam = data;
 
 	switch (getparam->param) {
@@ -64,7 +66,7 @@ nouveau_abi16_ioctl_getparam(ABI16_IOCTL_ARGS)
 		getparam->value = 0; /* deprecated */
 		break;
 	case NOUVEAU_GETPARAM_PTIMER_TIME:
-		getparam->value = ndev->subsys.timer.read(ndev);
+		getparam->value = ptimer->read(ptimer);
 		break;
 	case NOUVEAU_GETPARAM_HAS_BO_USAGE:
 		getparam->value = 1;

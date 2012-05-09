@@ -1,11 +1,54 @@
+/*
+ * Copyright 2012 Red Hat Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Authors: Ben Skeggs
+ */
+
 #include "drmP.h"
-#include "drm.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_drm.h"
 #include "nouveau_hw.h"
+#include "nouveau_timer.h"
 
-int
-nv04_timer_init(struct nouveau_device *ndev)
+struct nv04_timer_priv {
+	struct nouveau_timer base;
+};
+
+static u64
+nv04_timer_read(struct nouveau_timer *ptimer)
+{
+	struct nouveau_device *ndev = ptimer->device;
+	u32 hi, lo;
+
+	do {
+		hi = nv_rd32(ndev, NV04_PTIMER_TIME_1);
+		lo = nv_rd32(ndev, NV04_PTIMER_TIME_0);
+	} while (hi != nv_rd32(ndev, NV04_PTIMER_TIME_1));
+
+	return ((u64)hi << 32 | lo);
+}
+
+static int
+nv04_timer_init(struct nouveau_device *ndev, int subdev)
 {
 	u32 m, n, d;
 
@@ -64,20 +107,17 @@ nv04_timer_init(struct nouveau_device *ndev)
 	return 0;
 }
 
-u64
-nv04_timer_read(struct nouveau_device *ndev)
+int
+nv04_timer_create(struct nouveau_device *ndev, int subdev)
 {
-	u32 hi, lo;
+	struct nv04_timer_priv *priv;
+	int ret;
 
-	do {
-		hi = nv_rd32(ndev, NV04_PTIMER_TIME_1);
-		lo = nv_rd32(ndev, NV04_PTIMER_TIME_0);
-	} while (hi != nv_rd32(ndev, NV04_PTIMER_TIME_1));
+	ret = nouveau_subdev_create(ndev, subdev, "PTIMER", "timer", &priv);
+	if (ret)
+		return ret;
 
-	return ((u64)hi << 32 | lo);
-}
-
-void
-nv04_timer_takedown(struct nouveau_device *ndev)
-{
+	priv->base.base.init = nv04_timer_init;
+	priv->base.read = nv04_timer_read;
+	return nouveau_subdev_init(ndev, subdev, ret);
 }
