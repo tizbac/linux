@@ -60,6 +60,7 @@ nouveau_fpriv(struct drm_file *file_priv)
 #define DRM_FILE_PAGE_OFFSET (0x100000000ULL >> PAGE_SHIFT)
 
 #define NVDEV_SUBDEV_VBIOS 0
+#define NVDEV_SUBDEV_MC    1
 #define NVDEV_SUBDEV_NR    32
 struct nouveau_device;
 struct nouveau_subdev {
@@ -349,11 +350,6 @@ struct nouveau_instmem_engine {
 	void	(*flush)(struct nouveau_device *);
 };
 
-struct nouveau_mc_engine {
-	int  (*init)(struct nouveau_device *);
-	void (*takedown)(struct nouveau_device *);
-};
-
 struct nouveau_timer_engine {
 	int      (*init)(struct nouveau_device *);
 	void     (*takedown)(struct nouveau_device *);
@@ -579,7 +575,6 @@ struct nouveau_vram_engine {
 
 struct nouveau_subsys {
 	struct nouveau_instmem_engine instmem;
-	struct nouveau_mc_engine      mc;
 	struct nouveau_timer_engine   timer;
 	struct nouveau_fb_engine      fb;
 	struct nouveau_display_engine display;
@@ -1256,18 +1251,6 @@ int  nvc0_instmem_init(struct nouveau_device *);
 void nvc0_instmem_takedown(struct nouveau_device *);
 int  nvc0_instmem_suspend(struct nouveau_device *);
 void nvc0_instmem_resume(struct nouveau_device *);
-
-/* nv04_mc.c */
-int  nv04_mc_init(struct nouveau_device *);
-void nv04_mc_takedown(struct nouveau_device *);
-
-/* nv40_mc.c */
-int  nv40_mc_init(struct nouveau_device *);
-void nv40_mc_takedown(struct nouveau_device *);
-
-/* nv50_mc.c */
-int  nv50_mc_init(struct nouveau_device *);
-void nv50_mc_takedown(struct nouveau_device *);
 
 /* nv04_timer.c */
 int  nv04_timer_init(struct nouveau_device *);

@@ -25,16 +25,31 @@
  */
 
 #include "drmP.h"
-#include "drm.h"
-#include "nouveau_drv.h"
 
-int
-nv50_mc_init(struct nouveau_device *ndev)
+#include "nouveau_drv.h"
+#include "nouveau_mc.h"
+
+struct nv50_mc_priv {
+	struct nouveau_mc base;
+};
+
+static int
+nv50_mc_init(struct nouveau_device *ndev, int subdev)
 {
-	nv_wr32(ndev, NV03_PMC_ENABLE, 0xFFFFFFFF);
+	nv_wr32(ndev, NV03_PMC_ENABLE, 0xffffffff);
 	return 0;
 }
 
-void nv50_mc_takedown(struct nouveau_device *ndev)
+int
+nv50_mc_create(struct nouveau_device *ndev, int subdev)
 {
+	struct nv50_mc_priv *priv;
+	int ret;
+
+	ret = nouveau_subdev_create(ndev, subdev, "PMC", "master", &priv);
+	if (ret)
+		return ret;
+
+	priv->base.base.init = nv50_mc_init;
+	return nouveau_subdev_init(ndev, subdev, ret);
 }

@@ -27,6 +27,7 @@
 
 #include "nouveau_device.h"
 #include "nouveau_bios.h"
+#include "nouveau_mc.h"
 
 int
 nouveau_device_init(struct nouveau_device *ndev)
@@ -98,6 +99,27 @@ nouveau_device_create(struct nouveau_device *ndev)
 	 */
 	if (ret == 0)
 		ret = nouveau_device_init(ndev);
+
+	/* master control */
+	switch (ndev->card_type * !ret) {
+	case NV_04:
+	case NV_10:
+	case NV_20:
+	case NV_30:
+		ret = nv04_mc_create(ndev, NVDEV_SUBDEV_MC);
+		break;
+	case NV_40:
+		ret = nv40_mc_create(ndev, NVDEV_SUBDEV_MC);
+		break;
+	case NV_50:
+	case NV_C0:
+	case NV_D0:
+	case NV_E0:
+		ret = nv50_mc_create(ndev, NVDEV_SUBDEV_MC);
+		break;
+	default:
+		break;
+	}
 
 	if (ret)
 		nouveau_device_destroy(ndev);
