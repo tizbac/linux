@@ -59,10 +59,38 @@ nouveau_fpriv(struct drm_file *file_priv)
 
 #define DRM_FILE_PAGE_OFFSET (0x100000000ULL >> PAGE_SHIFT)
 
+#define NVDEV_SUBDEV_VBIOS 0
+#define NVDEV_SUBDEV_NR    32
+struct nouveau_device;
+struct nouveau_subdev {
+	struct nouveau_device *device;
+	const char *name;
+	enum {
+		NVDEV_SUBDEV_CREATED,
+		NVDEV_SUBDEV_SUSPEND,
+		NVDEV_SUBDEV_STOPPED,
+		NVDEV_SUBDEV_RUNNING,
+	} state;
+
+	void (*destroy)(struct nouveau_device *, int subdev);
+	int  (*init)(struct nouveau_device *, int subdev);
+	int  (*fini)(struct nouveau_device *, int subdev, bool suspend);
+};
+
+#define nouveau_subdev_create(ndev,sdev,sstr,fstr,data)                        \
+	nouveau_subdev_create_((ndev), (sdev), sizeof(**data),                 \
+			       (sstr), (fstr), (void **)data)
+
+int  nouveau_subdev_create_(struct nouveau_device *, int subdev, int length,
+			    const char *sname, const char *fname, void **);
+void nouveau_subdev_destroy(struct nouveau_device *, int subdev);
+int  nouveau_subdev_init(struct nouveau_device *, int subdev, int ret);
+int  nouveau_subdev_fini(struct nouveau_device *, int subdev, bool suspend);
+
 #include "nouveau_drm.h"
 #include "nouveau_reg.h"
-#include "nouveau_bios.h"
 #include "nouveau_util.h"
+#include "nouveau_bios.h"
 
 struct nouveau_grctx;
 struct nouveau_mem;
@@ -673,6 +701,8 @@ struct nouveau_device {
 
 	void __iomem *mmio;
 
+	struct nouveau_subdev *subdev[NVDEV_SUBDEV_NR];
+
 	spinlock_t ramin_lock;
 	void __iomem *ramin;
 	u32 ramin_size;
@@ -785,7 +815,6 @@ struct nouveau_device {
 	/* G8x/G9x virtual address space */
 	struct nouveau_vm *chan_vm;
 
-	struct nvbios vbios;
 	u8 *mxms;
 	struct list_head i2c_ports;
 
@@ -815,6 +844,12 @@ static inline struct nouveau_device *
 nouveau_bdev(struct ttm_bo_device *bd)
 {
 	return container_of(bd, struct nouveau_device, ttm.bdev);
+}
+
+static inline void *
+nv_subdev(struct nouveau_device *ndev, int subdev)
+{
+	return (void *)ndev->subdev[subdev];
 }
 
 static inline int
@@ -1065,30 +1100,6 @@ static inline int nouveau_backlight_init(struct nouveau_device *)
 
 static inline void nouveau_backlight_exit(struct nouveau_device *) { }
 #endif
-
-/* nouveau_bios.c */
-int nouveau_bios_init(struct nouveau_device *);
-void nouveau_bios_takedown(struct nouveau_device *);
-int nouveau_run_vbios_init(struct nouveau_device *);
-void nouveau_bios_run_init_table(struct nouveau_device *, u16 table,
-					struct dcb_entry *, int crtc);
-void nouveau_bios_init_exec(struct nouveau_device *, u16 table);
-struct dcb_connector_table_entry *
-nouveau_bios_connector_entry(struct nouveau_device *, int index);
-u32 get_pll_register(struct nouveau_device *, enum pll_types);
-int get_pll_limits(struct nouveau_device *, u32 limit_match,
-			  struct pll_lims *);
-int nouveau_bios_run_display_table(struct nouveau_device *, u16 id, int clk,
-					  struct dcb_entry *, int crtc);
-bool nouveau_bios_fp_mode(struct nouveau_device *, struct drm_display_mode *);
-u8 *nouveau_bios_embedded_edid(struct nouveau_device *);
-int nouveau_bios_parse_lvds_table(struct nouveau_device *, int pxclk,
-					 bool *dl, bool *if_is_24bit);
-int run_tmds_table(struct nouveau_device *, struct dcb_entry *,
-			  int head, int pxclk);
-int call_lvds_script(struct nouveau_device *, struct dcb_entry *, int head,
-			    enum LVDS_script, int pxclk);
-bool bios_encoder_match(struct dcb_entry *, u32 hash);
 
 /* nouveau_mxm.c */
 int  nouveau_mxm_init(struct nouveau_device *);

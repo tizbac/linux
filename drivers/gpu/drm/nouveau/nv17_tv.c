@@ -37,6 +37,7 @@
 static u32 nv42_tv_sample_load(struct drm_encoder *encoder)
 {
 	struct nouveau_device *ndev = nouveau_device(encoder->dev);
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	u32 testval, regoffset = nv04_dac_output_offset(encoder);
 	u32 gpio0, gpio1, fp_htotal, fp_hsync_start, fp_hsync_end,
 		fp_control, test_ctrl, dacclk, ctv_14, ctv_1c, ctv_6c;
@@ -45,8 +46,8 @@ static u32 nv42_tv_sample_load(struct drm_encoder *encoder)
 
 #define RGB_TEST_DATA(r, g, b) (r << 0 | g << 10 | b << 20)
 	testval = RGB_TEST_DATA(0x82, 0xeb, 0x82);
-	if (ndev->vbios.tvdactestval)
-		testval = ndev->vbios.tvdactestval;
+	if (bios->tvdactestval)
+		testval = bios->tvdactestval;
 
 	dacclk = NVReadRAMDAC(ndev, 0, NV_PRAMDAC_DACCLK + regoffset);
 	head = (dacclk & 0x100) >> 8;
@@ -388,6 +389,7 @@ static void  nv17_tv_dpms(struct drm_encoder *encoder, int mode)
 static void nv17_tv_prepare(struct drm_encoder *encoder)
 {
 	struct nouveau_device *ndev = nouveau_device(encoder->dev);
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct drm_device *dev = encoder->dev;
 	struct drm_encoder_helper_funcs *helper = encoder->helper_private;
 	struct nv17_tv_norm_params *tv_norm = get_tv_norm(encoder);
@@ -415,7 +417,7 @@ static void nv17_tv_prepare(struct drm_encoder *encoder)
 			     !enc->crtc &&
 			     nv04_dfp_get_bound_head(ndev, dcb) == head) {
 				nv04_dfp_bind_head(ndev, dcb, head ^ 1,
-						ndev->vbios.fp.dual_link);
+						bios->fp.dual_link);
 			}
 		}
 

@@ -120,7 +120,8 @@ nv04_display_late_takedown(struct nouveau_device *ndev)
 int
 nv04_display_create(struct nouveau_device *ndev)
 {
-	struct dcb_table *dcb = &ndev->vbios.dcb;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+	struct dcb_table *dcb = &bios->dcb;
 	struct drm_connector *connector, *ct;
 	struct drm_encoder *encoder;
 	struct drm_crtc *crtc;

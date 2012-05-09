@@ -1445,10 +1445,10 @@ nvd0_sor_mode_set(struct drm_encoder *encoder, struct drm_display_mode *umode,
 		  struct drm_display_mode *mode)
 {
 	struct nouveau_device *ndev = nouveau_device(encoder->dev);
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(encoder->crtc);
 	struct nouveau_connector *nv_connector;
-	struct nvbios *bios = &ndev->vbios;
 	u32 mode_ctrl = (1 << nv_crtc->index);
 	u32 syncs, magic, *push;
 	u32 or_config;
@@ -1603,6 +1603,7 @@ nvd0_sor_create(struct drm_connector *connector, struct dcb_entry *dcbe)
 static struct dcb_entry *
 lookup_dcb(struct nouveau_device *ndev, int id, u32 mc)
 {
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	int type, or, i, link = -1;
 
 	if (id < 4) {
@@ -1624,8 +1625,8 @@ lookup_dcb(struct nouveau_device *ndev, int id, u32 mc)
 		or = id - 4;
 	}
 
-	for (i = 0; i < ndev->vbios.dcb.entries; i++) {
-		struct dcb_entry *dcb = &ndev->vbios.dcb.entry[i];
+	for (i = 0; i < bios->dcb.entries; i++) {
+		struct dcb_entry *dcb = &bios->dcb.entry[i];
 		if (dcb->type == type && (dcb->or & (1 << or)) &&
 		    (link < 0 || link == !(dcb->sorconf.link & 1)))
 			return dcb;
@@ -1967,8 +1968,9 @@ nvd0_display_destroy(struct nouveau_device *ndev)
 int
 nvd0_display_create(struct nouveau_device *ndev)
 {
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
-	struct dcb_table *dcb = &ndev->vbios.dcb;
+	struct dcb_table *dcb = &bios->dcb;
 	struct pci_dev *pdev = ndev->dev->pdev;
 	struct drm_connector *connector, *tmp;
 	struct nvd0_display *disp;

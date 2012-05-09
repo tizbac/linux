@@ -278,6 +278,7 @@ static void nv04_dfp_mode_set(struct drm_encoder *encoder,
 			      struct drm_display_mode *adjusted_mode)
 {
 	struct nouveau_device *ndev = nouveau_device(encoder->dev);
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(encoder->crtc);
 	struct nv04_crtc_reg *regp = &ndev->mode_reg.crtc_reg[nv_crtc->index];
 	struct nv04_crtc_reg *savep = &ndev->saved_reg.crtc_reg[nv_crtc->index];
@@ -295,10 +296,10 @@ static void nv04_dfp_mode_set(struct drm_encoder *encoder,
 	regp->fp_horiz_regs[FP_TOTAL] = output_mode->htotal - 1;
 	if (!nv_gf4_disp_arch(ndev) ||
 	    (output_mode->hsync_start - output_mode->hdisplay) >=
-					ndev->vbios.digital_min_front_porch)
+					bios->digital_min_front_porch)
 		regp->fp_horiz_regs[FP_CRTC] = output_mode->hdisplay;
 	else
-		regp->fp_horiz_regs[FP_CRTC] = output_mode->hsync_start - ndev->vbios.digital_min_front_porch - 1;
+		regp->fp_horiz_regs[FP_CRTC] = output_mode->hsync_start - bios->digital_min_front_porch - 1;
 	regp->fp_horiz_regs[FP_SYNC_START] = output_mode->hsync_start - 1;
 	regp->fp_horiz_regs[FP_SYNC_END] = output_mode->hsync_end - 1;
 	regp->fp_horiz_regs[FP_VALID_START] = output_mode->hskew;

@@ -271,7 +271,8 @@ getMNP_single(struct nouveau_device *ndev, struct pll_lims *pll_lim, int clk,
 	 * "clk" parameter in kHz
 	 * returns calculated clock
 	 */
-	int cv = ndev->vbios.chip_version;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+	int cv = bios->chip_version;
 	int minvco = pll_lim->vco1.minfreq, maxvco = pll_lim->vco1.maxfreq;
 	int minM = pll_lim->vco1.min_m, maxM = pll_lim->vco1.max_m;
 	int minN = pll_lim->vco1.min_n, maxN = pll_lim->vco1.max_n;
@@ -369,7 +370,8 @@ getMNP_double(struct nouveau_device *ndev, struct pll_lims *pll_lim, int clk,
 	 * "clk" parameter in kHz
 	 * returns calculated clock
 	 */
-	int chip_version = ndev->vbios.chip_version;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+	int chip_version = bios->chip_version;
 	int minvco1 = pll_lim->vco1.minfreq, maxvco1 = pll_lim->vco1.maxfreq;
 	int minvco2 = pll_lim->vco2.minfreq, maxvco2 = pll_lim->vco2.maxfreq;
 	int minU1 = pll_lim->vco1.min_inputfreq, minU2 = pll_lim->vco2.min_inputfreq;

@@ -342,7 +342,8 @@ nv50_display_fini(struct nouveau_device *ndev)
 int
 nv50_display_create(struct nouveau_device *ndev)
 {
-	struct dcb_table *dcb = &ndev->vbios.dcb;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+	struct dcb_table *dcb = &bios->dcb;
 	struct drm_connector *connector, *ct;
 	struct nv50_display *priv;
 	int ret, i;
@@ -555,9 +556,9 @@ static u16
 nv50_display_script_select(struct nouveau_device *ndev, struct dcb_entry *dcb,
 			   u32 mc, int pxclk)
 {
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nouveau_connector *nv_connector = NULL;
 	struct drm_encoder *encoder;
-	struct nvbios *bios = &ndev->vbios;
 	u32 script = 0, or;
 
 	list_for_each_entry(encoder, &ndev->dev->mode_config.encoder_list, head) {
@@ -683,6 +684,7 @@ nv50_display_vblank_handler(struct nouveau_device *ndev, u32 intr)
 static void
 nv50_display_unk10_handler(struct nouveau_device *ndev)
 {
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nv50_display *disp = nv50_display(ndev);
 	u32 unk30 = nv_rd32(ndev, 0x610030), mc;
 	int i, crtc, or = 0, type = OUTPUT_ANY;
@@ -754,8 +756,8 @@ nv50_display_unk10_handler(struct nouveau_device *ndev)
 		goto ack;
 
 	/* Disable the encoder */
-	for (i = 0; i < ndev->vbios.dcb.entries; i++) {
-		struct dcb_entry *dcb = &ndev->vbios.dcb.entry[i];
+	for (i = 0; i < bios->dcb.entries; i++) {
+		struct dcb_entry *dcb = &bios->dcb.entry[i];
 
 		if (dcb->type == type && (dcb->or & (1 << or))) {
 			nouveau_bios_run_display_table(ndev, 0, -1, dcb, -1);
@@ -773,6 +775,7 @@ ack:
 static void
 nv50_display_unk20_handler(struct nouveau_device *ndev)
 {
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nv50_display *disp = nv50_display(ndev);
 	u32 unk30 = nv_rd32(ndev, 0x610030), tmp, pclk, script, mc = 0;
 	struct dcb_entry *dcb;
@@ -853,13 +856,13 @@ nv50_display_unk20_handler(struct nouveau_device *ndev)
 		goto ack;
 
 	/* Enable the encoder */
-	for (i = 0; i < ndev->vbios.dcb.entries; i++) {
-		dcb = &ndev->vbios.dcb.entry[i];
+	for (i = 0; i < bios->dcb.entries; i++) {
+		dcb = &bios->dcb.entry[i];
 		if (dcb->type == type && (dcb->or & (1 << or)))
 			break;
 	}
 
-	if (i == ndev->vbios.dcb.entries) {
+	if (i == bios->dcb.entries) {
 		NV_ERROR(ndev, "no dcb for %d %d 0x%08x\n", or, type, mc);
 		goto ack;
 	}

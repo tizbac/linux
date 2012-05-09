@@ -147,10 +147,11 @@ nouveau_debugfs_vbios_image(struct seq_file *m, void *data)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct nouveau_device *ndev = nouveau_device(node->minor->dev);
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	int i;
 
-	for (i = 0; i < ndev->vbios.length; i++)
-		seq_printf(m, "%c", ndev->vbios.data[i]);
+	for (i = 0; i < bios->length; i++)
+		seq_printf(m, "%c", bios->data[i]);
 	return 0;
 }
 

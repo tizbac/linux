@@ -303,6 +303,7 @@ nouveau_connector_detect_lvds(struct drm_connector *connector, bool force)
 {
 	struct drm_device *dev = connector->dev;
 	struct nouveau_device *ndev = nouveau_device(dev);
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nouveau_connector *nv_connector = nouveau_connector(connector);
 	struct nouveau_encoder *nv_encoder = NULL;
 	enum drm_connector_status status = connector_status_disconnected;
@@ -319,7 +320,7 @@ nouveau_connector_detect_lvds(struct drm_connector *connector, bool force)
 		return connector_status_disconnected;
 
 	/* Try retrieving EDID via DDC */
-	if (!ndev->vbios.fp_no_ddc) {
+	if (!bios->fp_no_ddc) {
 		status = nouveau_connector_detect(connector, force);
 		if (status == connector_status_connected)
 			goto out;
@@ -345,7 +346,7 @@ nouveau_connector_detect_lvds(struct drm_connector *connector, bool force)
 	 * modeline is avalilable for the panel, set it as the panel's
 	 * native mode and exit.
 	 */
-	if (nouveau_bios_fp_mode(ndev, NULL) && (ndev->vbios.fp_no_ddc ||
+	if (nouveau_bios_fp_mode(ndev, NULL) && (bios->fp_no_ddc ||
 	    nv_encoder->dcb->lvdsconf.use_straps_for_mode)) {
 		status = connector_status_connected;
 		goto out;
@@ -354,7 +355,7 @@ nouveau_connector_detect_lvds(struct drm_connector *connector, bool force)
 	/* Still nothing, some VBIOS images have a hardcoded EDID block
 	 * stored for the panel stored in them.
 	 */
-	if (!ndev->vbios.fp_no_ddc) {
+	if (!bios->fp_no_ddc) {
 		struct edid *edid =
 			(struct edid *)nouveau_bios_embedded_edid(ndev);
 		if (edid) {
@@ -648,7 +649,7 @@ nouveau_connector_detect_depth(struct drm_connector *connector)
 	struct nouveau_device *ndev = nouveau_device(connector->dev);
 	struct nouveau_connector *nv_connector = nouveau_connector(connector);
 	struct nouveau_encoder *nv_encoder = nv_connector->detected_encoder;
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct drm_display_mode *mode = nv_connector->native_mode;
 	bool duallink;
 
@@ -698,6 +699,7 @@ nouveau_connector_get_modes(struct drm_connector *connector)
 	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_connector *nv_connector = nouveau_connector(connector);
 	struct nouveau_encoder *nv_encoder = nv_connector->detected_encoder;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct drm_encoder *encoder = to_drm_encoder(nv_encoder);
 	int ret = 0;
 
@@ -713,7 +715,7 @@ nouveau_connector_get_modes(struct drm_connector *connector)
 	else
 	if (nv_encoder->dcb->type == OUTPUT_LVDS &&
 	    (nv_encoder->dcb->lvdsconf.use_straps_for_mode ||
-	     ndev->vbios.fp_no_ddc) && nouveau_bios_fp_mode(ndev, NULL)) {
+	     bios->fp_no_ddc) && nouveau_bios_fp_mode(ndev, NULL)) {
 		struct drm_display_mode mode;
 
 		nouveau_bios_fp_mode(ndev, &mode);
@@ -966,8 +968,8 @@ nouveau_connector_create(struct nouveau_device *ndev, int index)
 	 * figure out something suitable ourselves
 	 */
 	if (nv_connector->type == DCB_CONNECTOR_NONE) {
-		struct nouveau_device *ndev = nouveau_device(dev);
-		struct dcb_table *dcbt = &ndev->vbios.dcb;
+		struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+		struct dcb_table *dcbt = &bios->dcb;
 		u32 encoders = 0;
 		int i;
 

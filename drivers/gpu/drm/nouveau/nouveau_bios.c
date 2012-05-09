@@ -66,7 +66,7 @@ static bool nv_cksum(const u8 *data, unsigned int length)
 }
 
 static int
-score_vbios(struct nvbios *bios, const bool writeable)
+score_vbios(struct nouveau_bios *bios, const bool writeable)
 {
 	if (!bios->data || bios->data[0] != 0x55 || bios->data[1] != 0xAA) {
 		NV_TRACEWARN(bios->device, "... BIOS signature not found\n");
@@ -84,7 +84,7 @@ score_vbios(struct nvbios *bios, const bool writeable)
 }
 
 static void
-bios_shadow_prom(struct nvbios *bios)
+bios_shadow_prom(struct nouveau_bios *bios)
 {
 	struct nouveau_device *ndev = bios->device;
 	u32 pcireg, access;
@@ -135,7 +135,7 @@ out:
 }
 
 static void
-bios_shadow_pramin(struct nvbios *bios)
+bios_shadow_pramin(struct nouveau_bios *bios)
 {
 	struct nouveau_device *ndev = bios->device;
 	u32 bar0 = 0;
@@ -169,7 +169,7 @@ out:
 }
 
 static void
-bios_shadow_pci(struct nvbios *bios)
+bios_shadow_pci(struct nouveau_bios *bios)
 {
 	struct pci_dev *pdev = bios->device->dev->pdev;
 	size_t length;
@@ -191,7 +191,7 @@ bios_shadow_pci(struct nvbios *bios)
 }
 
 static void
-bios_shadow_acpi(struct nvbios *bios)
+bios_shadow_acpi(struct nouveau_bios *bios)
 {
 	struct pci_dev *pdev = bios->device->dev->pdev;
 	int cnt = 65536 / ROM_BIOS_PAGE;
@@ -217,7 +217,7 @@ bios_shadow_acpi(struct nvbios *bios)
 
 struct methods {
 	const char desc[8];
-	void (*shadow)(struct nvbios *);
+	void (*shadow)(struct nouveau_bios *);
 	const bool rw;
 	int score;
 	u32 size;
@@ -234,7 +234,7 @@ bios_shadow(struct nouveau_device *ndev)
 		{ "PCIROM", bios_shadow_pci, true, 0, 0, NULL },
 		{}
 	};
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct methods *mthd, *best;
 	const struct firmware *fw;
 	char fname[32];
@@ -311,10 +311,10 @@ struct init_tbl_entry {
 	 *    0: success, but abort further parsing of table (INIT_DONE etc)
 	 *  < 0: failure, table parsing will be aborted
 	 */
-	int (*handler)(struct nvbios *, u16, struct init_exec *);
+	int (*handler)(struct nouveau_bios *, u16, struct init_exec *);
 };
 
-static int parse_init_table(struct nvbios *, u16, struct init_exec *);
+static int parse_init_table(struct nouveau_bios *, u16, struct init_exec *);
 
 #define MACRO_INDEX_SIZE	2
 #define MACRO_SIZE		8
@@ -332,7 +332,7 @@ static void still_alive(void)
 }
 
 static u32
-munge_reg(struct nvbios *bios, u32 reg)
+munge_reg(struct nouveau_bios *bios, u32 reg)
 {
 	struct dcb_entry *dcbent = bios->display.output;
 
@@ -357,17 +357,16 @@ munge_reg(struct nvbios *bios, u32 reg)
 }
 
 static int
-valid_reg(struct nvbios *bios, u32 reg)
+valid_reg(struct nouveau_bios *bios, u32 reg)
 {
 	struct nouveau_device *ndev = bios->device;
 
 	/* C51 has misaligned regs on purpose. Marvellous */
-	if (reg & 0x2 ||
-	    (reg & 0x1 && ndev->vbios.chip_version != 0x51))
+	if (reg & 0x2 || (reg & 0x1 && bios->chip_version != 0x51))
 		NV_ERROR(ndev, "======= misaligned reg 0x%08X =======\n", reg);
 
 	/* warn on C51 regs that haven't been verified accessible in tracing */
-	if (reg & 0x1 && ndev->vbios.chip_version == 0x51 &&
+	if (reg & 0x1 && bios->chip_version == 0x51 &&
 	    reg != 0x130d && reg != 0x1311 && reg != 0x60081d)
 		NV_WARN(ndev, "=== C51 misaligned reg 0x%08X unverified ===\n",
 			reg);
@@ -381,7 +380,7 @@ valid_reg(struct nvbios *bios, u32 reg)
 }
 
 static bool
-valid_idx_port(struct nvbios *bios, u16 port)
+valid_idx_port(struct nouveau_bios *bios, u16 port)
 {
 	struct nouveau_device *ndev = bios->device;
 
@@ -407,7 +406,7 @@ valid_idx_port(struct nvbios *bios, u16 port)
 }
 
 static bool
-valid_port(struct nvbios *bios, u16 port)
+valid_port(struct nouveau_bios *bios, u16 port)
 {
 	struct nouveau_device *ndev = bios->device;
 
@@ -425,7 +424,7 @@ valid_port(struct nvbios *bios, u16 port)
 }
 
 static u32
-bios_rd32(struct nvbios *bios, u32 reg)
+bios_rd32(struct nouveau_bios *bios, u32 reg)
 {
 	u32 data;
 
@@ -456,7 +455,7 @@ bios_rd32(struct nvbios *bios, u32 reg)
 }
 
 static void
-bios_wr32(struct nvbios *bios, u32 reg, u32 data)
+bios_wr32(struct nouveau_bios *bios, u32 reg, u32 data)
 {
 	reg = munge_reg(bios, reg);
 	if (!valid_reg(bios, reg))
@@ -469,14 +468,14 @@ bios_wr32(struct nvbios *bios, u32 reg, u32 data)
 	LOG_OLD_VALUE(bios_rd32(bios, reg));
 	BIOSLOG(bios, "	Write: Reg: 0x%08X, Data: 0x%08X\n", reg, data);
 
-	if (bios->device->vbios.execute) {
+	if (bios->execute) {
 		still_alive();
 		nv_wr32(bios->device, reg, data);
 	}
 }
 
 static u8
-bios_idxprt_rd(struct nvbios *bios, u16 port, u8 index)
+bios_idxprt_rd(struct nouveau_bios *bios, u16 port, u8 index)
 {
 	struct nouveau_device *ndev = bios->device;
 	u8 data;
@@ -503,7 +502,7 @@ bios_idxprt_rd(struct nvbios *bios, u16 port, u8 index)
 }
 
 static void
-bios_idxprt_wr(struct nvbios *bios, u16 port, u8 index, u8 data)
+bios_idxprt_wr(struct nouveau_bios *bios, u16 port, u8 index, u8 data)
 {
 	struct nouveau_device *ndev = bios->device;
 
@@ -550,7 +549,7 @@ bios_idxprt_wr(struct nvbios *bios, u16 port, u8 index, u8 data)
 }
 
 static u8
-bios_port_rd(struct nvbios *bios, u16 port)
+bios_port_rd(struct nouveau_bios *bios, u16 port)
 {
 	u8 data, head = bios->state.crtchead;
 
@@ -566,7 +565,7 @@ bios_port_rd(struct nvbios *bios, u16 port)
 }
 
 static void
-bios_port_wr(struct nvbios *bios, u16 port, u8 data)
+bios_port_wr(struct nouveau_bios *bios, u16 port, u8 data)
 {
 	int head = bios->state.crtchead;
 
@@ -585,7 +584,7 @@ bios_port_wr(struct nvbios *bios, u16 port, u8 data)
 }
 
 static bool
-io_flag_condition_met(struct nvbios *bios, u16 offset, u8 cond)
+io_flag_condition_met(struct nouveau_bios *bios, u16 offset, u8 cond)
 {
 	/*
 	 * The IO flag condition entry has 2 bytes for the CRTC port; 1 byte
@@ -624,7 +623,7 @@ io_flag_condition_met(struct nvbios *bios, u16 offset, u8 cond)
 }
 
 static bool
-bios_condition_met(struct nvbios *bios, u16 offset, u8 cond)
+bios_condition_met(struct nouveau_bios *bios, u16 offset, u8 cond)
 {
 	/*
 	 * The condition table entry has 4 bytes for the address of the
@@ -650,7 +649,7 @@ bios_condition_met(struct nvbios *bios, u16 offset, u8 cond)
 }
 
 static bool
-io_condition_met(struct nvbios *bios, u16 offset, u8 cond)
+io_condition_met(struct nouveau_bios *bios, u16 offset, u8 cond)
 {
 	/*
 	 * The IO condition entry has 2 bytes for the IO port address; 1 byte
@@ -676,6 +675,7 @@ io_condition_met(struct nvbios *bios, u16 offset, u8 cond)
 static int
 nv50_pll_set(struct nouveau_device *ndev, u32 reg, u32 clk)
 {
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nouveau_pll_vals pll;
 	struct pll_lims pll_limits;
 	u32 ctrl, mask, coef;
@@ -698,7 +698,7 @@ nv50_pll_set(struct nouveau_device *ndev, u32 reg, u32 clk)
 		ctrl |= (pll.log2P << 22);
 	}
 
-	if (!ndev->vbios.execute)
+	if (!bios->execute)
 		return 0;
 
 	nv_mask(ndev, reg + 0, mask, ctrl);
@@ -707,7 +707,7 @@ nv50_pll_set(struct nouveau_device *ndev, u32 reg, u32 clk)
 }
 
 static int
-setPLL(struct nvbios *bios, u32 reg, u32 clk)
+setPLL(struct nouveau_bios *bios, u32 reg, u32 clk)
 {
 	struct nouveau_device *ndev = bios->device;
 	/* clk in kHz */
@@ -737,7 +737,7 @@ setPLL(struct nvbios *bios, u32 reg, u32 clk)
 
 static int dcb_entry_idx_from_crtchead(struct nouveau_device *ndev)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 
 	/*
 	 * For the results of this function to be correct, CR44 must have been
@@ -760,8 +760,10 @@ static int dcb_entry_idx_from_crtchead(struct nouveau_device *ndev)
 static struct nouveau_i2c_chan *
 init_i2c_device_find(struct nouveau_device *ndev, int i2c_index)
 {
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+	struct dcb_table *dcb = &bios->dcb;
+
 	if (i2c_index == 0xff) {
-		struct dcb_table *dcb = &ndev->vbios.dcb;
 		/* note: dcb_entry_idx_from_crtchead needs pre-script set-up */
 		int idx = dcb_entry_idx_from_crtchead(ndev);
 
@@ -786,7 +788,7 @@ get_tmds_index_reg(struct nouveau_device *ndev, u8 mlv)
 	 * 0x6808b0 address, and then flip the offset by 8.
 	 */
 
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	const int pramdac_offset[13] = {
 		0, 0, 0x8, 0, 0x2000, 0, 0, 0, 0x2008, 0, 0, 0, 0x2000 };
 	const u32 pramdac_table[4] = {
@@ -814,7 +816,7 @@ get_tmds_index_reg(struct nouveau_device *ndev, u8 mlv)
 }
 
 static int
-init_io_restrict_prog(struct nvbios *bios, u16 offset,
+init_io_restrict_prog(struct nouveau_bios *bios, u16 offset,
 		      struct init_exec *iexec)
 {
 	/*
@@ -872,7 +874,7 @@ init_io_restrict_prog(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_repeat(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_repeat(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_REPEAT   opcode: 0x33 ('3')
@@ -910,7 +912,7 @@ init_repeat(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_io_restrict_pll(struct nvbios *bios, u16 offset,
+init_io_restrict_pll(struct nouveau_bios *bios, u16 offset,
 		     struct init_exec *iexec)
 {
 	/*
@@ -985,7 +987,7 @@ init_io_restrict_pll(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_end_repeat(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_end_repeat(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_END_REPEAT   opcode: 0x36 ('6')
@@ -1008,7 +1010,7 @@ init_end_repeat(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_copy(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_copy(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_COPY   opcode: 0x37 ('7')
@@ -1059,7 +1061,7 @@ init_copy(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_not(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_not(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_NOT   opcode: 0x38 ('8')
@@ -1078,7 +1080,7 @@ init_not(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_io_flag_condition(struct nvbios *bios, u16 offset,
+init_io_flag_condition(struct nouveau_bios *bios, u16 offset,
 		       struct init_exec *iexec)
 {
 	/*
@@ -1108,7 +1110,7 @@ init_io_flag_condition(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_dp_condition(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_dp_condition(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_DP_CONDITION   opcode: 0x3A ('')
@@ -1180,7 +1182,7 @@ init_dp_condition(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_op_3b(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_op_3b(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_3B   opcode: 0x3B ('')
@@ -1203,7 +1205,7 @@ init_op_3b(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_op_3c(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_op_3c(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_3C   opcode: 0x3C ('')
@@ -1226,7 +1228,7 @@ init_op_3c(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_idx_addr_latched(struct nvbios *bios, u16 offset,
+init_idx_addr_latched(struct nouveau_bios *bios, u16 offset,
 		      struct init_exec *iexec)
 {
 	/*
@@ -1282,7 +1284,7 @@ init_idx_addr_latched(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_io_restrict_pll2(struct nvbios *bios, u16 offset,
+init_io_restrict_pll2(struct nouveau_bios *bios, u16 offset,
 		      struct init_exec *iexec)
 {
 	/*
@@ -1343,7 +1345,7 @@ init_io_restrict_pll2(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_pll2(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_pll2(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_PLL2   opcode: 0x4B ('K')
@@ -1369,7 +1371,7 @@ init_pll2(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_i2c_byte(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_i2c_byte(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_I2C_BYTE   opcode: 0x4C ('L')
@@ -1446,7 +1448,7 @@ init_i2c_byte(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_zm_i2c_byte(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_zm_i2c_byte(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_ZM_I2C_BYTE   opcode: 0x4D ('M')
@@ -1510,7 +1512,7 @@ init_zm_i2c_byte(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_zm_i2c(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_zm_i2c(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_ZM_I2C   opcode: 0x4E ('N')
@@ -1571,7 +1573,7 @@ init_zm_i2c(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_tmds(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_tmds(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_TMDS   opcode: 0x4F ('O')	(non-canon name)
@@ -1618,7 +1620,7 @@ init_tmds(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_zm_tmds_group(struct nvbios *bios, u16 offset,
+init_zm_tmds_group(struct nouveau_bios *bios, u16 offset,
 		   struct init_exec *iexec)
 {
 	/*
@@ -1667,7 +1669,7 @@ init_zm_tmds_group(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_cr_idx_adr_latch(struct nvbios *bios, u16 offset,
+init_cr_idx_adr_latch(struct nouveau_bios *bios, u16 offset,
 		      struct init_exec *iexec)
 {
 	/*
@@ -1715,7 +1717,7 @@ init_cr_idx_adr_latch(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_cr(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_cr(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_CR   opcode: 0x52 ('R')
@@ -1748,7 +1750,7 @@ init_cr(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_zm_cr(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_zm_cr(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_ZM_CR   opcode: 0x53 ('S')
@@ -1772,7 +1774,7 @@ init_zm_cr(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_zm_cr_group(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_zm_cr_group(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_ZM_CR_GROUP   opcode: 0x54 ('T')
@@ -1801,7 +1803,7 @@ init_zm_cr_group(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_condition_time(struct nvbios *bios, u16 offset,
+init_condition_time(struct nouveau_bios *bios, u16 offset,
 		    struct init_exec *iexec)
 {
 	/*
@@ -1859,7 +1861,7 @@ init_condition_time(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_ltime(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_ltime(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_LTIME   opcode: 0x57 ('V')
@@ -1884,7 +1886,7 @@ init_ltime(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_zm_reg_sequence(struct nvbios *bios, u16 offset,
+init_zm_reg_sequence(struct nouveau_bios *bios, u16 offset,
 		     struct init_exec *iexec)
 {
 	/*
@@ -1923,7 +1925,7 @@ init_zm_reg_sequence(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_sub_direct(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_sub_direct(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_SUB_DIRECT   opcode: 0x5B ('[')
@@ -1951,7 +1953,7 @@ init_sub_direct(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_jump(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_jump(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_JUMP   opcode: 0x5C ('\')
@@ -1972,7 +1974,7 @@ init_jump(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_i2c_if(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_i2c_if(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_I2C_IF   opcode: 0x5E ('^')
@@ -2030,7 +2032,7 @@ init_i2c_if(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_copy_nv_reg(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_copy_nv_reg(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_COPY_NV_REG   opcode: 0x5F ('_')
@@ -2080,7 +2082,7 @@ init_copy_nv_reg(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_zm_index_io(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_zm_index_io(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_ZM_INDEX_IO   opcode: 0x62 ('b')
@@ -2105,7 +2107,7 @@ init_zm_index_io(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static inline void
-bios_md32(struct nvbios *bios, u32 reg,
+bios_md32(struct nouveau_bios *bios, u32 reg,
 	  u32 mask, u32 val)
 {
 	bios_wr32(bios, reg, (bios_rd32(bios, reg) & ~mask) | val);
@@ -2153,7 +2155,7 @@ read_back_fb(struct nouveau_device *ndev, struct io_mapping *fb,
 }
 
 static int
-nv04_init_compute_mem(struct nvbios *bios)
+nv04_init_compute_mem(struct nouveau_bios *bios)
 {
 	struct nouveau_device *ndev = bios->device;
 	u32 patt = 0xdeadbeef;
@@ -2230,7 +2232,7 @@ nv04_init_compute_mem(struct nvbios *bios)
 }
 
 static const u8 *
-nv05_memory_config(struct nvbios *bios)
+nv05_memory_config(struct nouveau_bios *bios)
 {
 	/* Defaults for BIOSes lacking a memory config table */
 	static const u8 default_config_tab[][2] = {
@@ -2253,7 +2255,7 @@ nv05_memory_config(struct nvbios *bios)
 }
 
 static int
-nv05_init_compute_mem(struct nvbios *bios)
+nv05_init_compute_mem(struct nouveau_bios *bios)
 {
 	struct nouveau_device *ndev = bios->device;
 	const u8 *ramcfg = nv05_memory_config(bios);
@@ -2329,7 +2331,7 @@ out:
 }
 
 static int
-nv10_init_compute_mem(struct nvbios *bios)
+nv10_init_compute_mem(struct nouveau_bios *bios)
 {
 	struct nouveau_device *ndev = bios->device;
 	const int mem_width[] = { 0x10, 0x00, 0x20 };
@@ -2390,7 +2392,7 @@ amount_found:
 }
 
 static int
-nv20_init_compute_mem(struct nvbios *bios)
+nv20_init_compute_mem(struct nouveau_bios *bios)
 {
 	struct nouveau_device *ndev = bios->device;
 	u32 mask = (ndev->chipset >= 0x25 ? 0x300 : 0x900);
@@ -2422,7 +2424,7 @@ nv20_init_compute_mem(struct nvbios *bios)
 }
 
 static int
-init_compute_mem(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_compute_mem(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_COMPUTE_MEM   opcode: 0x63 ('c')
@@ -2484,7 +2486,7 @@ init_compute_mem(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_reset(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_reset(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_RESET   opcode: 0x65 ('e')
@@ -2522,7 +2524,7 @@ init_reset(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_configure_mem(struct nvbios *bios, u16 offset,
+init_configure_mem(struct nouveau_bios *bios, u16 offset,
 		   struct init_exec *iexec)
 {
 	/*
@@ -2578,7 +2580,7 @@ init_configure_mem(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_configure_clk(struct nvbios *bios, u16 offset,
+init_configure_clk(struct nouveau_bios *bios, u16 offset,
 		   struct init_exec *iexec)
 {
 	/*
@@ -2611,7 +2613,7 @@ init_configure_clk(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_configure_preinit(struct nvbios *bios, u16 offset,
+init_configure_preinit(struct nouveau_bios *bios, u16 offset,
 		       struct init_exec *iexec)
 {
 	/*
@@ -2639,7 +2641,7 @@ init_configure_preinit(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_io(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_io(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_IO   opcode: 0x69 ('i')
@@ -2725,7 +2727,7 @@ init_io(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_sub(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_sub(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_SUB   opcode: 0x6B ('k')
@@ -2753,7 +2755,7 @@ init_sub(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_ram_condition(struct nvbios *bios, u16 offset,
+init_ram_condition(struct nouveau_bios *bios, u16 offset,
 		   struct init_exec *iexec)
 {
 	/*
@@ -2791,7 +2793,7 @@ init_ram_condition(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_nv_reg(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_nv_reg(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_NV_REG   opcode: 0x6E ('n')
@@ -2820,7 +2822,7 @@ init_nv_reg(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_macro(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_macro(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_MACRO   opcode: 0x6F ('o')
@@ -2862,7 +2864,7 @@ init_macro(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_done(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_done(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_DONE   opcode: 0x71 ('q')
@@ -2877,7 +2879,7 @@ init_done(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_resume(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_resume(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_RESUME   opcode: 0x72 ('r')
@@ -2897,7 +2899,7 @@ init_resume(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_time(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_time(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_TIME   opcode: 0x74 ('t')
@@ -2925,7 +2927,7 @@ init_time(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_condition(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_condition(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_CONDITION   opcode: 0x75 ('u')
@@ -2956,7 +2958,7 @@ init_condition(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_io_condition(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_io_condition(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_IO_CONDITION  opcode: 0x76
@@ -2987,7 +2989,7 @@ init_io_condition(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_index_io(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_index_io(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_INDEX_IO   opcode: 0x78 ('x')
@@ -3022,7 +3024,7 @@ init_index_io(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_pll(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_pll(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_PLL   opcode: 0x79 ('y')
@@ -3049,7 +3051,7 @@ init_pll(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_zm_reg(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_zm_reg(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_ZM_REG   opcode: 0x7A ('z')
@@ -3076,7 +3078,7 @@ init_zm_reg(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_ram_restrict_pll(struct nvbios *bios, u16 offset,
+init_ram_restrict_pll(struct nouveau_bios *bios, u16 offset,
 		      struct init_exec *iexec)
 {
 	/*
@@ -3131,7 +3133,7 @@ init_ram_restrict_pll(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_8c(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_8c(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_8C   opcode: 0x8C ('')
@@ -3144,7 +3146,7 @@ init_8c(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_8d(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_8d(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_8D   opcode: 0x8D ('')
@@ -3157,7 +3159,7 @@ init_8d(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_gpio(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_gpio(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_GPIO   opcode: 0x8E ('')
@@ -3175,7 +3177,7 @@ init_gpio(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_ram_restrict_zm_reg_group(struct nvbios *bios, u16 offset,
+init_ram_restrict_zm_reg_group(struct nouveau_bios *bios, u16 offset,
 			       struct init_exec *iexec)
 {
 	/*
@@ -3236,7 +3238,7 @@ init_ram_restrict_zm_reg_group(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_copy_zm_reg(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_copy_zm_reg(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_COPY_ZM_REG   opcode: 0x90 ('')
@@ -3260,7 +3262,7 @@ init_copy_zm_reg(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_zm_reg_group_addr_latched(struct nvbios *bios, u16 offset,
+init_zm_reg_group_addr_latched(struct nouveau_bios *bios, u16 offset,
 			       struct init_exec *iexec)
 {
 	/*
@@ -3292,7 +3294,7 @@ init_zm_reg_group_addr_latched(struct nvbios *bios, u16 offset,
 }
 
 static int
-init_reserved(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_reserved(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_RESERVED   opcode: 0x92 ('')
@@ -3306,7 +3308,7 @@ init_reserved(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_96(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_96(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_96   opcode: 0x96 ('')
@@ -3345,7 +3347,7 @@ init_96(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_97(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_97(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_97   opcode: 0x97 ('')
@@ -3375,7 +3377,7 @@ init_97(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_auxch(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_auxch(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_AUXCH   opcode: 0x98 ('')
@@ -3435,7 +3437,7 @@ init_auxch(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_zm_auxch(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_zm_auxch(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_ZM_AUXCH   opcode: 0x99 ('')
@@ -3483,7 +3485,7 @@ init_zm_auxch(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static int
-init_i2c_long_if(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+init_i2c_long_if(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * INIT_I2C_LONG_IF   opcode: 0x9A ('')
@@ -3617,7 +3619,7 @@ static struct init_tbl_entry itbl_entry[] = {
 #define MAX_TABLE_OPS 1000
 
 static int
-parse_init_table(struct nvbios *bios, u16 offset, struct init_exec *iexec)
+parse_init_table(struct nouveau_bios *bios, u16 offset, struct init_exec *iexec)
 {
 	/*
 	 * Parses all commands in an init table.
@@ -3689,7 +3691,7 @@ parse_init_table(struct nvbios *bios, u16 offset, struct init_exec *iexec)
 }
 
 static void
-parse_init_tables(struct nvbios *bios)
+parse_init_tables(struct nouveau_bios *bios)
 {
 	/* Loops and calls parse_init_table() for each present table. */
 
@@ -3717,7 +3719,7 @@ parse_init_tables(struct nvbios *bios)
 	}
 }
 
-static u16 clkcmptable(struct nvbios *bios, u16 clktable, int pxclk)
+static u16 clkcmptable(struct nouveau_bios *bios, u16 clktable, int pxclk)
 {
 	int compare_record_len, i = 0;
 	u16 compareclk, scriptptr = 0;
@@ -3747,7 +3749,7 @@ static void
 run_digital_op_script(struct nouveau_device *ndev, u16 scriptptr,
 		      struct dcb_entry *dcbent, int head, bool dl)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct init_exec iexec = {true, false};
 
 	NV_TRACE(ndev, "0x%04X: Parsing digital output script table\n",
@@ -3763,7 +3765,7 @@ run_digital_op_script(struct nouveau_device *ndev, u16 scriptptr,
 
 static int call_lvds_manufacturer_script(struct nouveau_device *ndev, struct dcb_entry *dcbent, int head, enum LVDS_script script)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	u8 sub = bios->data[bios->fp.xlated_entry + script] + (bios->fp.link_c_increment && dcbent->or & OUTPUT_C ? 1 : 0);
 	u16 scriptofs = ROM16(bios->data[bios->init_script_tbls_ptr + sub * 2]);
 
@@ -3799,7 +3801,7 @@ static int run_lvds_table(struct nouveau_device *ndev, struct dcb_entry *dcbent,
 	 * conf byte. These tables are similar to the TMDS tables, consisting
 	 * of a list of pxclks and script pointers.
 	 */
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	unsigned int outputset = (dcbent->or == 4) ? 1 : 0;
 	u16 scriptptr = 0, clktable;
 
@@ -3867,7 +3869,7 @@ int call_lvds_script(struct nouveau_device *ndev, struct dcb_entry *dcbent, int 
 	 * This acts as the demux
 	 */
 
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	u8 lvds_ver = bios->data[bios->fp.lvdsmanufacturerpointer];
 	u32 sel_clk_binding, sel_clk;
 	int ret;
@@ -3910,7 +3912,7 @@ struct lvdstableheader {
 	u8 lvds_ver, headerlen, recordlen;
 };
 
-static int parse_lvds_manufacturer_table_header(struct nouveau_device *ndev, struct nvbios *bios, struct lvdstableheader *lth)
+static int parse_lvds_manufacturer_table_header(struct nouveau_device *ndev, struct nouveau_bios *bios, struct lvdstableheader *lth)
 {
 	/*
 	 * BMP version (0xa) LVDS table has a simple header of version and
@@ -3966,7 +3968,7 @@ static int parse_lvds_manufacturer_table_header(struct nouveau_device *ndev, str
 }
 
 static int
-get_fp_strap(struct nouveau_device *ndev, struct nvbios *bios)
+get_fp_strap(struct nouveau_device *ndev, struct nouveau_bios *bios)
 {
 	/*
 	 * The fp strap is normally dictated by the "User Strap" in
@@ -3986,7 +3988,7 @@ get_fp_strap(struct nouveau_device *ndev, struct nvbios *bios)
 		return (bios_rd32(bios, NV_PEXTDEV_BOOT_0) >> 16) & 0xf;
 }
 
-static int parse_fp_mode_table(struct nouveau_device *ndev, struct nvbios *bios)
+static int parse_fp_mode_table(struct nouveau_device *ndev, struct nouveau_bios *bios)
 {
 	u8 *fptable;
 	u8 fptable_ver, headerlen = 0, recordlen, fpentries = 0xf, fpindex;
@@ -4094,7 +4096,7 @@ static int parse_fp_mode_table(struct nouveau_device *ndev, struct nvbios *bios)
 
 bool nouveau_bios_fp_mode(struct nouveau_device *ndev, struct drm_display_mode *mode)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	u8 *mode_entry = &bios->data[bios->fp.mode_ptr];
 
 	if (!mode)	/* just checking whether we can produce a mode */
@@ -4164,7 +4166,7 @@ int nouveau_bios_parse_lvds_table(struct nouveau_device *ndev, int pxclk, bool *
 	 * requiring tests against the native-mode pixel clock, cannot be done
 	 * until later, when this function should be called with non-zero pxclk
 	 */
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	int fpstrapping = get_fp_strap(ndev, bios), lvdsmanufacturerindex = 0;
 	struct lvdstableheader lth;
 	u16 lvdsofs;
@@ -4322,7 +4324,7 @@ nouveau_bios_run_display_table(struct nouveau_device *ndev, u16 type, int pclk,
 	 * offset + 5   (16 bits): pointer to first output script table
 	 */
 
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	u8 *table = &bios->data[bios->display.script_table_ptr];
 	u8 *otable = NULL;
 	u16 script;
@@ -4477,7 +4479,7 @@ int run_tmds_table(struct nouveau_device *ndev, struct dcb_entry *dcbent, int he
 	 * ffs(or) == 3, use the second.
 	 */
 
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	int cv = bios->chip_version;
 	u16 clktable = 0, scriptptr;
 	u32 sel_clk_binding, sel_clk;
@@ -4566,7 +4568,7 @@ static struct pll_mapping nv84_pll_mapping[] = {
 u32
 get_pll_register(struct nouveau_device *ndev, enum pll_types type)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct pll_mapping *map;
 	int i;
 
@@ -4621,7 +4623,7 @@ int get_pll_limits(struct nouveau_device *ndev, u32 limit_match, struct pll_lims
 	 * from the limits tables.
 	 */
 
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	int cv = bios->chip_version, pllindex = 0;
 	u8 pll_lim_ver = 0, headerlen = 0, recordlen = 0, entries = 0;
 	u32 crystal_strap_mask, crystal_straps;
@@ -4956,7 +4958,7 @@ int get_pll_limits(struct nouveau_device *ndev, u32 limit_match, struct pll_lims
 	return 0;
 }
 
-static void parse_bios_version(struct nouveau_device *ndev, struct nvbios *bios, u16 offset)
+static void parse_bios_version(struct nouveau_device *ndev, struct nouveau_bios *bios, u16 offset)
 {
 	/*
 	 * offset + 0  (8 bits): Micro version
@@ -4972,7 +4974,7 @@ static void parse_bios_version(struct nouveau_device *ndev, struct nvbios *bios,
 		 bios->data[offset + 1], bios->data[offset]);
 }
 
-static void parse_script_table_pointers(struct nvbios *bios, u16 offset)
+static void parse_script_table_pointers(struct nouveau_bios *bios, u16 offset)
 {
 	/*
 	 * Parses the init table segment for pointers used in script execution.
@@ -4995,7 +4997,7 @@ static void parse_script_table_pointers(struct nvbios *bios, u16 offset)
 	bios->init_function_tbl_ptr = ROM16(bios->data[offset + 12]);
 }
 
-static int parse_bit_A_tbl_entry(struct nouveau_device *ndev, struct nvbios *bios, struct bit_entry *bitentry)
+static int parse_bit_A_tbl_entry(struct nouveau_device *ndev, struct nouveau_bios *bios, struct bit_entry *bitentry)
 {
 	/*
 	 * Parses the load detect values for g80 cards.
@@ -5041,7 +5043,7 @@ static int parse_bit_A_tbl_entry(struct nouveau_device *ndev, struct nvbios *bio
 	return 0;
 }
 
-static int parse_bit_C_tbl_entry(struct nouveau_device *ndev, struct nvbios *bios, struct bit_entry *bitentry)
+static int parse_bit_C_tbl_entry(struct nouveau_device *ndev, struct nouveau_bios *bios, struct bit_entry *bitentry)
 {
 	/*
 	 * offset + 8  (16 bits): PLL limits table pointer
@@ -5059,7 +5061,7 @@ static int parse_bit_C_tbl_entry(struct nouveau_device *ndev, struct nvbios *bio
 	return 0;
 }
 
-static int parse_bit_display_tbl_entry(struct nouveau_device *ndev, struct nvbios *bios, struct bit_entry *bitentry)
+static int parse_bit_display_tbl_entry(struct nouveau_device *ndev, struct nouveau_bios *bios, struct bit_entry *bitentry)
 {
 	/*
 	 * Parses the flat panel table segment that the bit entry points to.
@@ -5080,7 +5082,7 @@ static int parse_bit_display_tbl_entry(struct nouveau_device *ndev, struct nvbio
 	return 0;
 }
 
-static int parse_bit_init_tbl_entry(struct nouveau_device *ndev, struct nvbios *bios, struct bit_entry *bitentry)
+static int parse_bit_init_tbl_entry(struct nouveau_device *ndev, struct nouveau_bios *bios, struct bit_entry *bitentry)
 {
 	/*
 	 * Parses the init table segment that the bit entry points to.
@@ -5103,7 +5105,7 @@ static int parse_bit_init_tbl_entry(struct nouveau_device *ndev, struct nvbios *
 	return 0;
 }
 
-static int parse_bit_i_tbl_entry(struct nouveau_device *ndev, struct nvbios *bios, struct bit_entry *bitentry)
+static int parse_bit_i_tbl_entry(struct nouveau_device *ndev, struct nouveau_bios *bios, struct bit_entry *bitentry)
 {
 	/*
 	 * BIT 'i' (info?) table
@@ -5166,7 +5168,7 @@ static int parse_bit_i_tbl_entry(struct nouveau_device *ndev, struct nvbios *bio
 	return 0;
 }
 
-static int parse_bit_lvds_tbl_entry(struct nouveau_device *ndev, struct nvbios *bios, struct bit_entry *bitentry)
+static int parse_bit_lvds_tbl_entry(struct nouveau_device *ndev, struct nouveau_bios *bios, struct bit_entry *bitentry)
 {
 	/*
 	 * Parses the LVDS table segment that the bit entry points to.
@@ -5190,7 +5192,7 @@ static int parse_bit_lvds_tbl_entry(struct nouveau_device *ndev, struct nvbios *
 }
 
 static int
-parse_bit_M_tbl_entry(struct nouveau_device *ndev, struct nvbios *bios,
+parse_bit_M_tbl_entry(struct nouveau_device *ndev, struct nouveau_bios *bios,
 		      struct bit_entry *bitentry)
 {
 	/*
@@ -5221,7 +5223,7 @@ parse_bit_M_tbl_entry(struct nouveau_device *ndev, struct nvbios *bios,
 	return 0;
 }
 
-static int parse_bit_tmds_tbl_entry(struct nouveau_device *ndev, struct nvbios *bios, struct bit_entry *bitentry)
+static int parse_bit_tmds_tbl_entry(struct nouveau_device *ndev, struct nouveau_bios *bios, struct bit_entry *bitentry)
 {
 	/*
 	 * Parses the pointer to the TMDS table
@@ -5282,7 +5284,7 @@ static int parse_bit_tmds_tbl_entry(struct nouveau_device *ndev, struct nvbios *
 }
 
 static int
-parse_bit_U_tbl_entry(struct nouveau_device *ndev, struct nvbios *bios,
+parse_bit_U_tbl_entry(struct nouveau_device *ndev, struct nouveau_bios *bios,
 		      struct bit_entry *bitentry)
 {
 	/*
@@ -5307,7 +5309,7 @@ parse_bit_U_tbl_entry(struct nouveau_device *ndev, struct nvbios *bios,
 
 struct bit_table {
 	const char id;
-	int (* const parse_fn)(struct nouveau_device *, struct nvbios *, struct bit_entry *);
+	int (* const parse_fn)(struct nouveau_device *, struct nouveau_bios *, struct bit_entry *);
 };
 
 #define BIT_TABLE(id, funcid) ((struct bit_table){ id, parse_bit_##funcid##_tbl_entry })
@@ -5315,7 +5317,7 @@ struct bit_table {
 int
 bit_table(struct nouveau_device *ndev, u8 id, struct bit_entry *bit)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	u8 entries, *entry;
 
 	if (bios->type != NVBIOS_BIT)
@@ -5340,7 +5342,7 @@ bit_table(struct nouveau_device *ndev, u8 id, struct bit_entry *bit)
 }
 
 static int
-parse_bit_table(struct nvbios *bios, const u16 bitoffset,
+parse_bit_table(struct nouveau_bios *bios, const u16 bitoffset,
 		struct bit_table *table)
 {
 	struct nouveau_device *ndev = bios->device;
@@ -5354,7 +5356,7 @@ parse_bit_table(struct nvbios *bios, const u16 bitoffset,
 }
 
 static int
-parse_bit_structure(struct nvbios *bios, const u16 bitoffset)
+parse_bit_structure(struct nouveau_bios *bios, const u16 bitoffset)
 {
 	int ret;
 
@@ -5384,7 +5386,7 @@ parse_bit_structure(struct nvbios *bios, const u16 bitoffset)
 	return 0;
 }
 
-static int parse_bmp_structure(struct nouveau_device *ndev, struct nvbios *bios, unsigned int offset)
+static int parse_bmp_structure(struct nouveau_device *ndev, struct nouveau_bios *bios, unsigned int offset)
 {
 	/*
 	 * Parses the BMP structure for useful things, but does not act on them
@@ -5594,10 +5596,11 @@ static u16 findstr(u8 *data, int n, const u8 *str, int len)
 void *
 dcb_table(struct nouveau_device *ndev)
 {
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	u8 *dcb = NULL;
 
 	if (ndev->card_type > NV_04)
-		dcb = ROMPTR(ndev, ndev->vbios.data[0x36]);
+		dcb = ROMPTR(ndev, bios->data[0x36]);
 	if (!dcb) {
 		NV_WARNONCE(ndev, "No DCB data found in VBIOS\n");
 		return NULL;
@@ -5968,7 +5971,8 @@ void merge_like_dcb_entries(struct nouveau_device *ndev, struct dcb_table *dcb)
 static bool
 apply_dcb_encoder_quirks(struct nouveau_device *ndev, int idx, u32 *conn, u32 *conf)
 {
-	struct dcb_table *dcb = &ndev->vbios.dcb;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+	struct dcb_table *dcb = &bios->dcb;
 
 	/* Dell Precision M6300
 	 *   DCB entry 2: 02025312 00000010
@@ -6060,7 +6064,7 @@ apply_dcb_encoder_quirks(struct nouveau_device *ndev, int idx, u32 *conn, u32 *c
 }
 
 static void
-fabricate_dcb_encoder_table(struct nouveau_device *ndev, struct nvbios *bios)
+fabricate_dcb_encoder_table(struct nouveau_device *ndev, struct nouveau_bios *bios)
 {
 	struct dcb_table *dcb = &bios->dcb;
 	int all_heads = (nv_two_heads(ndev) ? 3 : 1);
@@ -6093,7 +6097,8 @@ fabricate_dcb_encoder_table(struct nouveau_device *ndev, struct nvbios *bios)
 static int
 parse_dcb_entry(struct nouveau_device *ndev, void *data, int idx, u8 *outp)
 {
-	struct dcb_table *dcb = &ndev->vbios.dcb;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+	struct dcb_table *dcb = &bios->dcb;
 	u32 conf = (dcb->version >= 0x20) ? ROM32(outp[4]) : ROM32(outp[6]);
 	u32 conn = ROM32(outp[0]);
 	bool ret;
@@ -6123,7 +6128,7 @@ parse_dcb_entry(struct nouveau_device *ndev, void *data, int idx, u8 *outp)
 }
 
 static void
-dcb_fake_connectors(struct nvbios *bios)
+dcb_fake_connectors(struct nouveau_bios *bios)
 {
 	struct dcb_table *dcbt = &bios->dcb;
 	u8 map[16] = { };
@@ -6169,7 +6174,7 @@ dcb_fake_connectors(struct nvbios *bios)
 }
 
 static int
-parse_dcb_table(struct nouveau_device *ndev, struct nvbios *bios)
+parse_dcb_table(struct nouveau_device *ndev, struct nouveau_bios *bios)
 {
 	struct dcb_table *dcb = &bios->dcb;
 	u8 *dcbt, *conn;
@@ -6216,7 +6221,7 @@ parse_dcb_table(struct nouveau_device *ndev, struct nvbios *bios)
 	return 0;
 }
 
-static int load_nv17_hwsq_ucode_entry(struct nouveau_device *ndev, struct nvbios *bios, u16 hwsq_offset, int entry)
+static int load_nv17_hwsq_ucode_entry(struct nouveau_device *ndev, struct nouveau_bios *bios, u16 hwsq_offset, int entry)
 {
 	/*
 	 * The header following the "HWSQ" signature has the number of entries,
@@ -6263,7 +6268,7 @@ static int load_nv17_hwsq_ucode_entry(struct nouveau_device *ndev, struct nvbios
 }
 
 static int load_nv17_hw_sequencer_ucode(struct nouveau_device *ndev,
-					struct nvbios *bios)
+					struct nouveau_bios *bios)
 {
 	/*
 	 * BMP based cards, from NV17, need a microcode loading to correctly
@@ -6288,7 +6293,7 @@ static int load_nv17_hw_sequencer_ucode(struct nouveau_device *ndev,
 
 u8 *nouveau_bios_embedded_edid(struct nouveau_device *ndev)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	const u8 edid_sig[] = {
 			0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00 };
 	u16 offset = 0;
@@ -6320,7 +6325,7 @@ void
 nouveau_bios_run_init_table(struct nouveau_device *ndev, u16 table,
 			    struct dcb_entry *dcbent, int crtc)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct init_exec iexec = { true, false };
 
 	spin_lock_bh(&bios->lock);
@@ -6334,26 +6339,15 @@ nouveau_bios_run_init_table(struct nouveau_device *ndev, u16 table,
 void
 nouveau_bios_init_exec(struct nouveau_device *ndev, u16 table)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct init_exec iexec = { true, false };
 
 	parse_init_table(bios, table, &iexec);
 }
 
-static bool NVInitVBIOS(struct nouveau_device *ndev)
-{
-	struct nvbios *bios = &ndev->vbios;
-
-	memset(bios, 0, sizeof(struct nvbios));
-	spin_lock_init(&bios->lock);
-	bios->device = ndev;
-
-	return bios_shadow(ndev);
-}
-
 static int nouveau_parse_vbios_struct(struct nouveau_device *ndev)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	const u8 bit_signature[] = { 0xff, 0xb8, 'B', 'I', 'T' };
 	const u8 bmp_signature[] = { 0xff, 0x7f, 'N', 'V', 0x0 };
 	int offset;
@@ -6380,11 +6374,46 @@ static int nouveau_parse_vbios_struct(struct nouveau_device *ndev)
 	return -ENODEV;
 }
 
-int
-nouveau_run_vbios_init(struct nouveau_device *ndev)
+static bool
+nouveau_bios_posted(struct nouveau_device *ndev)
 {
-	struct nvbios *bios = &ndev->vbios;
+	unsigned htotal;
+
+	if (ndev->card_type >= NV_50) {
+		if (NVReadVgaCrtc(ndev, 0, 0x00) == 0 &&
+		    NVReadVgaCrtc(ndev, 0, 0x1a) == 0)
+			return false;
+		return true;
+	}
+
+	htotal  = NVReadVgaCrtc(ndev, 0, 0x06);
+	htotal |= (NVReadVgaCrtc(ndev, 0, 0x07) & 0x01) << 8;
+	htotal |= (NVReadVgaCrtc(ndev, 0, 0x07) & 0x20) << 4;
+	htotal |= (NVReadVgaCrtc(ndev, 0, 0x25) & 0x01) << 10;
+	htotal |= (NVReadVgaCrtc(ndev, 0, 0x41) & 0x01) << 11;
+
+	return (htotal != 0);
+}
+
+static int
+nouveau_bios_init(struct nouveau_device *ndev, int subdev)
+{
+	struct nouveau_bios *bios = nv_subdev(ndev, subdev);
 	int i, ret = 0;
+
+	/* feature_byte on BMP is poor, but init always sets CR4B */
+	if (bios->major_version < 5)
+		bios->is_mobile = NVReadVgaCrtc(ndev, 0, NV_CIO_CRE_4B) & 0x40;
+
+	/* all BIT systems need p_f_m_t for digital_min_front_porch */
+	if (bios->is_mobile || bios->major_version >= 5)
+		ret = parse_fp_mode_table(ndev, bios);
+
+	/* first init on already-posted card, nothing to do */
+	if (!bios->execute) {
+		bios->execute = true;
+		return 0;
+	}
 
 	/* Reset the BIOS head to 0. */
 	bios->state.crtchead = 0;
@@ -6422,90 +6451,60 @@ nouveau_run_vbios_init(struct nouveau_device *ndev)
 	return ret;
 }
 
-static bool
-nouveau_bios_posted(struct nouveau_device *ndev)
+static void
+nouveau_bios_destroy(struct nouveau_device *ndev, int subdev)
 {
-	unsigned htotal;
+	struct nouveau_bios *bios = nv_subdev(ndev, subdev);
 
-	if (ndev->card_type >= NV_50) {
-		if (NVReadVgaCrtc(ndev, 0, 0x00) == 0 &&
-		    NVReadVgaCrtc(ndev, 0, 0x1a) == 0)
-			return false;
-		return true;
-	}
-
-	htotal  = NVReadVgaCrtc(ndev, 0, 0x06);
-	htotal |= (NVReadVgaCrtc(ndev, 0, 0x07) & 0x01) << 8;
-	htotal |= (NVReadVgaCrtc(ndev, 0, 0x07) & 0x20) << 4;
-	htotal |= (NVReadVgaCrtc(ndev, 0, 0x25) & 0x01) << 10;
-	htotal |= (NVReadVgaCrtc(ndev, 0, 0x41) & 0x01) << 11;
-
-	return (htotal != 0);
-}
-
-int
-nouveau_bios_init(struct nouveau_device *ndev)
-{
-	struct nvbios *bios = &ndev->vbios;
-	int ret;
-
-	if (!NVInitVBIOS(ndev))
-		return -ENODEV;
-
-	ret = nouveau_parse_vbios_struct(ndev);
-	if (ret)
-		return ret;
-
-	ret = nouveau_i2c_init(ndev);
-	if (ret)
-		return ret;
-
-	ret = nouveau_mxm_init(ndev);
-	if (ret)
-		return ret;
-
-	ret = parse_dcb_table(ndev, bios);
-	if (ret)
-		return ret;
-
-	if (!bios->major_version)	/* we don't run version 0 bios */
-		return 0;
-
-	/* init script execution disabled */
-	bios->execute = false;
-
-	/* ... unless card isn't POSTed already */
-	if (!nouveau_bios_posted(ndev)) {
-		NV_INFO(ndev, "Adaptor not initialised, "
-			"running VBIOS init tables.\n");
-		bios->execute = true;
-	}
-	if (nouveau_force_post)
-		bios->execute = true;
-
-	ret = nouveau_run_vbios_init(ndev);
-	if (ret)
-		return ret;
-
-	/* feature_byte on BMP is poor, but init always sets CR4B */
-	if (bios->major_version < 5)
-		bios->is_mobile = NVReadVgaCrtc(ndev, 0, NV_CIO_CRE_4B) & 0x40;
-
-	/* all BIT systems need p_f_m_t for digital_min_front_porch */
-	if (bios->is_mobile || bios->major_version >= 5)
-		ret = parse_fp_mode_table(ndev, bios);
-
-	/* allow subsequent scripts to execute */
-	bios->execute = true;
-
-	return 0;
-}
-
-void
-nouveau_bios_takedown(struct nouveau_device *ndev)
-{
 	nouveau_mxm_fini(ndev);
 	nouveau_i2c_fini(ndev);
 
-	kfree(ndev->vbios.data);
+	kfree(bios->data);
+}
+
+int
+nouveau_bios_create(struct nouveau_device *ndev, int subdev)
+{
+	struct nouveau_bios *bios;
+	int ret = 0;
+
+	ret = nouveau_subdev_create(ndev, subdev, "VBIOS", "bios", &bios);
+	if (ret)
+		return ret;
+
+	bios->base.destroy = nouveau_bios_destroy;
+	bios->base.init = nouveau_bios_init;
+	bios->device = ndev;
+	spin_lock_init(&bios->lock);
+
+	if (!bios_shadow(ndev)) {
+		ret = -ENODEV;
+		goto done;
+	}
+
+	ret = nouveau_parse_vbios_struct(ndev);
+	if (ret)
+		goto done;
+
+	ret = nouveau_i2c_init(ndev);
+	if (ret)
+		goto done;
+
+	ret = nouveau_mxm_init(ndev);
+	if (ret)
+		goto done;
+
+	ret = parse_dcb_table(ndev, bios);
+	if (ret)
+		goto done;
+
+	if (!bios->major_version)	/* we don't run version 0 bios */
+		goto done;
+
+	bios->execute = false;
+	if (nouveau_force_post || !nouveau_bios_posted(ndev))
+		bios->execute = true;
+
+done:
+	return nouveau_subdev_init(ndev, subdev, ret ? ret : 1);
 }

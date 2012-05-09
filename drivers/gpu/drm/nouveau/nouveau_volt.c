@@ -99,9 +99,9 @@ nouveau_volt_lvl_lookup(struct nouveau_device *ndev, int vid)
 void
 nouveau_volt_init(struct nouveau_device *ndev)
 {
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_voltage *voltage = &pm->voltage;
-	struct nvbios *bios = &ndev->vbios;
 	struct bit_entry P;
 	u8 *volt = NULL, *entry;
 	int i, headerlen, recordlen, entries, vidmask, vidshift;

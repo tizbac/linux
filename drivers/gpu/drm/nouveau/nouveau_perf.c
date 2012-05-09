@@ -30,7 +30,7 @@
 static u8 *
 nouveau_perf_table(struct nouveau_device *ndev, u8 *ver)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct bit_entry P;
 
 	if (!bit_table(ndev, 'P', &P) && P.version && P.version <= 2) {
@@ -140,7 +140,7 @@ nouveau_perf_rammap(struct nouveau_device *ndev, u32 freq,
 u8 *
 nouveau_perf_ramcfg(struct nouveau_device *ndev, u32 freq, u8 *ver, u8 *len)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	u8 strap, hdr, cnt;
 	u8 *rammap;
 
@@ -158,7 +158,7 @@ nouveau_perf_ramcfg(struct nouveau_device *ndev, u32 freq, u8 *ver, u8 *len)
 u8 *
 nouveau_perf_timing(struct nouveau_device *ndev, u32 freq, u8 *ver, u8 *len)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct bit_entry P;
 	u8 *perf, *timing = NULL;
 	u8 i = 0, hdr, cnt;
@@ -198,7 +198,7 @@ nouveau_perf_timing(struct nouveau_device *ndev, u32 freq, u8 *ver, u8 *len)
 static void
 legacy_perf_init(struct nouveau_device *ndev)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	char *perf, *entry, *bmp = &bios->data[bios->offset];
 	int headerlen, use_straps;
@@ -283,8 +283,8 @@ nouveau_perf_voltage(struct nouveau_device *ndev, struct nouveau_pm_level *perfl
 void
 nouveau_perf_init(struct nouveau_device *ndev)
 {
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
-	struct nvbios *bios = &ndev->vbios;
 	u8 *perf, ver, hdr, cnt, len;
 	int ret, vid, i = -1;
 

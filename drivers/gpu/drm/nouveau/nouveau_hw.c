@@ -157,7 +157,8 @@ powerctrl_1_shift(int chip_version, int reg)
 static void
 setPLL_single(struct nouveau_device *ndev, u32 reg, struct nouveau_pll_vals *pv)
 {
-	int chip_version = ndev->vbios.chip_version;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+	int chip_version = bios->chip_version;
 	u32 oldpll = NVReadRAMDAC(ndev, 0, reg);
 	int oldN = (oldpll >> 8) & 0xff, oldM = oldpll & 0xff;
 	u32 pll = (oldpll & 0xfff80000) | pv->log2P << 16 | pv->NM1;
@@ -212,7 +213,8 @@ static void
 setPLL_double_highregs(struct nouveau_device *ndev, u32 reg1,
 		       struct nouveau_pll_vals *pv)
 {
-	int chip_version = ndev->vbios.chip_version;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+	int chip_version = bios->chip_version;
 	bool nv3035 = chip_version == 0x30 || chip_version == 0x35;
 	u32 reg2 = reg1 + ((reg1 == NV_RAMDAC_VPLL2) ? 0x5c : 0x70);
 	u32 oldpll1 = NVReadRAMDAC(ndev, 0, reg1);
@@ -369,7 +371,8 @@ void
 nouveau_hw_setpll(struct nouveau_device *ndev, u32 reg1,
 		  struct nouveau_pll_vals *pv)
 {
-	int cv = ndev->vbios.chip_version;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+	int cv = bios->chip_version;
 
 	if (cv == 0x30 || cv == 0x31 || cv == 0x35 || cv == 0x36 ||
 	    cv >= 0x40) {

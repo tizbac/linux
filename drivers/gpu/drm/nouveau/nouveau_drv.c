@@ -29,6 +29,7 @@
 #include "drm.h"
 #include "drm_crtc_helper.h"
 #include "nouveau_drv.h"
+#include "nouveau_device.h"
 #include "nouveau_abi16.h"
 #include "nouveau_hw.h"
 #include "nouveau_fb.h"
@@ -248,6 +249,10 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 		goto out_abort;
 	}
 
+	ret = nouveau_device_fini(ndev, true);
+	if (ret)
+		return ret;
+
 	NV_INFO(ndev, "And we're gone!\n");
 	pci_save_state(pdev);
 	if (pm_state.event == PM_EVENT_SUSPEND) {
@@ -294,7 +299,7 @@ nouveau_pci_resume(struct pci_dev *pdev)
 	engine->display.early_init(ndev);
 
 	NV_INFO(ndev, "POSTing device...\n");
-	ret = nouveau_run_vbios_init(ndev);
+	ret = nouveau_device_init(ndev);
 	if (ret)
 		return ret;
 

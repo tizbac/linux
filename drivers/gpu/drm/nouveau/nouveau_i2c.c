@@ -139,7 +139,7 @@ i2c_table(struct nouveau_device *ndev, u8 *version)
 int
 nouveau_i2c_init(struct nouveau_device *ndev)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nouveau_i2c_chan *port;
 	u8 version = 0x00, entries, recordlen;
 	u8 *i2c, *entry, legacy[2][4] = {};

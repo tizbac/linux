@@ -1,0 +1,105 @@
+/*
+ * Copyright 2012 Red Hat Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Authors: Ben Skeggs
+ */
+
+#include "drmP.h"
+#include "nouveau_drv.h"
+
+#include "nouveau_device.h"
+#include "nouveau_bios.h"
+
+int
+nouveau_device_init(struct nouveau_device *ndev)
+{
+	int i, ret = 0;
+
+	for (i = 0; i < NVDEV_SUBDEV_NR; i++) {
+		ret = nouveau_subdev_init(ndev, i, 0);
+		if (ret)
+			goto error;
+	}
+
+error:
+	for (--i; ret && i >= 0; i--)
+		nouveau_subdev_fini(ndev, i, false);
+	return ret;
+}
+
+int
+nouveau_device_fini(struct nouveau_device *ndev, bool suspend)
+{
+	int i, ret = 0;
+
+	for (i = NVDEV_SUBDEV_NR - 1; i >= 0; i--) {
+		ret = nouveau_subdev_fini(ndev, i, suspend);
+		if (ret)
+			goto error;
+	}
+
+error:
+	for (--i; ret && i >= 0; i--)
+		nouveau_subdev_init(ndev, i, 0);
+	return ret;
+}
+
+void
+nouveau_device_destroy(struct nouveau_device *ndev)
+{
+	int i;
+
+	for (i = NVDEV_SUBDEV_NR - 1; i >= 0; i--)
+		nouveau_subdev_destroy(ndev, i);
+}
+
+int
+nouveau_device_create(struct nouveau_device *ndev)
+{
+	int ret = 0;
+
+	/* video bios parsing and init table execution */
+	switch (ndev->card_type * !ret) {
+	case NV_04:
+	case NV_10:
+	case NV_20:
+	case NV_30:
+	case NV_40:
+	case NV_50:
+	case NV_C0:
+	case NV_D0:
+	case NV_E0:
+		ret = nouveau_bios_create(ndev, NVDEV_SUBDEV_VBIOS);
+		break;
+	default:
+		break;
+	}
+
+	/* initialise bios/gpio now, they have inter-dependencies so it's
+	 * not done immediately after they're created
+	 */
+	if (ret == 0)
+		ret = nouveau_device_init(ndev);
+
+	if (ret)
+		nouveau_device_destroy(ndev);
+	return ret;
+}

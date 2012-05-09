@@ -68,6 +68,7 @@ nv50_dac_detect(struct drm_encoder *encoder, struct drm_connector *connector)
 {
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
 	struct nouveau_device *ndev = nouveau_device(encoder->dev);
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	enum drm_connector_status status = connector_status_disconnected;
 	u32 dpms_state, load_pattern, load_state;
 	int or = nv_encoder->or;
@@ -86,8 +87,8 @@ nv50_dac_detect(struct drm_encoder *encoder, struct drm_connector *connector)
 	}
 
 	/* Use bios provided value if possible. */
-	if (ndev->vbios.dactestval) {
-		load_pattern = ndev->vbios.dactestval;
+	if (bios->dactestval) {
+		load_pattern = bios->dactestval;
 		NV_DEBUG_KMS(ndev, "Using bios provided load_pattern of %d\n",
 			  load_pattern);
 	} else {

@@ -220,6 +220,7 @@ out:
 u32 nv17_dac_sample_load(struct drm_encoder *encoder)
 {
 	struct nouveau_device *ndev = nouveau_device(encoder->dev);
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct dcb_entry *dcb = nouveau_encoder(encoder)->dcb;
 	u32 sample, testval, regoffset = nv04_dac_output_offset(encoder);
 	u32 saved_powerctrl_2 = 0, saved_powerctrl_4 = 0, saved_routput,
@@ -230,13 +231,13 @@ u32 nv17_dac_sample_load(struct drm_encoder *encoder)
 	if (dcb->type == OUTPUT_TV) {
 		testval = RGB_TEST_DATA(0xa0, 0xa0, 0xa0);
 
-		if (ndev->vbios.tvdactestval)
-			testval = ndev->vbios.tvdactestval;
+		if (bios->tvdactestval)
+			testval = bios->tvdactestval;
 	} else {
 		testval = RGB_TEST_DATA(0x140, 0x140, 0x140); /* 0x94050140 */
 
-		if (ndev->vbios.dactestval)
-			testval = ndev->vbios.dactestval;
+		if (bios->dactestval)
+			testval = bios->dactestval;
 	}
 
 	saved_rtest_ctrl = NVReadRAMDAC(ndev, 0, NV_PRAMDAC_TEST_CONTROL + regoffset);

@@ -298,7 +298,7 @@ nouveau_temp_probe_i2c(struct nouveau_device *ndev)
 void
 nouveau_temp_init(struct nouveau_device *ndev)
 {
-	struct nvbios *bios = &ndev->vbios;
+	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct bit_entry P;
 	u8 *temp = NULL;
 

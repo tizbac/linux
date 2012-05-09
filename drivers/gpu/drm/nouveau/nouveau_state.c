@@ -34,6 +34,7 @@
 
 #include "nouveau_drv.h"
 #include "nouveau_drm.h"
+#include "nouveau_device.h"
 #include "nouveau_fbcon.h"
 #include "nouveau_ramht.h"
 #include "nouveau_gpio.h"
@@ -548,8 +549,7 @@ nouveau_card_init(struct nouveau_device *ndev)
 	if (ret)
 		goto out;
 
-	/* Parse BIOS tables / Run init tables if card not POSTed */
-	ret = nouveau_bios_init(ndev);
+	ret = nouveau_device_create(ndev);
 	if (ret)
 		goto out_display_early;
 
@@ -564,7 +564,7 @@ nouveau_card_init(struct nouveau_device *ndev)
 	/* PMC */
 	ret = engine->mc.init(ndev);
 	if (ret)
-		goto out_bios;
+		goto out_device_init;
 
 	/* PTIMER */
 	ret = engine->timer.init(ndev);
@@ -831,8 +831,9 @@ out_timer:
 	engine->timer.takedown(ndev);
 out_mc:
 	engine->mc.takedown(ndev);
-out_bios:
-	nouveau_bios_takedown(ndev);
+out_device_init:
+	nouveau_device_fini(ndev, false);
+	nouveau_device_destroy(ndev);
 out_display_early:
 	engine->display.late_takedown(ndev);
 out:
@@ -887,7 +888,9 @@ static void nouveau_card_takedown(struct nouveau_device *ndev)
 	engine->timer.takedown(ndev);
 	engine->mc.takedown(ndev);
 
-	nouveau_bios_takedown(ndev);
+	nouveau_device_fini(ndev, false);
+	nouveau_device_destroy(ndev);
+
 	engine->display.late_takedown(ndev);
 
 	nouveau_irq_fini(ndev);

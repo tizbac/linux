@@ -38,8 +38,9 @@
 #define ROM32(x) le32_to_cpu(*(u32 *)&(x))
 #define ROM48(x) ({ u8 *p = &(x); (u64)ROM16(p[4]) << 32 | ROM32(p[0]); })
 #define ROM64(x) le64_to_cpu(*(u64 *)&(x))
-#define ROMPTR(ndev,x) ({            \
-	ROM16(x) ? &(ndev)->vbios.data[ROM16(x)] : NULL; \
+#define ROMPTR(ndev,x) ({                                                      \
+	struct nouveau_bios *_bios = nv_subdev((ndev), NVDEV_SUBDEV_VBIOS);    \
+	ROM16(x) ? &_bios->data[ROM16(x)] : NULL;                              \
 })
 
 struct bit_entry {
@@ -205,7 +206,8 @@ struct pll_lims {
 	int refclk;
 };
 
-struct nvbios {
+struct nouveau_bios {
+	struct nouveau_subdev base;
 	struct nouveau_device *device;
 	enum {
 		NVBIOS_BMP,
@@ -307,5 +309,26 @@ int dcb_outp_foreach(struct nouveau_device *, void *data,
 		     int (*)(struct nouveau_device *, void *, int idx, u8 *outp));
 u8 *dcb_conntab(struct nouveau_device *);
 u8 *dcb_conn(struct nouveau_device *, u8 idx);
+
+void nouveau_bios_run_init_table(struct nouveau_device *, u16 table,
+				 struct dcb_entry *, int crtc);
+void nouveau_bios_init_exec(struct nouveau_device *, u16 table);
+struct dcb_connector_table_entry *
+nouveau_bios_connector_entry(struct nouveau_device *, int index);
+u32 get_pll_register(struct nouveau_device *, enum pll_types);
+int get_pll_limits(struct nouveau_device *, u32 limit_match, struct pll_lims *);
+int nouveau_bios_run_display_table(struct nouveau_device *, u16 id, int clk,
+				   struct dcb_entry *, int crtc);
+bool nouveau_bios_fp_mode(struct nouveau_device *, struct drm_display_mode *);
+u8 *nouveau_bios_embedded_edid(struct nouveau_device *);
+int nouveau_bios_parse_lvds_table(struct nouveau_device *, int pxclk,
+				  bool *dl, bool *if_is_24bit);
+int run_tmds_table(struct nouveau_device *, struct dcb_entry *,
+		   int head, int pxclk);
+int call_lvds_script(struct nouveau_device *, struct dcb_entry *, int head,
+		     enum LVDS_script, int pxclk);
+bool bios_encoder_match(struct dcb_entry *, u32 hash);
+
+int nouveau_bios_create(struct nouveau_device *, int subdev);
 
 #endif
