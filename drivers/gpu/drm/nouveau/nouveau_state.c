@@ -138,7 +138,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->display.destroy		= nv04_display_destroy;
 		engine->display.init		= nv04_display_init;
 		engine->display.fini		= nv04_display_fini;
-		engine->pm.temp_get		= nv40_temp_get;
 		break;
 	case 0x50:
 	case 0x80: /* gotta love NVIDIA's consistency.. */
@@ -162,10 +161,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->display.destroy		= nv50_display_destroy;
 		engine->display.init		= nv50_display_init;
 		engine->display.fini		= nv50_display_fini;
-		if (ndev->chipset >= 0x84)
-			engine->pm.temp_get	= nv84_temp_get;
-		else
-			engine->pm.temp_get	= nv40_temp_get;
 		break;
 	case 0xc0:
 		engine->instmem.init		= nvc0_instmem_init;
@@ -183,7 +178,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->display.destroy		= nv50_display_destroy;
 		engine->display.init		= nv50_display_init;
 		engine->display.fini		= nv50_display_fini;
-		engine->pm.temp_get		= nv84_temp_get;
 		break;
 	case 0xd0:
 		engine->instmem.init		= nvc0_instmem_init;
@@ -201,7 +195,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->display.destroy		= nvd0_display_destroy;
 		engine->display.init		= nvd0_display_init;
 		engine->display.fini		= nvd0_display_fini;
-		engine->pm.temp_get		= nv84_temp_get;
 		break;
 	case 0xe0:
 		engine->instmem.init		= nvc0_instmem_init;

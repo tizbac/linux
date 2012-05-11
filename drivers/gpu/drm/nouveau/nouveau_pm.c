@@ -31,6 +31,7 @@
 #include "nouveau_volt.h"
 #include "nouveau_fanctl.h"
 #include "nouveau_clock.h"
+#include "nouveau_therm.h"
 
 #ifdef CONFIG_ACPI
 #include <linux/acpi.h>
@@ -394,9 +395,9 @@ static ssize_t
 nouveau_hwmon_show_temp(struct device *d, struct device_attribute *a, char *buf)
 {
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 
-	return snprintf(buf, PAGE_SIZE, "%d\n", pm->temp_get(ndev)*1000);
+	return snprintf(buf, PAGE_SIZE, "%d\n", ptherm->temp_get(ptherm)*1000);
 }
 static SENSOR_DEVICE_ATTR(temp1_input, S_IRUGO, nouveau_hwmon_show_temp,
 						  NULL, 0);
@@ -405,27 +406,24 @@ static ssize_t
 nouveau_hwmon_max_temp(struct device *d, struct device_attribute *a, char *buf)
 {
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
-	struct nouveau_pm_threshold_temp *temp = &pm->threshold_temp;
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
+	struct nouveau_therm_threshold_temp *temp = &ptherm->threshold_temp;
 
-	return snprintf(buf, PAGE_SIZE, "%d\n", temp->down_clock*1000);
+	return snprintf(buf, PAGE_SIZE, "%d\n", temp->down_clock * 1000);
 }
 static ssize_t
 nouveau_hwmon_set_max_temp(struct device *d, struct device_attribute *a,
 						const char *buf, size_t count)
 {
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
-	struct nouveau_pm_threshold_temp *temp = &pm->threshold_temp;
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 	long value;
 
 	if (kstrtol(buf, 10, &value) == -EINVAL)
 		return count;
 
-	temp->down_clock = value/1000;
-
-	nouveau_temp_safety_checks(ndev);
-
+	ptherm->threshold_temp.down_clock = value / 1000;
+	nouveau_therm_safety_checks(ptherm);
 	return count;
 }
 static SENSOR_DEVICE_ATTR(temp1_max, S_IRUGO | S_IWUSR, nouveau_hwmon_max_temp,
@@ -437,10 +435,10 @@ nouveau_hwmon_critical_temp(struct device *d, struct device_attribute *a,
 							char *buf)
 {
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
-	struct nouveau_pm_threshold_temp *temp = &pm->threshold_temp;
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
+	struct nouveau_therm_threshold_temp *temp = &ptherm->threshold_temp;
 
-	return snprintf(buf, PAGE_SIZE, "%d\n", temp->critical*1000);
+	return snprintf(buf, PAGE_SIZE, "%d\n", temp->critical * 1000);
 }
 static ssize_t
 nouveau_hwmon_set_critical_temp(struct device *d, struct device_attribute *a,
@@ -448,17 +446,14 @@ nouveau_hwmon_set_critical_temp(struct device *d, struct device_attribute *a,
 								size_t count)
 {
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
-	struct nouveau_pm_threshold_temp *temp = &pm->threshold_temp;
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 	long value;
 
 	if (kstrtol(buf, 10, &value) == -EINVAL)
 		return count;
 
-	temp->critical = value/1000;
-
-	nouveau_temp_safety_checks(ndev);
-
+	ptherm->threshold_temp.critical = value / 1000;
+	nouveau_therm_safety_checks(ptherm);
 	return count;
 }
 static SENSOR_DEVICE_ATTR(temp1_crit, S_IRUGO | S_IWUSR,
@@ -521,8 +516,8 @@ nouveau_hwmon_set_pwm0(struct device *d, struct device_attribute *a,
 		       const char *buf, size_t count)
 {
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	int ret = -ENODEV;
 	long value;
 
@@ -532,10 +527,10 @@ nouveau_hwmon_set_pwm0(struct device *d, struct device_attribute *a,
 	if (kstrtol(buf, 10, &value) == -EINVAL)
 		return -EINVAL;
 
-	if (value < pm->fan.min_duty)
-		value = pm->fan.min_duty;
-	if (value > pm->fan.max_duty)
-		value = pm->fan.max_duty;
+	if (value < ptherm->fan.min_duty)
+		value = ptherm->fan.min_duty;
+	if (value > ptherm->fan.max_duty)
+		value = ptherm->fan.max_duty;
 
 	ret = pfan->set(pfan, value);
 	if (ret)
@@ -553,9 +548,9 @@ nouveau_hwmon_get_pwm0_min(struct device *d,
 			   struct device_attribute *a, char *buf)
 {
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 
-	return sprintf(buf, "%i\n", pm->fan.min_duty);
+	return sprintf(buf, "%i\n", ptherm->fan.min_duty);
 }
 
 static ssize_t
@@ -563,7 +558,7 @@ nouveau_hwmon_set_pwm0_min(struct device *d, struct device_attribute *a,
 			   const char *buf, size_t count)
 {
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 	long value;
 
 	if (kstrtol(buf, 10, &value) == -EINVAL)
@@ -572,13 +567,13 @@ nouveau_hwmon_set_pwm0_min(struct device *d, struct device_attribute *a,
 	if (value < 0)
 		value = 0;
 
-	if (pm->fan.max_duty - value < 10)
-		value = pm->fan.max_duty - 10;
+	if (ptherm->fan.max_duty - value < 10)
+		value = ptherm->fan.max_duty - 10;
 
 	if (value < 10)
-		pm->fan.min_duty = 10;
+		ptherm->fan.min_duty = 10;
 	else
-		pm->fan.min_duty = value;
+		ptherm->fan.min_duty = value;
 
 	return count;
 }
@@ -592,9 +587,9 @@ nouveau_hwmon_get_pwm0_max(struct device *d,
 			   struct device_attribute *a, char *buf)
 {
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 
-	return sprintf(buf, "%i\n", pm->fan.max_duty);
+	return sprintf(buf, "%i\n", ptherm->fan.max_duty);
 }
 
 static ssize_t
@@ -602,7 +597,7 @@ nouveau_hwmon_set_pwm0_max(struct device *d, struct device_attribute *a,
 			   const char *buf, size_t count)
 {
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 	long value;
 
 	if (kstrtol(buf, 10, &value) == -EINVAL)
@@ -611,13 +606,13 @@ nouveau_hwmon_set_pwm0_max(struct device *d, struct device_attribute *a,
 	if (value < 0)
 		value = 0;
 
-	if (value - pm->fan.min_duty < 10)
-		value = pm->fan.min_duty + 10;
+	if (value - ptherm->fan.min_duty < 10)
+		value = ptherm->fan.min_duty + 10;
 
 	if (value > 100)
-		pm->fan.max_duty = 100;
+		ptherm->fan.max_duty = 100;
 	else
-		pm->fan.max_duty = value;
+		ptherm->fan.max_duty = value;
 
 	return count;
 }
@@ -659,6 +654,7 @@ static const struct attribute_group hwmon_pwm_fan_attrgroup = {
 static int
 nouveau_hwmon_init(struct nouveau_device *ndev)
 {
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 #if defined(CONFIG_HWMON) || (defined(MODULE) && defined(CONFIG_HWMON_MODULE))
@@ -666,7 +662,7 @@ nouveau_hwmon_init(struct nouveau_device *ndev)
 	struct device *hwmon_dev;
 	int ret = 0;
 
-	if (!pm->temp_get)
+	if (!ptherm->temp_get)
 		return -ENODEV;
 
 	hwmon_dev = hwmon_device_register(&dev->pdev->dev);
@@ -676,7 +672,7 @@ nouveau_hwmon_init(struct nouveau_device *ndev)
 			"Unable to register hwmon device: %d\n", ret);
 		return ret;
 	}
-	dev_set_drvdata(hwmon_dev, dev);
+	dev_set_drvdata(hwmon_dev, ndev);
 
 	/* default sysfs entries */
 	ret = sysfs_create_group(&dev->pdev->dev.kobj, &hwmon_attrgroup);
@@ -760,13 +756,11 @@ nouveau_pm_acpi_event(struct notifier_block *nb, unsigned long val, void *data)
 int
 nouveau_pm_init(struct nouveau_device *ndev)
 {
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	char info[256];
 	int ret, i;
-
-	/* parse aux tables from vbios */
-	nouveau_temp_init(ndev);
 
 	/* determine current ("boot") performance level */
 	ret = nouveau_pm_perflvl_get(ndev, &pm->boot);
@@ -806,7 +800,7 @@ nouveau_pm_init(struct nouveau_device *ndev)
 
 	/* determine the current fan speed */
 	if (pfan)
-		pm->fan.percent = pfan->get(pfan);
+		ptherm->fan.percent = pfan->get(pfan);
 
 	nouveau_sysfs_init(ndev);
 	nouveau_hwmon_init(ndev);
@@ -832,7 +826,6 @@ nouveau_pm_fini(struct nouveau_device *ndev)
 	if (pm->cur != &pm->boot)
 		nouveau_pm_perflvl_set(ndev, &pm->boot);
 
-	nouveau_temp_fini(ndev);
 	nouveau_perf_fini(ndev);
 
 #if defined(CONFIG_ACPI) && defined(CONFIG_POWER_SUPPLY)
@@ -845,6 +838,7 @@ nouveau_pm_fini(struct nouveau_device *ndev)
 void
 nouveau_pm_resume(struct nouveau_device *ndev)
 {
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_level *perflvl;
@@ -856,5 +850,5 @@ nouveau_pm_resume(struct nouveau_device *ndev)
 	pm->cur = &pm->boot;
 	nouveau_pm_perflvl_set(ndev, perflvl);
 	if (pfan)
-		pfan->set(pfan, pm->fan.percent);
+		pfan->set(pfan, ptherm->fan.percent);
 }

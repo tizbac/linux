@@ -27,6 +27,7 @@
 #include "nouveau_drv.h"
 #include "nouveau_pm.h"
 #include "nouveau_volt.h"
+#include "nouveau_therm.h"
 
 u8 *
 nouveau_perf_table(struct nouveau_device *ndev, u8 *ver)

@@ -67,6 +67,7 @@ nouveau_fpriv(struct drm_file *file_priv)
 #define NVDEV_SUBDEV_VOLT  5
 #define NVDEV_SUBDEV_FAN0  6
 #define NVDEV_SUBDEV_CLOCK 7
+#define NVDEV_SUBDEV_THERM 8
 #define NVDEV_SUBDEV_NR    32
 struct nouveau_device;
 struct nouveau_subdev {
@@ -470,34 +471,10 @@ struct nouveau_pm_level {
 	u8  fanspeed;
 };
 
-struct nouveau_pm_temp_sensor_constants {
-	u16 offset_constant;
-	s16 offset_mult;
-	s16 offset_div;
-	s16 slope_mult;
-	s16 slope_div;
-};
-
-struct nouveau_pm_threshold_temp {
-	s16 critical;
-	s16 down_clock;
-	s16 fan_boost;
-};
-
-struct nouveau_pm_fan {
-	u32 percent;
-	u32 min_duty;
-	u32 max_duty;
-	u32 pwm_freq;
-	u32 pwm_divisor;
-};
 
 struct nouveau_pm_engine {
 	struct nouveau_pm_level perflvl[NOUVEAU_PM_MAX_LEVEL];
 	int nr_perflvl;
-	struct nouveau_pm_temp_sensor_constants sensor_constants;
-	struct nouveau_pm_threshold_temp threshold_temp;
-	struct nouveau_pm_fan fan;
 
 	struct nouveau_pm_profile *profile_ac;
 	struct nouveau_pm_profile *profile_dc;
@@ -509,8 +486,6 @@ struct nouveau_pm_engine {
 
 	struct device *hwmon;
 	struct notifier_block acpi_nb;
-
-	int (*temp_get)(struct nouveau_device *);
 };
 
 struct nouveau_subsys {

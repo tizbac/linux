@@ -30,6 +30,7 @@
 #include "nouveau_timer.h"
 #include "nouveau_fanctl.h"
 #include "nouveau_pm.h"
+#include "nouveau_therm.h"
 
 struct nv50_fanpwm_priv {
 	struct nouveau_fanctl base;
@@ -79,7 +80,7 @@ nv50_fanpwm_set(struct nouveau_fanctl *pfan, int percent)
 int
 nv50_fanpwm_create(struct nouveau_device *ndev, int subdev)
 {
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
+	struct nouveau_therm *ptherm = nv_subdev(ndev, NVDEV_SUBDEV_THERM);
 	struct nv50_fanpwm_priv *priv;
 	struct gpio_func gpio;
 	u32 ctrl, line, indx;
@@ -118,8 +119,8 @@ nv50_fanpwm_create(struct nouveau_device *ndev, int subdev)
 	if ((perf = nouveau_perf_table(ndev, &version)) && version < 0x40) {
 		divs = ROM16(perf[6]);
 	} else {
-		if (pm->fan.pwm_freq) {
-			divs = 135000 / pm->fan.pwm_freq;
+		if (ptherm->fan.pwm_freq) {
+			divs = 135000 / ptherm->fan.pwm_freq;
 			if (ndev->chipset < 0xa3)
 				divs /= 4;
 		}

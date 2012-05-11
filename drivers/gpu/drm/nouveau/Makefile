@@ -11,7 +11,7 @@ nouveau-y := nouveau_device.o nouveau_subdev.o \
              nouveau_hw.o nouveau_calc.o nouveau_bios.o nouveau_i2c.o \
              nouveau_display.o nouveau_connector.o nouveau_fbcon.o \
              nouveau_hdmi.o nouveau_dp.o nouveau_ramht.o \
-	     nouveau_pm.o nouveau_volt.o nouveau_perf.o nouveau_temp.o \
+	     nouveau_pm.o nouveau_volt.o nouveau_perf.o nouveau_therm.o \
 	     nouveau_mm.o nouveau_vm.o nouveau_mxm.o nouveau_gpio.o \
 	     nouveau_fanctl.o nouveau_abi16.o nouveau_prime.o \
              nv04_timer.o \

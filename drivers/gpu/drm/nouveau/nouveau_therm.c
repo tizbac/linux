@@ -28,13 +28,74 @@
 
 #include "nouveau_drv.h"
 #include "nouveau_pm.h"
+#include "nouveau_therm.h"
+
+static int
+nv40_sensor_setup(struct nouveau_therm *ptherm)
+{
+	struct nouveau_device *ndev = ptherm->base.device;
+	struct nouveau_therm_sensor_constants *sensor =
+		&ptherm->sensor_constants;
+	s32 offset, sensor_calibration;
+
+	offset = sensor->offset_mult / sensor->offset_div;
+
+	/* set up the sensors */
+	sensor_calibration = 120 - offset - sensor->offset_constant;
+	sensor_calibration = sensor_calibration * sensor->slope_div /
+				sensor->slope_mult;
+
+	if (ndev->chipset >= 0x46)
+		sensor_calibration |= 0x80000000;
+	else
+		sensor_calibration |= 0x10000000;
+
+	nv_wr32(ndev, 0x0015b0, sensor_calibration);
+
+	/* Wait for the sensor to update */
+	msleep(5);
+
+	/* read */
+	return nv_rd32(ndev, 0x0015b4) & 0x1fff;
+}
+
+static int
+nv40_therm_temp_get(struct nouveau_therm *ptherm)
+{
+	struct nouveau_device *ndev = ptherm->base.device;
+	struct nouveau_therm_sensor_constants *sensor =
+		&ptherm->sensor_constants;
+	int offset, core_temp;
+
+	offset = sensor->offset_mult / sensor->offset_div;
+
+	if (ndev->card_type >= NV_50) {
+		core_temp = nv_rd32(ndev, 0x020008);
+	} else {
+		core_temp = nv_rd32(ndev, 0x0015b4) & 0x1fff;
+		/* Setup the sensor if the temperature is 0 */
+		if (core_temp == 0)
+			core_temp = nv40_sensor_setup(ptherm);
+	}
+
+	core_temp = core_temp * sensor->slope_mult / sensor->slope_div;
+	core_temp = core_temp + offset + sensor->offset_constant;
+
+	return core_temp;
+}
+
+static int
+nv84_therm_temp_get(struct nouveau_therm *ptherm)
+{
+	return nv_rd32(ptherm->base.device, 0x020400);
+}
 
 static void
-nouveau_temp_vbios_parse(struct nouveau_device *ndev, u8 *temp)
+nouveau_therm_vbios_parse(struct nouveau_therm *ptherm, u8 *temp)
 {
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
-	struct nouveau_pm_temp_sensor_constants *sensor = &pm->sensor_constants;
-	struct nouveau_pm_threshold_temp *temps = &pm->threshold_temp;
+	struct nouveau_therm_sensor_constants *sensor = &ptherm->sensor_constants;
+	struct nouveau_therm_threshold_temp *temps = &ptherm->threshold_temp;
+	struct nouveau_device *ndev = ptherm->base.device;
 	int i, headerlen, recordlen, entries;
 
 	if (!temp) {
@@ -55,8 +116,8 @@ nouveau_temp_vbios_parse(struct nouveau_device *ndev, u8 *temp)
 	temps->fan_boost = 90;
 
 	/* Set the default range for the pwm fan */
-	pm->fan.min_duty = 30;
-	pm->fan.max_duty = 100;
+	ptherm->fan.min_duty = 30;
+	ptherm->fan.max_duty = 100;
 
 	/* Set the known default values to setup the temperature sensor */
 	if (ndev->card_type >= NV_40) {
@@ -160,88 +221,31 @@ nouveau_temp_vbios_parse(struct nouveau_device *ndev, u8 *temp)
 			sensor->slope_div = value;
 			break;
 		case 0x22:
-			pm->fan.min_duty = value & 0xff;
-			pm->fan.max_duty = (value & 0xff00) >> 8;
+			ptherm->fan.min_duty = value & 0xff;
+			ptherm->fan.max_duty = (value & 0xff00) >> 8;
 			break;
 		case 0x26:
-			pm->fan.pwm_freq = value;
+			ptherm->fan.pwm_freq = value;
 			break;
 		}
 		temp += recordlen;
 	}
 
-	nouveau_temp_safety_checks(ndev);
+	nouveau_therm_safety_checks(ptherm);
 
 	/* check the fan min/max settings */
-	if (pm->fan.min_duty < 10)
-		pm->fan.min_duty = 10;
-	if (pm->fan.max_duty > 100)
-		pm->fan.max_duty = 100;
-	if (pm->fan.max_duty < pm->fan.min_duty)
-		pm->fan.max_duty = pm->fan.min_duty;
-}
-
-static int
-nv40_sensor_setup(struct nouveau_device *ndev)
-{
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
-	struct nouveau_pm_temp_sensor_constants *sensor = &pm->sensor_constants;
-	s32 offset = sensor->offset_mult / sensor->offset_div;
-	s32 sensor_calibration;
-
-	/* set up the sensors */
-	sensor_calibration = 120 - offset - sensor->offset_constant;
-	sensor_calibration = sensor_calibration * sensor->slope_div /
-				sensor->slope_mult;
-
-	if (ndev->chipset >= 0x46)
-		sensor_calibration |= 0x80000000;
-	else
-		sensor_calibration |= 0x10000000;
-
-	nv_wr32(ndev, 0x0015b0, sensor_calibration);
-
-	/* Wait for the sensor to update */
-	msleep(5);
-
-	/* read */
-	return nv_rd32(ndev, 0x0015b4) & 0x1fff;
-}
-
-int
-nv40_temp_get(struct nouveau_device *ndev)
-{
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
-	struct nouveau_pm_temp_sensor_constants *sensor = &pm->sensor_constants;
-	int offset = sensor->offset_mult / sensor->offset_div;
-	int core_temp;
-
-	if (ndev->card_type >= NV_50) {
-		core_temp = nv_rd32(ndev, 0x20008);
-	} else {
-		core_temp = nv_rd32(ndev, 0x0015b4) & 0x1fff;
-		/* Setup the sensor if the temperature is 0 */
-		if (core_temp == 0)
-			core_temp = nv40_sensor_setup(ndev);
-	}
-
-	core_temp = core_temp * sensor->slope_mult / sensor->slope_div;
-	core_temp = core_temp + offset + sensor->offset_constant;
-
-	return core_temp;
-}
-
-int
-nv84_temp_get(struct nouveau_device *ndev)
-{
-	return nv_rd32(ndev, 0x20400);
+	if (ptherm->fan.min_duty < 10)
+		ptherm->fan.min_duty = 10;
+	if (ptherm->fan.max_duty > 100)
+		ptherm->fan.max_duty = 100;
+	if (ptherm->fan.max_duty < ptherm->fan.min_duty)
+		ptherm->fan.max_duty = ptherm->fan.min_duty;
 }
 
 void
-nouveau_temp_safety_checks(struct nouveau_device *ndev)
+nouveau_therm_safety_checks(struct nouveau_therm *ptherm)
 {
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
-	struct nouveau_pm_threshold_temp *temps = &pm->threshold_temp;
+	struct nouveau_therm_threshold_temp *temps = &ptherm->threshold_temp;
 
 	if (temps->critical > 120)
 		temps->critical = 120;
@@ -280,7 +284,7 @@ probe_monitoring_device(struct nouveau_i2c_chan *i2c,
 }
 
 static void
-nouveau_temp_probe_i2c(struct nouveau_device *ndev)
+nouveau_therm_probe_i2c(struct nouveau_device *ndev)
 {
 	struct i2c_board_info info[] = {
 		{ I2C_BOARD_INFO("w83l785ts", 0x2d) },
@@ -295,32 +299,37 @@ nouveau_temp_probe_i2c(struct nouveau_device *ndev)
 			     probe_monitoring_device, NV_I2C_DEFAULT(0));
 }
 
-void
-nouveau_temp_init(struct nouveau_device *ndev)
+int
+nouveau_therm_create(struct nouveau_device *ndev, int subdev)
 {
-	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+	struct nouveau_therm *ptherm;
 	struct bit_entry P;
 	u8 *temp = NULL;
+	int ret;
 
-	if (bios->type == NVBIOS_BIT) {
-		if (bit_table(ndev, 'P', &P))
-			return;
+	ret = nouveau_subdev_create(ndev, subdev, "THERM", "thermal", &ptherm);
+	if (ret)
+		return ret;
 
+	if (ndev->chipset >= 0x40 && ndev->chipset < 0x84)
+		ptherm->temp_get = nv40_therm_temp_get;
+	else
+	if (ndev->chipset <= 0xd9)
+		ptherm->temp_get = nv84_therm_temp_get;
+
+	if (bit_table(ndev, 'P', &P) == 0) {
 		if (P.version == 1)
 			temp = ROMPTR(ndev, P.data[12]);
-		else if (P.version == 2)
+		else
+		if (P.version == 2)
 			temp = ROMPTR(ndev, P.data[16]);
 		else
 			NV_WARN(ndev, "unknown temp for BIT P %d\n", P.version);
 
-		nouveau_temp_vbios_parse(ndev, temp);
+		nouveau_therm_vbios_parse(ptherm, temp);
 	}
 
-	nouveau_temp_probe_i2c(ndev);
-}
+	nouveau_therm_probe_i2c(ndev);
 
-void
-nouveau_temp_fini(struct nouveau_device *ndev)
-{
-
+	return nouveau_subdev_init(ndev, subdev, ret);
 }
