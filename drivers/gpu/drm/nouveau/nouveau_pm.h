@@ -53,6 +53,7 @@ void nouveau_pm_trigger(struct nouveau_device *);
 /* nouveau_perf.c */
 void nouveau_perf_init(struct nouveau_device *);
 void nouveau_perf_fini(struct nouveau_device *);
+u8 *nouveau_perf_table(struct nouveau_device *, u8 *ver);
 u8 *nouveau_perf_rammap(struct nouveau_device *, u32 freq, u8 *ver,
 			u8 *hdr, u8 *cnt, u8 *len);
 u8 *nouveau_perf_ramcfg(struct nouveau_device *, u32 freq, u8 *ver, u8 *len);

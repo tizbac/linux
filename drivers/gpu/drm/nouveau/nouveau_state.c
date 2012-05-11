@@ -154,8 +154,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->pm.clocks_pre		= nv40_pm_clocks_pre;
 		engine->pm.clocks_set		= nv40_pm_clocks_set;
 		engine->pm.temp_get		= nv40_temp_get;
-		engine->pm.pwm_get		= nv40_pm_pwm_get;
-		engine->pm.pwm_set		= nv40_pm_pwm_set;
 		break;
 	case 0x50:
 	case 0x80: /* gotta love NVIDIA's consistency.. */
@@ -204,8 +202,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 			engine->pm.temp_get	= nv84_temp_get;
 		else
 			engine->pm.temp_get	= nv40_temp_get;
-		engine->pm.pwm_get		= nv50_pm_pwm_get;
-		engine->pm.pwm_set		= nv50_pm_pwm_set;
 		break;
 	case 0xc0:
 		engine->instmem.init		= nvc0_instmem_init;
@@ -227,8 +223,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->pm.clocks_get		= nvc0_pm_clocks_get;
 		engine->pm.clocks_pre		= nvc0_pm_clocks_pre;
 		engine->pm.clocks_set		= nvc0_pm_clocks_set;
-		engine->pm.pwm_get		= nv50_pm_pwm_get;
-		engine->pm.pwm_set		= nv50_pm_pwm_set;
 		break;
 	case 0xd0:
 		engine->instmem.init		= nvc0_instmem_init;

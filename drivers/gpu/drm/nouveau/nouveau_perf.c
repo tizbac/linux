@@ -28,7 +28,7 @@
 #include "nouveau_pm.h"
 #include "nouveau_volt.h"
 
-static u8 *
+u8 *
 nouveau_perf_table(struct nouveau_device *ndev, u8 *ver)
 {
 	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
@@ -295,10 +295,6 @@ nouveau_perf_init(struct nouveau_device *ndev)
 		legacy_perf_init(ndev);
 		return;
 	}
-
-	perf = nouveau_perf_table(ndev, &ver);
-	if (ver >= 0x20 && ver < 0x40)
-		pm->fan.pwm_divisor = ROM16(perf[6]);
 
 	while ((perf = nouveau_perf_entry(ndev, ++i, &ver, &hdr, &cnt, &len))) {
 		struct nouveau_pm_level *perflvl = &pm->perflvl[pm->nr_perflvl];

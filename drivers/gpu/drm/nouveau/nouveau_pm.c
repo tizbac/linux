@@ -29,6 +29,7 @@
 #include "nouveau_gpio.h"
 #include "nouveau_timer.h"
 #include "nouveau_volt.h"
+#include "nouveau_fanctl.h"
 
 #ifdef CONFIG_ACPI
 #include <linux/acpi.h>
@@ -38,70 +39,10 @@
 #include <linux/hwmon-sysfs.h>
 
 static int
-nouveau_pwmfan_get(struct nouveau_device *ndev)
-{
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
-	struct gpio_func gpio;
-	u32 divs, duty;
-	int ret;
-
-	if (!pm->pwm_get)
-		return -ENODEV;
-
-	ret = nouveau_gpio_find(ndev, 0, DCB_GPIO_PWM_FAN, 0xff, &gpio);
-	if (ret == 0) {
-		ret = pm->pwm_get(ndev, gpio.line, &divs, &duty);
-		if (ret == 0 && divs) {
-			divs = max(divs, duty);
-			if (ndev->card_type <= NV_40 || (gpio.log[0] & 1))
-				duty = divs - duty;
-			return (duty * 100) / divs;
-		}
-
-		return nouveau_gpio_func_get(ndev, gpio.func) * 100;
-	}
-
-	return -ENODEV;
-}
-
-static int
-nouveau_pwmfan_set(struct nouveau_device *ndev, int percent)
-{
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
-	struct gpio_func gpio;
-	u32 divs, duty;
-	int ret;
-
-	if (!pm->pwm_set)
-		return -ENODEV;
-
-	ret = nouveau_gpio_find(ndev, 0, DCB_GPIO_PWM_FAN, 0xff, &gpio);
-	if (ret == 0) {
-		divs = pm->fan.pwm_divisor;
-		if (pm->fan.pwm_freq) {
-			/*XXX: PNVIO clock more than likely... */
-			divs = 135000 / pm->fan.pwm_freq;
-			if (ndev->chipset < 0xa3)
-				divs /= 4;
-		}
-
-		duty = ((divs * percent) + 99) / 100;
-		if (ndev->card_type <= NV_40 || (gpio.log[0] & 1))
-			duty = divs - duty;
-
-		ret = pm->pwm_set(ndev, gpio.line, divs, duty);
-		if (!ret)
-			pm->fan.percent = percent;
-		return ret;
-	}
-
-	return -ENODEV;
-}
-
-static int
 nouveau_pm_perflvl_aux(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl,
 		       struct nouveau_pm_level *a, struct nouveau_pm_level *b)
 {
+	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	struct nouveau_volt *pvolt = nv_subdev(ndev, NVDEV_SUBDEV_VOLT);
 	int ret;
 
@@ -109,9 +50,9 @@ nouveau_pm_perflvl_aux(struct nouveau_device *ndev, struct nouveau_pm_level *per
 	 *     on recent boards..  or maybe on some other factor we don't
 	 *     know about?
 	 */
-	if (a->fanspeed && b->fanspeed && b->fanspeed > a->fanspeed) {
-		ret = nouveau_pwmfan_set(ndev, perflvl->fanspeed);
-		if (ret && ret != -ENODEV) {
+	if (pfan && a->fanspeed && b->fanspeed && b->fanspeed > a->fanspeed) {
+		ret = pfan->set(pfan, perflvl->fanspeed);
+		if (ret) {
 			NV_ERROR(ndev, "fanspeed set failed: %d\n", ret);
 			return ret;
 		}
@@ -274,6 +215,7 @@ const struct nouveau_pm_profile_func nouveau_pm_static_profile_func = {
 static int
 nouveau_pm_perflvl_get(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	struct nouveau_volt *pvolt = nv_subdev(ndev, NVDEV_SUBDEV_VOLT);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	int ret;
@@ -294,9 +236,11 @@ nouveau_pm_perflvl_get(struct nouveau_device *ndev, struct nouveau_pm_level *per
 		}
 	}
 
-	ret = nouveau_pwmfan_get(ndev);
-	if (ret > 0)
-		perflvl->fanspeed = ret;
+	if (pfan) {
+		ret = pfan->get(pfan);
+		if (ret > 0)
+			perflvl->fanspeed = ret;
+	}
 
 	nouveau_mem_timing_read(ndev, &perflvl->timing);
 	return 0;
@@ -539,36 +483,16 @@ static ssize_t
 nouveau_hwmon_show_fan0_input(struct device *d, struct device_attribute *attr,
 			      char *buf)
 {
+
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
-	struct nouveau_timer *ptimer = nv_subdev(ndev, NVDEV_SUBDEV_TIMER);
-	struct gpio_func gpio;
-	u32 cycles, cur, prev;
-	u64 start;
+	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	int ret;
 
-	ret = nouveau_gpio_find(ndev, 0, DCB_GPIO_FAN_SENSE, 0xff, &gpio);
-	if (ret)
+	ret = pfan->sense(pfan);
+	if (ret < 0)
 		return ret;
 
-	/* Monitor the GPIO input 0x3b for 250ms.
-	 * When the fan spins, it changes the value of GPIO FAN_SENSE.
-	 * We get 4 changes (0 -> 1 -> 0 -> 1 -> [...]) per complete rotation.
-	 */
-	start = ptimer->read(ptimer);
-	prev = nouveau_gpio_sense(ndev, 0, gpio.line);
-	cycles = 0;
-	do {
-		cur = nouveau_gpio_sense(ndev, 0, gpio.line);
-		if (prev != cur) {
-			cycles++;
-			prev = cur;
-		}
-
-		usleep_range(500, 1000); /* supports 0 < rpm < 7500 */
-	} while (ptimer->read(ptimer) - start < 250000000);
-
-	/* interpolate to get rpm */
-	return sprintf(buf, "%i\n", cycles / 4 * 4 * 60);
+	return sprintf(buf, "%i\n", ret);
 }
 static SENSOR_DEVICE_ATTR(fan0_input, S_IRUGO, nouveau_hwmon_show_fan0_input,
 			  NULL, 0);
@@ -576,10 +500,11 @@ static SENSOR_DEVICE_ATTR(fan0_input, S_IRUGO, nouveau_hwmon_show_fan0_input,
 static ssize_t
 nouveau_hwmon_get_pwm0(struct device *d, struct device_attribute *a, char *buf)
 {
-	struct nouveau_device *ndev = dev_get_drvdata(d);
+	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
+	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	int ret;
 
-	ret = nouveau_pwmfan_get(ndev);
+	ret = pfan->get(pfan);
 	if (ret < 0)
 		return ret;
 
@@ -591,6 +516,7 @@ nouveau_hwmon_set_pwm0(struct device *d, struct device_attribute *a,
 		       const char *buf, size_t count)
 {
 	struct nouveau_device *ndev = nouveau_device(dev_get_drvdata(d));
+	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	int ret = -ENODEV;
 	long value;
@@ -606,7 +532,7 @@ nouveau_hwmon_set_pwm0(struct device *d, struct device_attribute *a,
 	if (value > pm->fan.max_duty)
 		value = pm->fan.max_duty;
 
-	ret = nouveau_pwmfan_set(ndev, value);
+	ret = pfan->set(pfan, value);
 	if (ret)
 		return ret;
 
@@ -728,6 +654,7 @@ static const struct attribute_group hwmon_pwm_fan_attrgroup = {
 static int
 nouveau_hwmon_init(struct nouveau_device *ndev)
 {
+	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 #if defined(CONFIG_HWMON) || (defined(MODULE) && defined(CONFIG_HWMON_MODULE))
 	struct drm_device *dev = ndev->dev;
@@ -757,7 +684,7 @@ nouveau_hwmon_init(struct nouveau_device *ndev)
 	/*XXX: incorrect, need better detection for this, some boards have
 	 *     the gpio entries for pwm fan control even when there's no
 	 *     actual fan connected to it... therm table? */
-	if (nouveau_pwmfan_get(ndev) >= 0) {
+	if (pfan && pfan->get(pfan) >= 0) {
 		ret = sysfs_create_group(&dev->pdev->dev.kobj,
 					 &hwmon_pwm_fan_attrgroup);
 		if (ret)
@@ -828,6 +755,7 @@ nouveau_pm_acpi_event(struct notifier_block *nb, unsigned long val, void *data)
 int
 nouveau_pm_init(struct nouveau_device *ndev)
 {
+	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	char info[256];
 	int ret, i;
@@ -872,7 +800,8 @@ nouveau_pm_init(struct nouveau_device *ndev)
 		nouveau_pm_profile_set(ndev, nouveau_perflvl);
 
 	/* determine the current fan speed */
-	pm->fan.percent = nouveau_pwmfan_get(ndev);
+	if (pfan)
+		pm->fan.percent = pfan->get(pfan);
 
 	nouveau_sysfs_init(ndev);
 	nouveau_hwmon_init(ndev);
@@ -911,6 +840,7 @@ nouveau_pm_fini(struct nouveau_device *ndev)
 void
 nouveau_pm_resume(struct nouveau_device *ndev)
 {
+	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_level *perflvl;
 
@@ -920,5 +850,6 @@ nouveau_pm_resume(struct nouveau_device *ndev)
 	perflvl = pm->cur;
 	pm->cur = &pm->boot;
 	nouveau_pm_perflvl_set(ndev, perflvl);
-	nouveau_pwmfan_set(ndev, pm->fan.percent);
+	if (pfan)
+		pfan->set(pfan, pm->fan.percent);
 }
