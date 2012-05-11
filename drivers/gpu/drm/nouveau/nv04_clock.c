@@ -23,13 +23,20 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_hw.h"
 #include "nouveau_pm.h"
+#include "nouveau_clock.h"
 
-int
-nv04_pm_clocks_get(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
+struct nv04_clock_priv {
+	struct nouveau_clock base;
+};
+
+static int
+nv04_clocks_get(struct nouveau_clock *pclk, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_device *ndev = pclk->base.device;
 	int ret;
 
 	ret = nouveau_hw_get_clock(ndev, PLL_CORE);
@@ -71,9 +78,10 @@ calc_pll(struct nouveau_device *ndev, u32 id, int khz, struct nv04_pm_clock *clk
 	return 0;
 }
 
-void *
-nv04_pm_clocks_pre(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
+static void *
+nv04_clocks_pre(struct nouveau_clock *pclk, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_device *ndev = pclk->base.device;
 	struct nv04_pm_state *info;
 	int ret;
 
@@ -109,9 +117,10 @@ prog_pll(struct nouveau_device *ndev, struct nv04_pm_clock *clk)
 	nouveau_hw_setpll(ndev, reg, &clk->calc);
 }
 
-int
-nv04_pm_clocks_set(struct nouveau_device *ndev, void *pre_state)
+static int
+nv04_clocks_set(struct nouveau_clock *pclk, void *pre_state)
 {
+	struct nouveau_device *ndev = pclk->base.device;
 	struct nouveau_subdev *ptimer = nv_subdev(ndev, NVDEV_SUBDEV_TIMER);
 	struct nv04_pm_state *state = pre_state;
 
@@ -132,4 +141,20 @@ nv04_pm_clocks_set(struct nouveau_device *ndev, void *pre_state)
 
 	kfree(state);
 	return 0;
+}
+
+int
+nv04_clock_create(struct nouveau_device *ndev, int subdev)
+{
+	struct nv04_clock_priv *priv;
+	int ret;
+
+	ret = nouveau_subdev_create(ndev, subdev, "CLK", "clocks", &priv);
+	if (ret)
+		return ret;
+
+	priv->base.perf_get = nv04_clocks_get;
+	priv->base.perf_pre = nv04_clocks_pre;
+	priv->base.perf_set = nv04_clocks_set;
+	return nouveau_subdev_init(ndev, subdev, ret);
 }

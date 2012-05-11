@@ -33,6 +33,7 @@
 #include "nouveau_gpio.h"
 #include "nouveau_volt.h"
 #include "nouveau_fanctl.h"
+#include "nouveau_clock.h"
 
 int
 nouveau_device_init(struct nouveau_device *ndev)
@@ -218,6 +219,31 @@ nouveau_device_create(struct nouveau_device *ndev)
 	case NV_D0:
 	case NV_E0:
 		ret = nouveau_fanctl_create(ndev);
+		break;
+	default:
+		break;
+	}
+
+	/* clock control */
+	switch (ndev->card_type * !ret) {
+	case NV_04:
+	case NV_10:
+	case NV_20:
+	case NV_30:
+		ret = nv04_clock_create(ndev, NVDEV_SUBDEV_CLOCK);
+		break;
+	case NV_40:
+		ret = nv40_clock_create(ndev, NVDEV_SUBDEV_CLOCK);
+		break;
+	case NV_50:
+		if (ndev->chipset <= 0x98)
+			ret = nv50_clock_create(ndev, NVDEV_SUBDEV_CLOCK);
+		else
+		if (ndev->chipset != 0xaa && ndev->chipset != 0xac)
+			ret = nva3_clock_create(ndev, NVDEV_SUBDEV_CLOCK);
+		break;
+	case NV_C0:
+		ret = nvc0_clock_create(ndev, NVDEV_SUBDEV_CLOCK);
 		break;
 	default:
 		break;

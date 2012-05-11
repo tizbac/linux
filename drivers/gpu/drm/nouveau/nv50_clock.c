@@ -23,12 +23,18 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_bios.h"
 #include "nouveau_hw.h"
 #include "nouveau_pm.h"
 #include "nouveau_hwsq.h"
+#include "nouveau_clock.h"
 #include "nv50_display.h"
+
+struct nv50_clock_priv {
+	struct nouveau_clock base;
+};
 
 enum clk_src {
 	clk_src_crystal,
@@ -329,12 +335,10 @@ read_clk(struct nouveau_device *ndev, enum clk_src src)
 	return 0;
 }
 
-int
-nv50_pm_clocks_get(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
+static int
+nv50_clocks_get(struct nouveau_clock *pclk, struct nouveau_pm_level *perflvl)
 {
-	if (ndev->chipset == 0xaa ||
-	    ndev->chipset == 0xac)
-		return 0;
+	struct nouveau_device *ndev = pclk->base.device;
 
 	perflvl->core   = read_clk(ndev, clk_src_nvclk);
 	perflvl->shader = read_clk(ndev, clk_src_sclk);
@@ -577,19 +581,16 @@ calc_mclk(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl,
 	return 0;
 }
 
-void *
-nv50_pm_clocks_pre(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
+static void *
+nv50_clocks_pre(struct nouveau_clock *pclk, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_device *ndev = pclk->base.device;
 	struct nv50_pm_state *info;
 	struct hwsq_ucode *hwsq;
 	struct pll_lims pll;
 	u32 out, mast, divs, ctrl;
 	int clk, ret = -EINVAL;
 	int N, M, P1, P2;
-
-	if (ndev->chipset == 0xaa ||
-	    ndev->chipset == 0xac)
-		return ERR_PTR(-ENODEV);
 
 	info = kmalloc(sizeof(*info), GFP_KERNEL);
 	if (!info)
@@ -779,9 +780,10 @@ prog_hwsq(struct nouveau_device *ndev, struct hwsq_ucode *hwsq)
 	return 0;
 }
 
-int
-nv50_pm_clocks_set(struct nouveau_device *ndev, void *data)
+static int
+nv50_clocks_set(struct nouveau_clock *pclk, void *data)
 {
+	struct nouveau_device *ndev = pclk->base.device;
 	struct nv50_pm_state *info = data;
 	struct bit_entry M;
 	int ret = -EBUSY;
@@ -820,4 +822,20 @@ resume:
 	nv_mask(ndev, 0x002504, 0x00000001, 0x00000000);
 	kfree(info);
 	return ret;
+}
+
+int
+nv50_clock_create(struct nouveau_device *ndev, int subdev)
+{
+	struct nv50_clock_priv *priv;
+	int ret;
+
+	ret = nouveau_subdev_create(ndev, subdev, "CLK", "clocks", &priv);
+	if (ret)
+		return ret;
+
+	priv->base.perf_get = nv50_clocks_get;
+	priv->base.perf_pre = nv50_clocks_pre;
+	priv->base.perf_set = nv50_clocks_set;
+	return nouveau_subdev_init(ndev, subdev, ret);
 }

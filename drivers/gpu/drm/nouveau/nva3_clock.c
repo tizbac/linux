@@ -23,9 +23,15 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_bios.h"
 #include "nouveau_pm.h"
+#include "nouveau_clock.h"
+
+struct nva3_clock_priv {
+	struct nouveau_clock base;
+};
 
 static u32 read_clk(struct nouveau_device *, int, bool);
 static u32 read_pll(struct nouveau_device *, int, u32);
@@ -220,9 +226,11 @@ prog_clk(struct nouveau_device *ndev, int clk, struct creg *reg)
 	nv_mask(ndev, 0x004120 + (clk * 4), 0x003f3141, 0x00000101 | reg->clk);
 }
 
-int
-nva3_pm_clocks_get(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
+static int
+nva3_clocks_get(struct nouveau_clock *pclk, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_device *ndev = pclk->base.device;
+
 	perflvl->core   = read_pll(ndev, 0x00, 0x4200);
 	perflvl->shader = read_pll(ndev, 0x01, 0x4220);
 	perflvl->memory = read_pll(ndev, 0x02, 0x4000);
@@ -251,9 +259,10 @@ struct nva3_pm_state {
 	u32 r100760;
 };
 
-void *
-nva3_pm_clocks_pre(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
+static void *
+nva3_clocks_pre(struct nouveau_clock *pclk, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_device *ndev = pclk->base.device;
 	struct nva3_pm_state *info;
 	u8 ramcfg_cnt;
 	int ret;
@@ -548,9 +557,10 @@ prog_mem(struct nouveau_device *ndev, struct nva3_pm_state *info)
 	}
 }
 
-int
-nva3_pm_clocks_set(struct nouveau_device *ndev, void *pre_state)
+static int
+nva3_clocks_set(struct nouveau_clock *pclk, void *pre_state)
 {
+	struct nouveau_device *ndev = pclk->base.device;
 	struct nva3_pm_state *info = pre_state;
 	unsigned long flags;
 	int ret = -EAGAIN;
@@ -593,4 +603,20 @@ cleanup:
 	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 	kfree(info);
 	return ret;
+}
+
+int
+nva3_clock_create(struct nouveau_device *ndev, int subdev)
+{
+	struct nva3_clock_priv *priv;
+	int ret;
+
+	ret = nouveau_subdev_create(ndev, subdev, "CLK", "clocks", &priv);
+	if (ret)
+		return ret;
+
+	priv->base.perf_get = nva3_clocks_get;
+	priv->base.perf_pre = nva3_clocks_pre;
+	priv->base.perf_set = nva3_clocks_set;
+	return nouveau_subdev_init(ndev, subdev, ret);
 }

@@ -40,7 +40,7 @@ nouveau-y := nouveau_device.o nouveau_subdev.o \
              nv04_fbcon.o nv50_fbcon.o nvc0_fbcon.o \
              nv10_gpio.o nv50_gpio.o nvd0_gpio.o \
 	     nv50_calc.o \
-	     nv04_pm.o nv40_pm.o nv50_pm.o nva3_pm.o nvc0_pm.o \
+	     nv04_clock.o nv40_clock.o nv50_clock.o nva3_clock.o nvc0_clock.o \
 	     nv40_fanpwm.o nv50_fanpwm.o \
 	     nv50_vm.o nvc0_vm.o
 

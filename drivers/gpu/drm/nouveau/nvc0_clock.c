@@ -23,9 +23,15 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_bios.h"
 #include "nouveau_pm.h"
+#include "nouveau_clock.h"
+
+struct nvc0_clock_priv {
+	struct nouveau_clock base;
+};
 
 static u32 read_div(struct nouveau_device *, int, u32, u32);
 static u32 read_pll(struct nouveau_device *, u32);
@@ -138,9 +144,11 @@ read_clk(struct nouveau_device *ndev, int clk)
 	return sclk;
 }
 
-int
-nvc0_pm_clocks_get(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
+static int
+nvc0_clocks_get(struct nouveau_clock *pclk, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_device *ndev = pclk->base.device;
+
 	perflvl->shader = read_clk(ndev, 0x00);
 	perflvl->core   = perflvl->shader / 2;
 	perflvl->memory = read_mem(ndev);
@@ -347,9 +355,10 @@ calc_mem(struct nouveau_device *ndev, struct nvc0_pm_clock *info, u32 freq)
 	return -EINVAL;
 }
 
-void *
-nvc0_pm_clocks_pre(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
+static void *
+nvc0_clocks_pre(struct nouveau_clock *pclk, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_device *ndev = pclk->base.device;
 	struct nvc0_pm_state *info;
 	int ret;
 
@@ -557,9 +566,11 @@ prog_mem(struct nouveau_device *ndev, struct nvc0_pm_state *info)
 	else
 		nv_wr32(ndev, 0x62c000, 0x03030300);
 }
-int
-nvc0_pm_clocks_set(struct nouveau_device *ndev, void *data)
+
+static int
+nvc0_clocks_set(struct nouveau_clock *pclk, void *data)
 {
+	struct nouveau_device *ndev = pclk->base.device;
 	struct nvc0_pm_state *info = data;
 	int i;
 
@@ -574,4 +585,20 @@ nvc0_pm_clocks_set(struct nouveau_device *ndev, void *data)
 
 	kfree(info);
 	return 0;
+}
+
+int
+nvc0_clock_create(struct nouveau_device *ndev, int subdev)
+{
+	struct nvc0_clock_priv *priv;
+	int ret;
+
+	ret = nouveau_subdev_create(ndev, subdev, "CLK", "clocks", &priv);
+	if (ret)
+		return ret;
+
+	priv->base.perf_get = nvc0_clocks_get;
+	priv->base.perf_pre = nvc0_clocks_pre;
+	priv->base.perf_set = nvc0_clocks_set;
+	return nouveau_subdev_init(ndev, subdev, ret);
 }

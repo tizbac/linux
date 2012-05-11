@@ -23,13 +23,19 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_bios.h"
 #include "nouveau_pm.h"
 #include "nouveau_hw.h"
 #include "nouveau_fifo.h"
+#include "nouveau_clock.h"
 
 #define min2(a,b) ((a) < (b) ? (a) : (b))
+
+struct nv40_clock_priv {
+	struct nouveau_clock base;
+};
 
 static u32
 read_pll_1(struct nouveau_device *ndev, u32 reg)
@@ -86,9 +92,10 @@ read_clk(struct nouveau_device *ndev, u32 src)
 	return 0;
 }
 
-int
-nv40_pm_clocks_get(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
+static int
+nv40_clocks_get(struct nouveau_clock *pclk, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_device *ndev = pclk->base.device;
 	u32 ctrl = nv_rd32(ndev, 0x00c040);
 
 	perflvl->core   = read_clk(ndev, (ctrl & 0x00000003) >> 0);
@@ -139,9 +146,10 @@ nv40_calc_pll(struct nouveau_device *ndev, u32 reg, struct pll_lims *pll,
 	return 0;
 }
 
-void *
-nv40_pm_clocks_pre(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
+static void *
+nv40_clocks_pre(struct nouveau_clock *pclk, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_device *ndev = pclk->base.device;
 	struct nv40_pm_state *info;
 	struct pll_lims pll;
 	int N1, N2, M1, M2, log2P;
@@ -223,9 +231,10 @@ nv40_pm_gr_idle(void *data)
 	return true;
 }
 
-int
-nv40_pm_clocks_set(struct nouveau_device *ndev, void *pre_state)
+static int
+nv40_clocks_set(struct nouveau_clock *pclk, void *pre_state)
 {
+	struct nouveau_device *ndev = pclk->base.device;
 	struct nv40_pm_state *info = pre_state;
 	unsigned long flags;
 	struct bit_entry M;
@@ -348,4 +357,20 @@ resume:
 
 	kfree(info);
 	return ret;
+}
+
+int
+nv40_clock_create(struct nouveau_device *ndev, int subdev)
+{
+	struct nv40_clock_priv *priv;
+	int ret;
+
+	ret = nouveau_subdev_create(ndev, subdev, "CLK", "clocks", &priv);
+	if (ret)
+		return ret;
+
+	priv->base.perf_get = nv40_clocks_get;
+	priv->base.perf_pre = nv40_clocks_pre;
+	priv->base.perf_set = nv40_clocks_set;
+	return nouveau_subdev_init(ndev, subdev, ret);
 }

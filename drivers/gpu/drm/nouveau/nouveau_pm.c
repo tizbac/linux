@@ -30,6 +30,7 @@
 #include "nouveau_timer.h"
 #include "nouveau_volt.h"
 #include "nouveau_fanctl.h"
+#include "nouveau_clock.h"
 
 #ifdef CONFIG_ACPI
 #include <linux/acpi.h>
@@ -74,6 +75,7 @@ nouveau_pm_perflvl_aux(struct nouveau_device *ndev, struct nouveau_pm_level *per
 static int
 nouveau_pm_perflvl_set(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_clock *pclk = nv_subdev(ndev, NVDEV_SUBDEV_CLOCK);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	void *state;
 	int ret;
@@ -85,14 +87,17 @@ nouveau_pm_perflvl_set(struct nouveau_device *ndev, struct nouveau_pm_level *per
 	if (ret)
 		return ret;
 
-	state = pm->clocks_pre(ndev, perflvl);
-	if (IS_ERR(state)) {
-		ret = PTR_ERR(state);
-		goto error;
+	if (pclk) {
+		state = pclk->perf_pre(pclk, perflvl);
+		if (IS_ERR(state)) {
+			ret = PTR_ERR(state);
+			goto error;
+		}
+
+		ret = pclk->perf_set(pclk, state);
+		if (ret)
+			goto error;
 	}
-	ret = pm->clocks_set(ndev, state);
-	if (ret)
-		goto error;
 
 	ret = nouveau_pm_perflvl_aux(ndev, perflvl, perflvl, pm->cur);
 	if (ret)
@@ -216,14 +221,14 @@ static int
 nouveau_pm_perflvl_get(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
 {
 	struct nouveau_fanctl *pfan = nv_subdev(ndev, NVDEV_SUBDEV_FAN0);
+	struct nouveau_clock *pclk = nv_subdev(ndev, NVDEV_SUBDEV_CLOCK);
 	struct nouveau_volt *pvolt = nv_subdev(ndev, NVDEV_SUBDEV_VOLT);
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	int ret;
 
 	memset(perflvl, 0, sizeof(*perflvl));
 
-	if (pm->clocks_get) {
-		ret = pm->clocks_get(ndev, perflvl);
+	if (pclk) {
+		ret = pclk->perf_get(pclk, perflvl);
 		if (ret)
 			return ret;
 	}

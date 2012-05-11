@@ -63,35 +63,6 @@ u8 *nouveau_perf_timing(struct nouveau_device *, u32 freq, u8 *ver, u8 *len);
 void nouveau_mem_timing_init(struct nouveau_device *);
 void nouveau_mem_timing_fini(struct nouveau_device *);
 
-/* nv04_pm.c */
-int nv04_pm_clocks_get(struct nouveau_device *, struct nouveau_pm_level *);
-void *nv04_pm_clocks_pre(struct nouveau_device *, struct nouveau_pm_level *);
-int nv04_pm_clocks_set(struct nouveau_device *, void *);
-
-/* nv40_pm.c */
-int nv40_pm_clocks_get(struct nouveau_device *, struct nouveau_pm_level *);
-void *nv40_pm_clocks_pre(struct nouveau_device *, struct nouveau_pm_level *);
-int nv40_pm_clocks_set(struct nouveau_device *, void *);
-int nv40_pm_pwm_get(struct nouveau_device *, int, u32 *, u32 *);
-int nv40_pm_pwm_set(struct nouveau_device *, int, u32, u32);
-
-/* nv50_pm.c */
-int nv50_pm_clocks_get(struct nouveau_device *, struct nouveau_pm_level *);
-void *nv50_pm_clocks_pre(struct nouveau_device *, struct nouveau_pm_level *);
-int nv50_pm_clocks_set(struct nouveau_device *, void *);
-int nv50_pm_pwm_get(struct nouveau_device *, int, u32 *, u32 *);
-int nv50_pm_pwm_set(struct nouveau_device *, int, u32, u32);
-
-/* nva3_pm.c */
-int nva3_pm_clocks_get(struct nouveau_device *, struct nouveau_pm_level *);
-void *nva3_pm_clocks_pre(struct nouveau_device *, struct nouveau_pm_level *);
-int nva3_pm_clocks_set(struct nouveau_device *, void *);
-
-/* nvc0_pm.c */
-int nvc0_pm_clocks_get(struct nouveau_device *, struct nouveau_pm_level *);
-void *nvc0_pm_clocks_pre(struct nouveau_device *, struct nouveau_pm_level *);
-int nvc0_pm_clocks_set(struct nouveau_device *, void *);
-
 /* nouveau_temp.c */
 void nouveau_temp_init(struct nouveau_device *);
 void nouveau_temp_fini(struct nouveau_device *);

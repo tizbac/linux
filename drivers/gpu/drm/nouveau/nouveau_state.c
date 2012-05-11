@@ -69,9 +69,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->display.destroy		= nv04_display_destroy;
 		engine->display.init		= nv04_display_init;
 		engine->display.fini		= nv04_display_fini;
-		engine->pm.clocks_get		= nv04_pm_clocks_get;
-		engine->pm.clocks_pre		= nv04_pm_clocks_pre;
-		engine->pm.clocks_set		= nv04_pm_clocks_set;
 		break;
 	case 0x10:
 		engine->instmem.init		= nv04_instmem_init;
@@ -89,9 +86,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->display.destroy		= nv04_display_destroy;
 		engine->display.init		= nv04_display_init;
 		engine->display.fini		= nv04_display_fini;
-		engine->pm.clocks_get		= nv04_pm_clocks_get;
-		engine->pm.clocks_pre		= nv04_pm_clocks_pre;
-		engine->pm.clocks_set		= nv04_pm_clocks_set;
 		break;
 	case 0x20:
 		engine->instmem.init		= nv04_instmem_init;
@@ -109,9 +103,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->display.destroy		= nv04_display_destroy;
 		engine->display.init		= nv04_display_init;
 		engine->display.fini		= nv04_display_fini;
-		engine->pm.clocks_get		= nv04_pm_clocks_get;
-		engine->pm.clocks_pre		= nv04_pm_clocks_pre;
-		engine->pm.clocks_set		= nv04_pm_clocks_set;
 		break;
 	case 0x30:
 		engine->instmem.init		= nv04_instmem_init;
@@ -129,9 +120,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->display.destroy		= nv04_display_destroy;
 		engine->display.init		= nv04_display_init;
 		engine->display.fini		= nv04_display_fini;
-		engine->pm.clocks_get		= nv04_pm_clocks_get;
-		engine->pm.clocks_pre		= nv04_pm_clocks_pre;
-		engine->pm.clocks_set		= nv04_pm_clocks_set;
 		break;
 	case 0x40:
 	case 0x60:
@@ -150,9 +138,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->display.destroy		= nv04_display_destroy;
 		engine->display.init		= nv04_display_init;
 		engine->display.fini		= nv04_display_fini;
-		engine->pm.clocks_get		= nv40_pm_clocks_get;
-		engine->pm.clocks_pre		= nv40_pm_clocks_pre;
-		engine->pm.clocks_set		= nv40_pm_clocks_set;
 		engine->pm.temp_get		= nv40_temp_get;
 		break;
 	case 0x50:
@@ -177,27 +162,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->display.destroy		= nv50_display_destroy;
 		engine->display.init		= nv50_display_init;
 		engine->display.fini		= nv50_display_fini;
-		switch (ndev->chipset) {
-		case 0x84:
-		case 0x86:
-		case 0x92:
-		case 0x94:
-		case 0x96:
-		case 0x98:
-		case 0xa0:
-		case 0xaa:
-		case 0xac:
-		case 0x50:
-			engine->pm.clocks_get	= nv50_pm_clocks_get;
-			engine->pm.clocks_pre	= nv50_pm_clocks_pre;
-			engine->pm.clocks_set	= nv50_pm_clocks_set;
-			break;
-		default:
-			engine->pm.clocks_get	= nva3_pm_clocks_get;
-			engine->pm.clocks_pre	= nva3_pm_clocks_pre;
-			engine->pm.clocks_set	= nva3_pm_clocks_set;
-			break;
-		}
 		if (ndev->chipset >= 0x84)
 			engine->pm.temp_get	= nv84_temp_get;
 		else
@@ -220,9 +184,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->display.init		= nv50_display_init;
 		engine->display.fini		= nv50_display_fini;
 		engine->pm.temp_get		= nv84_temp_get;
-		engine->pm.clocks_get		= nvc0_pm_clocks_get;
-		engine->pm.clocks_pre		= nvc0_pm_clocks_pre;
-		engine->pm.clocks_set		= nvc0_pm_clocks_set;
 		break;
 	case 0xd0:
 		engine->instmem.init		= nvc0_instmem_init;
@@ -241,9 +202,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->display.init		= nvd0_display_init;
 		engine->display.fini		= nvd0_display_fini;
 		engine->pm.temp_get		= nv84_temp_get;
-		engine->pm.clocks_get		= nvc0_pm_clocks_get;
-		engine->pm.clocks_pre		= nvc0_pm_clocks_pre;
-		engine->pm.clocks_set		= nvc0_pm_clocks_set;
 		break;
 	case 0xe0:
 		engine->instmem.init		= nvc0_instmem_init;
