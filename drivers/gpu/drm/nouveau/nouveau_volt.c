@@ -27,39 +27,66 @@
 #include "nouveau_drv.h"
 #include "nouveau_pm.h"
 #include "nouveau_gpio.h"
+#include "nouveau_volt.h"
 
 static const enum dcb_gpio_tag vidtag[] = { 0x04, 0x05, 0x06, 0x1a, 0x73 };
 static int nr_vidtag = sizeof(vidtag) / sizeof(vidtag[0]);
 
-int
-nouveau_voltage_gpio_get(struct nouveau_device *ndev)
+static int
+nouveau_volt_iduv(struct nouveau_volt *pvolt, int vid)
 {
-	struct nouveau_pm_voltage *volt = &ndev->subsys.pm.voltage;
+	int i;
+
+	for (i = 0; i < pvolt->nr_level; i++) {
+		if (pvolt->level[i].vid == vid)
+			return pvolt->level[i].voltage;
+	}
+
+	return -ENOENT;
+}
+
+static int
+nouveau_volt_uvid(struct nouveau_volt *pvolt, int voltage)
+{
+	int i;
+
+	for (i = 0; i < pvolt->nr_level; i++) {
+		if (pvolt->level[i].voltage == voltage)
+			return pvolt->level[i].vid;
+	}
+
+	return -ENOENT;
+}
+
+static int
+nouveau_volt_get(struct nouveau_volt *pvolt)
+{
+	struct nouveau_device *ndev = pvolt->base.device;
 	u8 vid = 0;
 	int i;
 
 	for (i = 0; i < nr_vidtag; i++) {
-		if (!(volt->vid_mask & (1 << i)))
+		if (!(pvolt->vid_mask & (1 << i)))
 			continue;
 
 		vid |= nouveau_gpio_func_get(ndev, vidtag[i]) << i;
 	}
 
-	return nouveau_volt_lvl_lookup(ndev, vid);
+	return pvolt->iduv(pvolt, vid);
 }
 
-int
-nouveau_voltage_gpio_set(struct nouveau_device *ndev, int voltage)
+static int
+nouveau_volt_set(struct nouveau_volt *pvolt, int voltage)
 {
-	struct nouveau_pm_voltage *volt = &ndev->subsys.pm.voltage;
+	struct nouveau_device *ndev = pvolt->base.device;
 	int vid, i;
 
-	vid = nouveau_volt_vid_lookup(ndev, voltage);
+	vid = pvolt->uvid(pvolt, voltage);
 	if (vid < 0)
 		return vid;
 
 	for (i = 0; i < nr_vidtag; i++) {
-		if (!(volt->vid_mask & (1 << i)))
+		if (!(pvolt->vid_mask & (1 << i)))
 			continue;
 
 		nouveau_gpio_func_set(ndev, vidtag[i], !!(vid & (1 << i)));
@@ -69,46 +96,18 @@ nouveau_voltage_gpio_set(struct nouveau_device *ndev, int voltage)
 }
 
 int
-nouveau_volt_vid_lookup(struct nouveau_device *ndev, int voltage)
-{
-	struct nouveau_pm_voltage *volt = &ndev->subsys.pm.voltage;
-	int i;
-
-	for (i = 0; i < volt->nr_level; i++) {
-		if (volt->level[i].voltage == voltage)
-			return volt->level[i].vid;
-	}
-
-	return -ENOENT;
-}
-
-int
-nouveau_volt_lvl_lookup(struct nouveau_device *ndev, int vid)
-{
-	struct nouveau_pm_voltage *volt = &ndev->subsys.pm.voltage;
-	int i;
-
-	for (i = 0; i < volt->nr_level; i++) {
-		if (volt->level[i].vid == vid)
-			return volt->level[i].voltage;
-	}
-
-	return -ENOENT;
-}
-
-void
-nouveau_volt_init(struct nouveau_device *ndev)
+nouveau_volt_create(struct nouveau_device *ndev, int subdev)
 {
 	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
-	struct nouveau_pm_voltage *voltage = &pm->voltage;
+	struct nouveau_volt *pvolt;
 	struct bit_entry P;
-	u8 *volt = NULL, *entry;
-	int i, headerlen, recordlen, entries, vidmask, vidshift;
+	int headerlen, recordlen, entries, vidmask, vidshift;
+	int ret, i;
+	u8 *volt = NULL;
 
 	if (bios->type == NVBIOS_BIT) {
 		if (bit_table(ndev, 'P', &P))
-			return;
+			return 0;
 
 		if (P.version == 1)
 			volt = ROMPTR(ndev, P.data[16]);
@@ -121,7 +120,7 @@ nouveau_volt_init(struct nouveau_device *ndev)
 	} else {
 		if (bios->data[bios->offset + 6] < 0x27) {
 			NV_DEBUG(ndev, "BMP version too old for voltage\n");
-			return;
+			return 0;
 		}
 
 		volt = ROMPTR(ndev, bios->data[bios->offset + 0x98]);
@@ -129,7 +128,7 @@ nouveau_volt_init(struct nouveau_device *ndev)
 
 	if (!volt) {
 		NV_DEBUG(ndev, "voltage table pointer invalid\n");
-		return;
+		return 0;
 	}
 
 	switch (volt[0]) {
@@ -173,69 +172,59 @@ nouveau_volt_init(struct nouveau_device *ndev)
 		break;
 	default:
 		NV_WARN(ndev, "voltage table 0x%02x unknown\n", volt[0]);
-		return;
+		return 0;
 	}
 
 	/* validate vid mask */
-	voltage->vid_mask = vidmask;
-	if (!voltage->vid_mask)
-		return;
+	if (!vidmask || (vidmask & ~((1 << nr_vidtag) - 1))) {
+		NV_DEBUG(ndev, "unsupported vid mask 0x%x\n", vidmask);
+		return 0;
+	}
 
-	i = 0;
-	while (vidmask) {
-		if (i > nr_vidtag) {
-			NV_DEBUG(ndev, "vid bit %d unknown\n", i);
-			return;
+	for (i = 0; i < nr_vidtag; i++) {
+		if (vidmask & (1 << i)) {
+			if (!nouveau_gpio_func_valid(ndev, vidtag[i])) {
+				NV_DEBUG(ndev, "no gpio for vid bit %d\n", i);
+				return 0;
+			}
 		}
-
-		if (!nouveau_gpio_func_valid(ndev, vidtag[i])) {
-			NV_DEBUG(ndev, "vid bit %d has no gpio tag\n", i);
-			return;
-		}
-
-		vidmask >>= 1;
-		i++;
 	}
 
 	/* parse vbios entries into common format */
-	voltage->version = volt[0];
-	if (voltage->version < 0x40) {
-		voltage->nr_level = entries;
-		voltage->level =
-			kcalloc(entries, sizeof(*voltage->level), GFP_KERNEL);
-		if (!voltage->level)
-			return;
+	if (volt[0] >= 0x40)
+		entries = vidmask + 1;
 
-		entry = volt + headerlen;
+	ret = nouveau_subdev_create_(ndev, subdev, sizeof(*pvolt) +
+				     sizeof(pvolt->level[0]) * entries,
+				     "VOLT", "voltage", (void **)&pvolt);
+	if (ret)
+		return ret;
+
+	pvolt->version = volt[0];
+	pvolt->iduv = nouveau_volt_iduv;
+	pvolt->uvid = nouveau_volt_uvid;
+	pvolt->get = nouveau_volt_get;
+	pvolt->set = nouveau_volt_set;
+	pvolt->vid_mask = vidmask;
+	pvolt->nr_level = entries;
+
+	if (volt[0] < 0x40) {
+		u8 *entry = volt + headerlen;
 		for (i = 0; i < entries; i++, entry += recordlen) {
-			voltage->level[i].voltage = entry[0] * 10000;
-			voltage->level[i].vid     = entry[1] >> vidshift;
+			pvolt->level[i].voltage = entry[0] * 10000;
+			pvolt->level[i].vid     = entry[1] >> vidshift;
 		}
 	} else {
 		u32 volt_uv = ROM32(volt[4]);
 		s16 step_uv = ROM16(volt[8]);
 		u8 vid;
 
-		voltage->nr_level = voltage->vid_mask + 1;
-		voltage->level = kcalloc(voltage->nr_level,
-					 sizeof(*voltage->level), GFP_KERNEL);
-		if (!voltage->level)
-			return;
-
-		for (vid = 0; vid <= voltage->vid_mask; vid++) {
-			voltage->level[vid].voltage = volt_uv;
-			voltage->level[vid].vid = vid;
+		for (vid = 0; vid <= pvolt->vid_mask; vid++) {
+			pvolt->level[vid].voltage = volt_uv;
+			pvolt->level[vid].vid = vid;
 			volt_uv += step_uv;
 		}
 	}
 
-	voltage->supported = true;
-}
-
-void
-nouveau_volt_fini(struct nouveau_device *ndev)
-{
-	struct nouveau_pm_voltage *volt = &ndev->subsys.pm.voltage;
-
-	kfree(volt->level);
+	return nouveau_subdev_init(ndev, subdev, ret);
 }

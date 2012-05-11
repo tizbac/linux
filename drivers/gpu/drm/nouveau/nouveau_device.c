@@ -31,6 +31,7 @@
 #include "nouveau_timer.h"
 #include "nouveau_fb.h"
 #include "nouveau_gpio.h"
+#include "nouveau_volt.h"
 
 int
 nouveau_device_init(struct nouveau_device *ndev)
@@ -182,6 +183,23 @@ nouveau_device_create(struct nouveau_device *ndev)
 	case NV_D0:
 	case NV_E0:
 		ret = nvc0_fb_create(ndev, NVDEV_SUBDEV_FB);
+		break;
+	default:
+		break;
+	}
+
+	/* voltage control */
+	switch (ndev->card_type * !ret) {
+	case NV_04:
+	case NV_10:
+	case NV_20:
+	case NV_30:
+	case NV_40:
+	case NV_50:
+	case NV_C0:
+	case NV_D0:
+	case NV_E0:
+		ret = nouveau_volt_create(ndev, NVDEV_SUBDEV_VOLT);
 		break;
 	default:
 		break;

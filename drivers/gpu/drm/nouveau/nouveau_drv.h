@@ -64,6 +64,7 @@ nouveau_fpriv(struct drm_file *file_priv)
 #define NVDEV_SUBDEV_TIMER 2
 #define NVDEV_SUBDEV_FB    3
 #define NVDEV_SUBDEV_GPIO  4
+#define NVDEV_SUBDEV_VOLT  5
 #define NVDEV_SUBDEV_NR    32
 struct nouveau_device;
 struct nouveau_subdev {
@@ -372,20 +373,6 @@ struct nouveau_display_engine {
 	struct drm_property *color_vibrance_property;
 };
 
-struct nouveau_pm_voltage_level {
-	u32 voltage; /* microvolts */
-	u8  vid;
-};
-
-struct nouveau_pm_voltage {
-	bool supported;
-	u8 version;
-	u8 vid_mask;
-
-	struct nouveau_pm_voltage_level *level;
-	int nr_level;
-};
-
 /* Exclusive upper limits */
 #define NV_MEM_CL_DDR2_MAX 8
 #define NV_MEM_WR_DDR2_MAX 9
@@ -504,7 +491,6 @@ struct nouveau_pm_fan {
 };
 
 struct nouveau_pm_engine {
-	struct nouveau_pm_voltage voltage;
 	struct nouveau_pm_level perflvl[NOUVEAU_PM_MAX_LEVEL];
 	int nr_perflvl;
 	struct nouveau_pm_temp_sensor_constants sensor_constants;
@@ -526,8 +512,6 @@ struct nouveau_pm_engine {
 	void *(*clocks_pre)(struct nouveau_device *, struct nouveau_pm_level *);
 	int (*clocks_set)(struct nouveau_device *, void *);
 
-	int (*voltage_get)(struct nouveau_device *);
-	int (*voltage_set)(struct nouveau_device *, int voltage);
 	int (*pwm_get)(struct nouveau_device *, int line, u32*, u32*);
 	int (*pwm_set)(struct nouveau_device *, int line, u32, u32);
 	int (*temp_get)(struct nouveau_device *);

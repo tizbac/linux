@@ -50,14 +50,6 @@ void nouveau_pm_resume(struct nouveau_device *);
 extern const struct nouveau_pm_profile_func nouveau_pm_static_profile_func;
 void nouveau_pm_trigger(struct nouveau_device *);
 
-/* nouveau_volt.c */
-void nouveau_volt_init(struct nouveau_device *);
-void nouveau_volt_fini(struct nouveau_device *);
-int  nouveau_volt_vid_lookup(struct nouveau_device *, int voltage);
-int  nouveau_volt_lvl_lookup(struct nouveau_device *, int vid);
-int  nouveau_voltage_gpio_get(struct nouveau_device *);
-int  nouveau_voltage_gpio_set(struct nouveau_device *, int voltage);
-
 /* nouveau_perf.c */
 void nouveau_perf_init(struct nouveau_device *);
 void nouveau_perf_fini(struct nouveau_device *);

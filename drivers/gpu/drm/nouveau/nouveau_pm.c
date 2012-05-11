@@ -28,6 +28,7 @@
 #include "nouveau_pm.h"
 #include "nouveau_gpio.h"
 #include "nouveau_timer.h"
+#include "nouveau_volt.h"
 
 #ifdef CONFIG_ACPI
 #include <linux/acpi.h>
@@ -101,7 +102,7 @@ static int
 nouveau_pm_perflvl_aux(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl,
 		       struct nouveau_pm_level *a, struct nouveau_pm_level *b)
 {
-	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
+	struct nouveau_volt *pvolt = nv_subdev(ndev, NVDEV_SUBDEV_VOLT);
 	int ret;
 
 	/*XXX: not on all boards, we should control based on temperature
@@ -116,9 +117,9 @@ nouveau_pm_perflvl_aux(struct nouveau_device *ndev, struct nouveau_pm_level *per
 		}
 	}
 
-	if (pm->voltage.supported && pm->voltage_set) {
+	if (pvolt && pvolt->set) {
 		if (perflvl->volt_min && b->volt_min > a->volt_min) {
-			ret = pm->voltage_set(ndev, perflvl->volt_min);
+			ret = pvolt->set(pvolt, perflvl->volt_min);
 			if (ret) {
 				NV_ERROR(ndev, "voltage set failed: %d\n", ret);
 				return ret;
@@ -273,6 +274,7 @@ const struct nouveau_pm_profile_func nouveau_pm_static_profile_func = {
 static int
 nouveau_pm_perflvl_get(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_volt *pvolt = nv_subdev(ndev, NVDEV_SUBDEV_VOLT);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	int ret;
 
@@ -284,8 +286,8 @@ nouveau_pm_perflvl_get(struct nouveau_device *ndev, struct nouveau_pm_level *per
 			return ret;
 	}
 
-	if (pm->voltage.supported && pm->voltage_get) {
-		ret = pm->voltage_get(ndev);
+	if (pvolt && pvolt->get) {
+		ret = pvolt->get(pvolt);
 		if (ret > 0) {
 			perflvl->volt_min = ret;
 			perflvl->volt_max = ret;
@@ -831,7 +833,6 @@ nouveau_pm_init(struct nouveau_device *ndev)
 	int ret, i;
 
 	/* parse aux tables from vbios */
-	nouveau_volt_init(ndev);
 	nouveau_temp_init(ndev);
 
 	/* determine current ("boot") performance level */
@@ -899,7 +900,6 @@ nouveau_pm_fini(struct nouveau_device *ndev)
 
 	nouveau_temp_fini(ndev);
 	nouveau_perf_fini(ndev);
-	nouveau_volt_fini(ndev);
 
 #if defined(CONFIG_ACPI) && defined(CONFIG_POWER_SUPPLY)
 	unregister_acpi_notifier(&pm->acpi_nb);

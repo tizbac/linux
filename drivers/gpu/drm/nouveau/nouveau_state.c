@@ -132,8 +132,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->pm.clocks_get		= nv04_pm_clocks_get;
 		engine->pm.clocks_pre		= nv04_pm_clocks_pre;
 		engine->pm.clocks_set		= nv04_pm_clocks_set;
-		engine->pm.voltage_get		= nouveau_voltage_gpio_get;
-		engine->pm.voltage_set		= nouveau_voltage_gpio_set;
 		break;
 	case 0x40:
 	case 0x60:
@@ -155,8 +153,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->pm.clocks_get		= nv40_pm_clocks_get;
 		engine->pm.clocks_pre		= nv40_pm_clocks_pre;
 		engine->pm.clocks_set		= nv40_pm_clocks_set;
-		engine->pm.voltage_get		= nouveau_voltage_gpio_get;
-		engine->pm.voltage_set		= nouveau_voltage_gpio_set;
 		engine->pm.temp_get		= nv40_temp_get;
 		engine->pm.pwm_get		= nv40_pm_pwm_get;
 		engine->pm.pwm_set		= nv40_pm_pwm_set;
@@ -204,8 +200,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 			engine->pm.clocks_set	= nva3_pm_clocks_set;
 			break;
 		}
-		engine->pm.voltage_get          = nouveau_voltage_gpio_get;
-		engine->pm.voltage_set          = nouveau_voltage_gpio_set;
 		if (ndev->chipset >= 0x84)
 			engine->pm.temp_get	= nv84_temp_get;
 		else
@@ -233,8 +227,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->pm.clocks_get		= nvc0_pm_clocks_get;
 		engine->pm.clocks_pre		= nvc0_pm_clocks_pre;
 		engine->pm.clocks_set		= nvc0_pm_clocks_set;
-		engine->pm.voltage_get		= nouveau_voltage_gpio_get;
-		engine->pm.voltage_set		= nouveau_voltage_gpio_set;
 		engine->pm.pwm_get		= nv50_pm_pwm_get;
 		engine->pm.pwm_set		= nv50_pm_pwm_set;
 		break;
@@ -258,8 +250,6 @@ nouveau_init_engine_ptrs(struct nouveau_device *ndev)
 		engine->pm.clocks_get		= nvc0_pm_clocks_get;
 		engine->pm.clocks_pre		= nvc0_pm_clocks_pre;
 		engine->pm.clocks_set		= nvc0_pm_clocks_set;
-		engine->pm.voltage_get		= nouveau_voltage_gpio_get;
-		engine->pm.voltage_set		= nouveau_voltage_gpio_set;
 		break;
 	case 0xe0:
 		engine->instmem.init		= nvc0_instmem_init;

@@ -26,6 +26,7 @@
 
 #include "nouveau_drv.h"
 #include "nouveau_pm.h"
+#include "nouveau_volt.h"
 
 static u8 *
 nouveau_perf_table(struct nouveau_device *ndev, u8 *ver)
@@ -242,6 +243,7 @@ legacy_perf_init(struct nouveau_device *ndev)
 static void
 nouveau_perf_voltage(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl)
 {
+	struct nouveau_volt *pvolt = nv_subdev(ndev, NVDEV_SUBDEV_VOLT);
 	struct bit_entry P;
 	u8 *vmap;
 	int id;
@@ -252,7 +254,7 @@ nouveau_perf_voltage(struct nouveau_device *ndev, struct nouveau_pm_level *perfl
 	/* boards using voltage table version <0x40 store the voltage
 	 * level directly in the perflvl entry as a multiple of 10mV
 	 */
-	if (ndev->subsys.pm.voltage.version < 0x40) {
+	if (pvolt && pvolt->version < 0x40) {
 		perflvl->volt_min = id * 10000;
 		perflvl->volt_max = perflvl->volt_min;
 		return;
@@ -283,6 +285,7 @@ nouveau_perf_voltage(struct nouveau_device *ndev, struct nouveau_pm_level *perfl
 void
 nouveau_perf_init(struct nouveau_device *ndev)
 {
+	struct nouveau_volt *pvolt = nv_subdev(ndev, NVDEV_SUBDEV_VOLT);
 	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	u8 *perf, ver, hdr, cnt, len;
@@ -372,8 +375,8 @@ nouveau_perf_init(struct nouveau_device *ndev)
 
 		/* make sure vid is valid */
 		nouveau_perf_voltage(ndev, perflvl);
-		if (pm->voltage.supported && perflvl->volt_min) {
-			vid = nouveau_volt_vid_lookup(ndev, perflvl->volt_min);
+		if (pvolt && perflvl->volt_min) {
+			vid = pvolt->uvid(pvolt, perflvl->volt_min);
 			if (vid < 0) {
 				NV_DEBUG(ndev, "perflvl %d, bad vid\n", i);
 				continue;
