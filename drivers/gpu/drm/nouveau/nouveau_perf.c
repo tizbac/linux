@@ -297,6 +297,10 @@ nouveau_perf_init(struct nouveau_device *ndev)
 		return;
 	}
 
+	perf = nouveau_perf_table(ndev, &ver);
+	if (ver >= 0x20 && ver < 0x40)
+		pm->pwm_divisor = ROM16(perf[6]);
+
 	while ((perf = nouveau_perf_entry(ndev, ++i, &ver, &hdr, &cnt, &len))) {
 		struct nouveau_pm_level *perflvl = &pm->perflvl[pm->nr_perflvl];
 

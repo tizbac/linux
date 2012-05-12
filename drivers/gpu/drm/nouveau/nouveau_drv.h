@@ -448,6 +448,8 @@ struct nouveau_pm_engine {
 
 	struct device *hwmon;
 	struct notifier_block acpi_nb;
+
+	u16 pwm_divisor;
 };
 
 struct nouveau_subsys {
