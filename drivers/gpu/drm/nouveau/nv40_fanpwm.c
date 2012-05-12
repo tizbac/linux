@@ -87,32 +87,39 @@ nv40_fanpwm_sense(struct nouveau_fanctl *pfan)
 	struct nouveau_timer *ptimer = nv_subdev(ndev, NVDEV_SUBDEV_TIMER);
 	struct gpio_func gpio;
 	u32 cycles, cur, prev;
-	u64 start;
+	u64 start, end, tach;
 	int ret;
 
 	ret = nouveau_gpio_find(ndev, 0, DCB_GPIO_FAN_SENSE, 0xff, &gpio);
 	if (ret)
 		return ret;
 
-	/* Monitor the GPIO input 0x3b for 250ms.
+	/* Time a complete rotation and extrapolate to RPM:
 	 * When the fan spins, it changes the value of GPIO FAN_SENSE.
-	 * We get 4 changes (0 -> 1 -> 0 -> 1 -> [...]) per complete rotation.
+	 * We get 4 changes (0 -> 1 -> 0 -> 1) per complete rotation.
 	 */
 	start = ptimer->read(ptimer);
-	prev = nouveau_gpio_sense(ndev, 0, gpio.line);
+	prev = nouveau_gpio_func_get(ndev, gpio.func);
 	cycles = 0;
 	do {
-		cur = nouveau_gpio_sense(ndev, 0, gpio.line);
+		usleep_range(500, 1000); /* supports 0 < rpm < 7500 */
+
+		cur = nouveau_gpio_func_get(ndev, gpio.func);
 		if (prev != cur) {
+			if (!start)
+				start = ptimer->read(ptimer);
 			cycles++;
 			prev = cur;
 		}
+	} while (cycles < 5 && ptimer->read(ptimer) - start < 250000000);
+	end = ptimer->read(ptimer);
 
-		usleep_range(500, 1000); /* supports 0 < rpm < 7500 */
-	} while (ptimer->read(ptimer) - start < 250000000);
-
-	/* interpolate to get rpm */
-	return cycles / 4 * 4 * 60;
+	if (cycles == 5) {
+		tach = (u64)60000000000;
+		do_div(tach, (end - start));
+		return tach;
+	} else
+		return 0;
 }
 
 int
