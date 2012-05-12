@@ -88,6 +88,7 @@ nouveau_gpio_find(struct nouveau_device *ndev, int idx, u8 func, u8 line,
 				.func = (data & 0x07e0) >> 5,
 				.log[0] = (data & 0x1800) >> 11,
 				.log[1] = (data & 0x6000) >> 13,
+				.param = !!(data & 0x8000),
 			};
 		} else
 		if (version < 0x41) {
@@ -96,6 +97,7 @@ nouveau_gpio_find(struct nouveau_device *ndev, int idx, u8 func, u8 line,
 				.func = entry[1],
 				.log[0] = (entry[3] & 0x18) >> 3,
 				.log[1] = (entry[3] & 0x60) >> 5,
+				.param = !!(entry[3] & 0x80),
 			};
 		} else {
 			*gpio = (struct gpio_func) {
@@ -103,6 +105,7 @@ nouveau_gpio_find(struct nouveau_device *ndev, int idx, u8 func, u8 line,
 				.func = entry[1],
 				.log[0] = (entry[4] & 0x30) >> 4,
 				.log[1] = (entry[4] & 0xc0) >> 6,
+				.param = !!(entry[3] & 0x80),
 			};
 		}
 
