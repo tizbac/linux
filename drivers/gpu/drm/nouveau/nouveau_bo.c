@@ -37,6 +37,8 @@
 #include "nouveau_vm.h"
 #include "nouveau_fence.h"
 #include "nouveau_ramht.h"
+#include "nouveau_bar.h"
+#include "nouveau_gpuobj.h"
 
 #include <linux/log2.h>
 #include <linux/slab.h>
@@ -111,9 +113,9 @@ nouveau_bo_new(struct nouveau_device *ndev, int size, int align,
 	nvbo->bo.bdev = &ndev->ttm.bdev;
 
 	nvbo->page_shift = 12;
-	if (ndev->bar1_vm) {
+	if (ndev->chan_vm) {
 		if (!(flags & TTM_PL_FLAG_TT) && size > 256 * 1024)
-			nvbo->page_shift = ndev->bar1_vm->lpg_shift;
+			nvbo->page_shift = ndev->chan_vm->lpg_shift;
 	}
 
 	nouveau_bo_fixup_align(nvbo, flags, &align, &size);
@@ -1154,6 +1156,7 @@ nouveau_ttm_io_mem_reserve(struct ttm_bo_device *bdev, struct ttm_mem_reg *mem)
 	struct ttm_mem_type_manager *man = &bdev->man[mem->mem_type];
 	struct nouveau_device *ndev = nouveau_bdev(bdev);
 	struct drm_device *dev = ndev->dev;
+	struct nouveau_bar *pbar = nv_subdev(ndev, NVDEV_SUBDEV_BAR);
 	int ret;
 
 	mem->bus.addr = NULL;
@@ -1177,40 +1180,18 @@ nouveau_ttm_io_mem_reserve(struct ttm_bo_device *bdev, struct ttm_mem_reg *mem)
 #endif
 		break;
 	case TTM_PL_VRAM:
-	{
-		struct nouveau_mem *node = mem->mm_node;
-		u8 page_shift;
-
-		if (!ndev->bar1_vm) {
-			mem->bus.offset = mem->start << PAGE_SHIFT;
-			mem->bus.base = pci_resource_start(dev->pdev, 1);
-			mem->bus.is_iomem = true;
-			break;
-		}
-
-		if (ndev->card_type >= NV_C0)
-			page_shift = node->page_shift;
-		else
-			page_shift = 12;
-
-		ret = nouveau_vm_get(ndev->bar1_vm, mem->bus.size,
-				     page_shift, NV_MEM_ACCESS_RW,
-				     &node->bar_vma);
-		if (ret)
-			return ret;
-
-		nouveau_vm_map(&node->bar_vma, node);
-		if (ret) {
-			nouveau_vm_put(&node->bar_vma);
-			return ret;
-		}
-
-		mem->bus.offset = node->bar_vma.offset;
-		if (ndev->card_type == NV_50) /*XXX*/
-			mem->bus.offset -= 0x0020000000ULL;
+		mem->bus.offset = mem->start << PAGE_SHIFT;
 		mem->bus.base = pci_resource_start(dev->pdev, 1);
 		mem->bus.is_iomem = true;
-	}
+		if (pbar) {
+			struct nouveau_mem *node = mem->mm_node;
+
+			ret = pbar->map(pbar, node);
+			if (ret)
+				return ret;
+
+			mem->bus.offset = node->bar_vma.offset;
+		}
 		break;
 	default:
 		return -EINVAL;
@@ -1222,16 +1203,10 @@ static void
 nouveau_ttm_io_mem_free(struct ttm_bo_device *bdev, struct ttm_mem_reg *mem)
 {
 	struct nouveau_device *ndev = nouveau_bdev(bdev);
-	struct nouveau_mem *node = mem->mm_node;
+	struct nouveau_bar *pbar = nv_subdev(ndev, NVDEV_SUBDEV_BAR);
 
-	if (!ndev->bar1_vm || mem->mem_type != TTM_PL_VRAM)
-		return;
-
-	if (!node->bar_vma.node)
-		return;
-
-	nouveau_vm_unmap(&node->bar_vma);
-	nouveau_vm_put(&node->bar_vma);
+	if (pbar && mem->mem_type == TTM_PL_VRAM)
+		pbar->unmap(pbar, mem->mm_node);
 }
 
 static int

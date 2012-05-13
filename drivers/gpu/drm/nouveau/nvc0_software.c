@@ -27,6 +27,7 @@
 #include "nouveau_drv.h"
 #include "nouveau_ramht.h"
 #include "nouveau_software.h"
+#include "nouveau_gpuobj.h"
 
 #include "nv50_display.h"
 

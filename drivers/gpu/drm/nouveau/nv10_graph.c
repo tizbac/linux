@@ -23,10 +23,10 @@
  */
 
 #include "drmP.h"
-#include "drm.h"
-#include "nouveau_drm.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_util.h"
+#include "nouveau_gpuobj.h"
 
 struct nv10_graph_engine {
 	struct nouveau_engine base;

@@ -23,10 +23,12 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_util.h"
 #include "nouveau_vm.h"
 #include "nouveau_ramht.h"
+#include "nouveau_gpuobj.h"
 
 struct nv98_ppp_engine {
 	struct nouveau_engine base;

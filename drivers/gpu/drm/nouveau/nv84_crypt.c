@@ -29,6 +29,8 @@
 #include "nouveau_util.h"
 #include "nouveau_vm.h"
 #include "nouveau_ramht.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
 
 struct nv84_crypt_engine {
 	struct nouveau_engine base;
@@ -55,7 +57,7 @@ nv84_crypt_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(ramin, 0xac, 0);
 	nv_wo32(ramin, 0xb0, 0);
 	nv_wo32(ramin, 0xb4, 0);
-	ndev->subsys.instmem.flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	atomic_inc(&chan->vm->engref[engine]);
 	chan->engctx[engine] = ctx;
@@ -104,7 +106,7 @@ nv84_crypt_object_new(struct nouveau_channel *chan, int engine,
 	obj->class  = class;
 
 	nv_wo32(obj, 0x00, class);
-	ndev->subsys.instmem.flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	ret = nouveau_ramht_insert(chan, handle, obj);
 	nouveau_gpuobj_ref(NULL, &obj);

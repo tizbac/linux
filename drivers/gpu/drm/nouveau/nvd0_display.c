@@ -33,6 +33,9 @@
 #include "nouveau_crtc.h"
 #include "nouveau_dma.h"
 #include "nouveau_software.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
+
 #include "nv50_display.h"
 
 #define EVO_DMA_NR 9
@@ -1968,7 +1971,6 @@ int
 nvd0_display_create(struct nouveau_device *ndev)
 {
 	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
-	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	struct dcb_table *dcb = &bios->dcb;
 	struct pci_dev *pdev = ndev->dev->pdev;
 	struct drm_connector *connector, *tmp;
@@ -2107,7 +2109,7 @@ nvd0_display_create(struct nouveau_device *ndev)
 						((dmao + 0x60) << 9));
 	}
 
-	pinstmem->flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 out:
 	if (ret)

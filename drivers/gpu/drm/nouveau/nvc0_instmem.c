@@ -1,219 +1,209 @@
 /*
- * Copyright 2010 Red Hat Inc.
+ * Copyright (C) 2012 Red Hat Inc.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
+ * All Rights Reserved.
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
- * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
+ * The above copyright notice and this permission notice (including the
+ * next paragraph) shall be included in all copies or substantial
+ * portions of the Software.
  *
- * Authors: Ben Skeggs
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE COPYRIGHT OWNER(S) AND/OR ITS SUPPLIERS BE
+ * LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+ * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+ * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
  */
 
 #include "drmP.h"
 
 #include "nouveau_drv.h"
+#include "nouveau_fb.h"
 #include "nouveau_vm.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
 
 struct nvc0_instmem_priv {
-	struct nouveau_gpuobj  *bar1_pgd;
-	struct nouveau_channel *bar1;
-	struct nouveau_gpuobj  *bar3_pgd;
-	struct nouveau_channel *bar3;
+	struct nouveau_instmem base;
+	struct nouveau_mem *mem;
+	struct nouveau_mm heap;
+	u32 *suspend;
+	u64 pgd;
 };
 
-int
-nvc0_instmem_suspend(struct nouveau_device *ndev)
-{
-
-	ndev->ramin_available = false;
-	return 0;
-}
-
-void
-nvc0_instmem_resume(struct nouveau_device *ndev)
-{
-	struct nvc0_instmem_priv *priv = ndev->subsys.instmem.priv;
-
-	nv_mask(ndev, 0x100c80, 0x00000001, 0x00000000);
-	nv_wr32(ndev, 0x001704, 0x80000000 | priv->bar1->ramin->vinst >> 12);
-	nv_wr32(ndev, 0x001714, 0xc0000000 | priv->bar3->ramin->vinst >> 12);
-	ndev->ramin_available = true;
-}
-
-static void
-nvc0_channel_del(struct nouveau_channel **pchan)
-{
-	struct nouveau_channel *chan;
-
-	chan = *pchan;
-	*pchan = NULL;
-	if (!chan)
-		return;
-
-	nouveau_vm_ref(NULL, &chan->vm, NULL);
-	if (drm_mm_initialized(&chan->ramin_heap))
-		drm_mm_takedown(&chan->ramin_heap);
-	nouveau_gpuobj_ref(NULL, &chan->ramin);
-	kfree(chan);
-}
+struct nvc0_instmem_node {
+	struct nouveau_mem *mem;
+	struct nouveau_mm_node *bar;
+	struct nouveau_vma chan_vma;
+};
 
 static int
-nvc0_channel_new(struct nouveau_device *ndev, u32 size, struct nouveau_vm *vm,
-		 struct nouveau_channel **pchan,
-		 struct nouveau_gpuobj *pgd, u64 vm_size)
+nvc0_instmem_map(struct nouveau_instmem *pimem, struct nouveau_gpuobj *gpuobj)
 {
-	struct nouveau_channel *chan;
+	struct nouveau_device *ndev = pimem->base.device;
+	struct nvc0_instmem_priv *priv = (void *)pimem;
+	struct nvc0_instmem_node *node = gpuobj->node;
+	u64 offset = node->mem->offset;
 	int ret;
 
-	chan = kzalloc(sizeof(*chan), GFP_KERNEL);
-	if (!chan)
-		return -ENOMEM;
-	chan->device = ndev;
+	mutex_lock(&priv->heap.mutex);
+	ret = nouveau_mm_head(&priv->heap, 1, node->mem->size, node->mem->size,
+			      1, &node->bar);
+	mutex_unlock(&priv->heap.mutex);
+	if (ret == 0) {
+		u32 pgtptr = node->bar->offset * 8;
+		u32 length = node->bar->length;
+		while (length--) {
+			nv_wi32(ndev, pgtptr + 0, 0x00000001 | (offset >> 8));
+			nv_wi32(ndev, pgtptr + 4, 0x00000000);
+			offset += 0x1000;
+			pgtptr += 8;
+		}
+		pimem->flush(pimem);
 
-	ret = nouveau_gpuobj_new(ndev, NULL, size, 0x1000, 0, &chan->ramin);
-	if (ret) {
-		nvc0_channel_del(&chan);
-		return ret;
+		gpuobj->pinst = node->bar->offset << 12;
 	}
 
-	ret = drm_mm_init(&chan->ramin_heap, 0x1000, size - 0x1000);
-	if (ret) {
-		nvc0_channel_del(&chan);
-		return ret;
-	}
-
-	ret = nouveau_vm_ref(vm, &chan->vm, NULL);
-	if (ret) {
-		nvc0_channel_del(&chan);
-		return ret;
-	}
-
-	nv_wo32(chan->ramin, 0x0200, lower_32_bits(pgd->vinst));
-	nv_wo32(chan->ramin, 0x0204, upper_32_bits(pgd->vinst));
-	nv_wo32(chan->ramin, 0x0208, lower_32_bits(vm_size - 1));
-	nv_wo32(chan->ramin, 0x020c, upper_32_bits(vm_size - 1));
-
-	*pchan = chan;
-	return 0;
-}
-
-int
-nvc0_instmem_init(struct nouveau_device *ndev)
-{
-	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
-	struct pci_dev *pdev = ndev->dev->pdev;
-	struct nvc0_instmem_priv *priv;
-	struct nouveau_vm *vm = NULL;
-	int ret;
-
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
-	pinstmem->priv = priv;
-
-	/* BAR3 VM */
-	ret = nouveau_vm_new(ndev, 0, pci_resource_len(pdev, 3), 0,
-			     &ndev->bar3_vm);
-	if (ret)
-		goto error;
-
-	ret = nouveau_gpuobj_new(ndev, NULL,
-				 (pci_resource_len(pdev, 3) >> 12) * 8, 0,
-				 NVOBJ_FLAG_DONT_MAP |
-				 NVOBJ_FLAG_ZERO_ALLOC,
-				 &ndev->bar3_vm->pgt[0].obj[0]);
-	if (ret)
-		goto error;
-	ndev->bar3_vm->pgt[0].refcount[0] = 1;
-
-	nv50_instmem_map(ndev->bar3_vm->pgt[0].obj[0]);
-
-	ret = nouveau_gpuobj_new(ndev, NULL, 0x8000, 4096,
-				 NVOBJ_FLAG_ZERO_ALLOC, &priv->bar3_pgd);
-	if (ret)
-		goto error;
-
-	ret = nouveau_vm_ref(ndev->bar3_vm, &vm, priv->bar3_pgd);
-	if (ret)
-		goto error;
-	nouveau_vm_ref(NULL, &vm, NULL);
-
-	ret = nvc0_channel_new(ndev, 8192, ndev->bar3_vm, &priv->bar3,
-			       priv->bar3_pgd, pci_resource_len(ndev->dev->pdev, 3));
-	if (ret)
-		goto error;
-
-	/* BAR1 VM */
-	ret = nouveau_vm_new(ndev, 0, pci_resource_len(pdev, 1), 0, &vm);
-	if (ret)
-		goto error;
-
-	ret = nouveau_gpuobj_new(ndev, NULL, 0x8000, 4096,
-				 NVOBJ_FLAG_ZERO_ALLOC, &priv->bar1_pgd);
-	if (ret)
-		goto error;
-
-	ret = nouveau_vm_ref(vm, &ndev->bar1_vm, priv->bar1_pgd);
-	if (ret)
-		goto error;
-	nouveau_vm_ref(NULL, &vm, NULL);
-
-	ret = nvc0_channel_new(ndev, 8192, ndev->bar1_vm, &priv->bar1,
-			       priv->bar1_pgd, pci_resource_len(ndev->dev->pdev, 1));
-	if (ret)
-		goto error;
-
-	/* channel vm */
-	ret = nouveau_vm_new(ndev, 0, (1ULL << 40), 0x0008000000ULL,
-			     &ndev->chan_vm);
-	if (ret)
-		goto error;
-
-	nvc0_instmem_resume(ndev);
-	return 0;
-error:
-	nvc0_instmem_takedown(ndev);
+	nvc0_vm_flush_engine(pimem->base.device, priv->pgd, 5);
 	return ret;
 }
 
-void
-nvc0_instmem_takedown(struct nouveau_device *ndev)
+static void
+nvc0_instmem_unmap(struct nouveau_instmem *pimem, struct nouveau_gpuobj *gpuobj)
 {
-	struct nvc0_instmem_priv *priv = ndev->subsys.instmem.priv;
-	struct nouveau_vm *vm = NULL;
+	struct nouveau_device *ndev = pimem->base.device;
+	struct nvc0_instmem_priv *priv = (void *)pimem;
+	struct nvc0_instmem_node *node = gpuobj->node;
 
-	nvc0_instmem_suspend(ndev);
+	if (node->bar) {
+		u32 pgtptr = node->bar->offset * 8;
+		u32 length = node->bar->length;
+		while (length--) {
+			nv_wi32(ndev, pgtptr + 0, 0x00000000);
+			nv_wi32(ndev, pgtptr + 4, 0x00000000);
+			pgtptr += 8;
+		}
+		pimem->flush(pimem);
 
-	nv_wr32(ndev, 0x1704, 0x00000000);
-	nv_wr32(ndev, 0x1714, 0x00000000);
+		mutex_lock(&priv->heap.mutex);
+		nouveau_mm_free(&priv->heap, &node->bar);
+		mutex_unlock(&priv->heap.mutex);
+	}
 
-	nouveau_vm_ref(NULL, &ndev->chan_vm, NULL);
-
-	nvc0_channel_del(&priv->bar1);
-	nouveau_vm_ref(NULL, &ndev->bar1_vm, priv->bar1_pgd);
-	nouveau_gpuobj_ref(NULL, &priv->bar1_pgd);
-
-	nvc0_channel_del(&priv->bar3);
-	nouveau_vm_ref(ndev->bar3_vm, &vm, NULL);
-	nouveau_vm_ref(NULL, &vm, priv->bar3_pgd);
-	nouveau_gpuobj_ref(NULL, &priv->bar3_pgd);
-	nouveau_gpuobj_ref(NULL, &ndev->bar3_vm->pgt[0].obj[0]);
-	nouveau_vm_ref(NULL, &ndev->bar3_vm, NULL);
-
-	ndev->subsys.instmem.priv = NULL;
-	kfree(priv);
+	nvc0_vm_flush_engine(pimem->base.device, priv->pgd, 5);
 }
 
+static int
+nvc0_instmem_init(struct nouveau_device *ndev, int subdev)
+{
+	struct nvc0_instmem_priv *priv = nv_subdev(ndev, subdev);
+	int ret = 0, i;
+
+	nv_wr32(ndev, 0x001700, priv->mem->offset >> 16);
+
+	if (priv->suspend) {
+		for (i = 0; i < priv->mem->size << 12; i += 4)
+			nv_wr32(ndev, 0x700000 + i, priv->suspend[i / 4]);
+		vfree(priv->suspend);
+		priv->suspend = NULL;
+	}
+
+	nv_mask(ndev, 0x000200, 0x00000100, 0x00000000);
+	nv_mask(ndev, 0x000200, 0x00000100, 0x00000100);
+	nv_mask(ndev, 0x100c80, 0x00000001, 0x00000000);
+	nvc0_vm_flush_engine(ndev, priv->pgd, 5);
+
+	nv_wr32(ndev, 0x001714, 0xc0000000 | priv->mem->offset >> 12);
+
+	for (i = 0; i < 64 * 1024; i += 4) {
+		if (nv_rd32(ndev, 0x702000 + i) != nv_ri32(ndev, i)) {
+			NV_ERROR(ndev, "INSTMEM: readback failed\n");
+			ret = -EIO;
+			goto error;
+		}
+	}
+
+error:
+	if (ret)
+		priv->base.base.fini(ndev, subdev, false);
+	return ret;
+}
+
+int
+nvc0_instmem_create(struct nouveau_device *ndev, int subdev)
+{
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
+	struct nvc0_instmem_priv *priv;
+	u64 pgtlen, pgtend, pgtptr;
+	u64 barlen, barend;
+	u64 offset;
+	int ret;
+
+	ret = nouveau_subdev_create(ndev, subdev, "INSTMEM", "instmem", &priv);
+	if (ret)
+		return ret;
+
+	priv->base.base.destroy = nv50_instmem_destroy;
+	priv->base.base.init = nvc0_instmem_init;
+	priv->base.base.fini = nv50_instmem_fini;
+	priv->base.get = nv50_instmem_get;
+	priv->base.put = nv50_instmem_put;
+	priv->base.map = nvc0_instmem_map;
+	priv->base.unmap = nvc0_instmem_unmap;
+	priv->base.flush = nv84_instmem_flush;
+
+	/* allocate memory for memory and ramin page tables */
+	ret = pfb->vram_get(pfb, (8 + 64) * 1024, 65536, 0, 0x800, &priv->mem);
+	if (ret)
+		goto done;
+
+	nv_wr32(ndev, 0x001700, priv->mem->offset >> 16);
+
+	/* determine layout of channel memory */
+	offset = 0x2000 + priv->mem->offset;
+	pgtptr = 0x2000 + 0x700000;
+	pgtlen = 32 * 1024 * 1024;
+	barlen = min(pgtlen, (u64)pci_resource_len(ndev->dev->pdev, 3));
+	pgtend = offset + pgtlen;
+	barend = offset + barlen;
+
+	/* channel descriptor, point at page directory */
+	nv_wr32(ndev, 0x700200, lower_32_bits(priv->mem->offset + 0x1000));
+	nv_wr32(ndev, 0x700204, upper_32_bits(priv->mem->offset + 0x1000));
+	nv_wr32(ndev, 0x700208, lower_32_bits(barlen - 1));
+	nv_wr32(ndev, 0x70020c, upper_32_bits(barlen - 1));
+
+	/* page directory, 4KiB-pages entry 0 points at ramin page table */
+	nv_wr32(ndev, 0x701000, 0x00000008);
+	nv_wr32(ndev, 0x701004, 0x00000001 | (offset >> 8));
+
+	/* page table, init and map self into start of ramin */
+	for (; offset < barend; offset += 0x1000, pgtptr += 8) {
+		nv_wr32(ndev, pgtptr + 0, 0x00000001 | (offset >> 8));
+		nv_wr32(ndev, pgtptr + 4, 0x00000000);
+	}
+
+	for (; offset < pgtend; offset += 0x1000, pgtptr += 8) {
+		nv_wr32(ndev, pgtptr + 0, 0x00000000);
+		nv_wr32(ndev, pgtptr + 4, 0x00000000);
+	}
+
+	priv->pgd = priv->mem->offset + 0x1000;
+
+	offset = ((pgtlen >> 12) * 8) >> 12;
+	barlen =  (barlen >> 12) - offset;
+
+	ret = nouveau_mm_init(&priv->heap, offset, barlen, 1);
+done:
+	return nouveau_subdev_init(ndev, subdev, ret);
+}

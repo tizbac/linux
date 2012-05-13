@@ -27,6 +27,7 @@
 #include "nouveau_drv.h"
 #include "nouveau_fb.h"
 #include "nouveau_fifo.h"
+#include "nouveau_gpuobj.h"
 
 struct nv50_fb_priv {
 	struct nouveau_fb base;

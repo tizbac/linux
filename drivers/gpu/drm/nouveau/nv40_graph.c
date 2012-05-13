@@ -30,6 +30,7 @@
 #include "nouveau_fb.h"
 #include "nouveau_fifo.h"
 #include "nouveau_ramht.h"
+#include "nouveau_gpuobj.h"
 
 struct nv40_graph_engine {
 	struct nouveau_engine base;

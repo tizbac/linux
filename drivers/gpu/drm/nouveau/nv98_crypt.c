@@ -29,6 +29,8 @@
 #include "nouveau_util.h"
 #include "nouveau_vm.h"
 #include "nouveau_ramht.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
 
 #include "nv98_crypt.fuc.h"
 
@@ -65,7 +67,7 @@ nv98_crypt_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(chan->ramin, 0xac, 0x00000000);
 	nv_wo32(chan->ramin, 0xb0, 0x00000000);
 	nv_wo32(chan->ramin, 0xb4, 0x00000000);
-	ndev->subsys.instmem.flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 error:
 	if (ret)

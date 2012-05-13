@@ -30,6 +30,8 @@
 #include "nouveau_drv.h"
 #include "nouveau_mm.h"
 #include "nouveau_fifo.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
 
 #include "nve0_graph.h"
 
@@ -104,7 +106,7 @@ nve0_graph_construct_context(struct nouveau_channel *chan)
 	nv_wo32(grch->grctx, 0x20, 0);
 	nv_wo32(grch->grctx, 0x28, 0);
 	nv_wo32(grch->grctx, 0x2c, 0);
-	ndev->subsys.instmem.flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	ret = nve0_grctx_generate(chan);
 	if (ret)
@@ -201,7 +203,6 @@ static int
 nve0_graph_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct nouveau_device *ndev = chan->device;
-	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	struct nve0_graph_priv *priv = nv_engine(ndev, engine);
 	struct nve0_graph_chan *grch;
 	struct nouveau_gpuobj *grctx;
@@ -225,7 +226,7 @@ nve0_graph_context_new(struct nouveau_channel *chan, int engine)
 
 	nv_wo32(chan->ramin, 0x0210, lower_32_bits(grctx->linst) | 4);
 	nv_wo32(chan->ramin, 0x0214, upper_32_bits(grctx->linst));
-	pinstmem->flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	if (!priv->grctx_vals) {
 		ret = nve0_graph_construct_context(chan);
@@ -245,7 +246,7 @@ nve0_graph_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(grctx, 0x28, 0);
 	nv_wo32(grctx, 0x2c, 0);
 
-	pinstmem->flush(ndev);
+	nouveau_instmem_flush(ndev);
 	return 0;
 
 error:

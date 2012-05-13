@@ -23,9 +23,11 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_mm.h"
 #include "nouveau_vm.h"
+#include "nouveau_gpuobj.h"
 
 void
 nouveau_vm_map_at(struct nouveau_vma *vma, u64 delta, struct nouveau_mem *node)

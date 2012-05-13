@@ -23,10 +23,12 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_dma.h"
 #include "nouveau_ramht.h"
 #include "nouveau_fbcon.h"
+#include "nouveau_gpuobj.h"
 
 int
 nv04_fbcon_copyarea(struct fb_info *info, const struct fb_copyarea *region)

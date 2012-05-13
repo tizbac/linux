@@ -26,6 +26,8 @@
 
 #include "nouveau_drv.h"
 #include "nouveau_ramht.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
 
 static u32
 nouveau_ramht_hash_handle(struct nouveau_channel *chan, u32 handle)
@@ -83,7 +85,7 @@ nouveau_ramht_insert(struct nouveau_channel *chan, u32 handle,
 		     struct nouveau_gpuobj *gpuobj)
 {
 	struct nouveau_device *ndev = chan->device;
-	struct nouveau_instmem_engine *instmem = &ndev->subsys.instmem;
+	struct nouveau_instmem *pimem = nv_subdev(ndev, NVDEV_SUBDEV_INSTMEM);
 	struct nouveau_ramht_entry *entry;
 	struct nouveau_gpuobj *ramht = chan->ramht->gpuobj;
 	unsigned long flags;
@@ -134,7 +136,7 @@ nouveau_ramht_insert(struct nouveau_channel *chan, u32 handle,
 			nv_wo32(ramht, co + 4, ctx);
 
 			spin_unlock_irqrestore(&chan->ramht->lock, flags);
-			instmem->flush(ndev);
+			pimem->flush(pimem);
 			return 0;
 		}
 		NV_DEBUG(ndev, "collision ch%d 0x%08x: h=0x%08x\n",
@@ -181,7 +183,7 @@ static void
 nouveau_ramht_remove_hash(struct nouveau_channel *chan, u32 handle)
 {
 	struct nouveau_device *ndev = chan->device;
-	struct nouveau_instmem_engine *instmem = &ndev->subsys.instmem;
+	struct nouveau_instmem *pimem = nv_subdev(ndev, NVDEV_SUBDEV_INSTMEM);
 	struct nouveau_gpuobj *ramht = chan->ramht->gpuobj;
 	unsigned long flags;
 	u32 co, ho;
@@ -197,7 +199,7 @@ nouveau_ramht_remove_hash(struct nouveau_channel *chan, u32 handle)
 				 chan->id, co, handle, nv_ro32(ramht, co + 4));
 			nv_wo32(ramht, co + 0, 0x00000000);
 			nv_wo32(ramht, co + 4, 0x00000000);
-			instmem->flush(ndev);
+			pimem->flush(pimem);
 			goto out;
 		}
 

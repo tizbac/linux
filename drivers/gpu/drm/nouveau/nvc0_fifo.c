@@ -27,26 +27,27 @@
 #include "nouveau_drv.h"
 #include "nouveau_mm.h"
 #include "nouveau_fifo.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
+#include "nouveau_bar.h"
 
 static void nvc0_fifo_isr(struct nouveau_device *);
 
 struct nvc0_fifo_priv {
 	struct nouveau_fifo_priv base;
+	struct nouveau_gpuobj *user;
 	struct nouveau_gpuobj *playlist[2];
 	int cur_playlist;
-	struct nouveau_vma user_vma;
 	int spoon_nr;
 };
 
 struct nvc0_fifo_chan {
 	struct nouveau_fifo_chan base;
-	struct nouveau_gpuobj *user;
 };
 
 static void
 nvc0_fifo_playlist_update(struct nouveau_device *ndev)
 {
-	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	struct nvc0_fifo_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
 	struct nouveau_gpuobj *cur;
 	int i, p;
@@ -61,7 +62,7 @@ nvc0_fifo_playlist_update(struct nouveau_device *ndev)
 		nv_wo32(cur, p + 4, 0x00000004);
 		p += 8;
 	}
-	pinstmem->flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	nv_wr32(ndev, 0x002270, cur->vinst >> 12);
 	nv_wr32(ndev, 0x002274, 0x01f00000 | (p >> 3));
@@ -73,37 +74,33 @@ static int
 nvc0_fifo_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct nouveau_device *ndev = chan->device;
-	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	struct nvc0_fifo_priv *priv = nv_engine(ndev, engine);
 	struct nvc0_fifo_chan *fctx;
 	u64 ib_virt = chan->pushbuf_base + chan->dma.ib_base * 4;
-	int ret, i;
+	u64 usermem = priv->user->vinst + chan->id * 0x1000;
+	int ret = 0, i;
 
 	fctx = chan->engctx[engine] = kzalloc(sizeof(*fctx), GFP_KERNEL);
 	if (!fctx)
 		return -ENOMEM;
 
+	/* map control registers, and initialise them all to zero */
 	chan->user = ioremap_wc(pci_resource_start(ndev->dev->pdev, 1) +
-				priv->user_vma.offset + (chan->id * 0x1000),
-				PAGE_SIZE);
+				(*(struct nouveau_mem **)priv->user->node)->
+				bar_vma.offset + (chan->id * 0x1000), 0x1000);
 	if (!chan->user) {
 		ret = -ENOMEM;
 		goto error;
 	}
 
-	/* allocate vram for control regs, map into polling area */
-	ret = nouveau_gpuobj_new(ndev, NULL, 0x1000, 0x1000,
-				 NVOBJ_FLAG_ZERO_ALLOC, &fctx->user);
-	if (ret)
-		goto error;
+	for (i = 0; i < 0x1000; i += 4)
+		nv_wo32(priv->user, (chan->id * 0x1000) + i, 0x00000000);
 
-	nouveau_vm_map_at(&priv->user_vma, chan->id * 0x1000,
-			  *(struct nouveau_mem **)fctx->user->node);
-
+	/* initialise default fifo context */
 	for (i = 0; i < 0x100; i += 4)
 		nv_wo32(chan->ramin, i, 0x00000000);
-	nv_wo32(chan->ramin, 0x08, lower_32_bits(fctx->user->vinst));
-	nv_wo32(chan->ramin, 0x0c, upper_32_bits(fctx->user->vinst));
+	nv_wo32(chan->ramin, 0x08, lower_32_bits(usermem));
+	nv_wo32(chan->ramin, 0x0c, upper_32_bits(usermem));
 	nv_wo32(chan->ramin, 0x10, 0x0000face);
 	nv_wo32(chan->ramin, 0x30, 0xfffff902);
 	nv_wo32(chan->ramin, 0x48, lower_32_bits(ib_virt));
@@ -119,7 +116,7 @@ nvc0_fifo_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(chan->ramin, 0xb8, 0xf8000000);
 	nv_wo32(chan->ramin, 0xf8, 0x10003080); /* 0x002310 */
 	nv_wo32(chan->ramin, 0xfc, 0x10000010); /* 0x002350 */
-	pinstmem->flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	nv_wr32(ndev, 0x003000 + (chan->id * 8), 0xc0000000 |
 						(chan->ramin->vinst >> 12));
@@ -145,7 +142,6 @@ nvc0_fifo_context_del(struct nouveau_channel *chan, int engine)
 	nvc0_fifo_playlist_update(ndev);
 	nv_wr32(ndev, 0x003000 + (chan->id * 8), 0x00000000);
 
-	nouveau_gpuobj_ref(NULL, &fctx->user);
 	if (chan->user) {
 		iounmap(chan->user);
 		chan->user = NULL;
@@ -159,6 +155,7 @@ static int
 nvc0_fifo_init(struct nouveau_device *ndev, int engine)
 {
 	struct nvc0_fifo_priv *priv = nv_engine(ndev, engine);
+	struct nouveau_mem *user = *(struct nouveau_mem **)priv->user->node;
 	struct nouveau_channel *chan;
 	int i;
 
@@ -189,7 +186,7 @@ nvc0_fifo_init(struct nouveau_device *ndev, int engine)
 	}
 
 	nv_mask(ndev, 0x002200, 0x00000001, 0x00000001);
-	nv_wr32(ndev, 0x002254, 0x10000000 | priv->user_vma.offset >> 12);
+	nv_wr32(ndev, 0x002254, 0x10000000 | user->bar_vma.offset >> 12);
 
 	nv_wr32(ndev, 0x002a00, 0xffffffff); /* clears PFIFO.INTR bit 30 */
 	nv_wr32(ndev, 0x002100, 0xffffffff);
@@ -422,8 +419,12 @@ static void
 nvc0_fifo_destroy(struct nouveau_device *ndev, int engine)
 {
 	struct nvc0_fifo_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_bar *pbar = nv_subdev(ndev, NVDEV_SUBDEV_BAR);
 
-	nouveau_vm_put(&priv->user_vma);
+	if (priv->user) {
+		pbar->unmap(pbar, *(struct nouveau_mem **)priv->user->node);
+		nouveau_gpuobj_ref(NULL, &priv->user);
+	}
 	nouveau_gpuobj_ref(NULL, &priv->playlist[1]);
 	nouveau_gpuobj_ref(NULL, &priv->playlist[0]);
 
@@ -434,6 +435,7 @@ nvc0_fifo_destroy(struct nouveau_device *ndev, int engine)
 int
 nvc0_fifo_create(struct nouveau_device *ndev)
 {
+	struct nouveau_bar *pbar = nv_subdev(ndev, NVDEV_SUBDEV_BAR);
 	struct nvc0_fifo_priv *priv;
 	int ret;
 
@@ -457,8 +459,12 @@ nvc0_fifo_create(struct nouveau_device *ndev)
 	if (ret)
 		goto error;
 
-	ret = nouveau_vm_get(ndev->bar1_vm, priv->base.channels * 0x1000,
-			     12, NV_MEM_ACCESS_RW, &priv->user_vma);
+	ret = nouveau_gpuobj_new(ndev, NULL, priv->base.channels * 4096, 4096,
+				 NVOBJ_FLAG_ZERO_ALLOC, &priv->user);
+	if (ret)
+		goto error;
+
+	ret = pbar->map(pbar, *(struct nouveau_mem **)priv->user->node);
 	if (ret)
 		goto error;
 

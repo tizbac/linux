@@ -32,6 +32,7 @@ nouveau-y := nouveau_device.o nouveau_subdev.o \
              nv84_vp.o \
              nv98_ppp.o \
              nv04_instmem.o nv50_instmem.o nvc0_instmem.o \
+             nv50_bar.o nvc0_bar.o \
              nv04_dac.o nv04_dfp.o nv04_tv.o nv17_tv.o nv17_tv_modes.o \
              nv04_crtc.o nv04_display.o nv04_cursor.o \
              nv50_evo.o nv50_crtc.o nv50_dac.o nv50_sor.o \

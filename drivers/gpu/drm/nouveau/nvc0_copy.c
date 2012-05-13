@@ -24,10 +24,14 @@
 
 #include <linux/firmware.h>
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_util.h"
 #include "nouveau_vm.h"
 #include "nouveau_ramht.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
+
 #include "nvc0_copy.fuc.h"
 
 struct nvc0_copy_engine {
@@ -55,7 +59,7 @@ nvc0_copy_context_new(struct nouveau_channel *chan, int engine)
 
 	nv_wo32(ramin, pcopy->ctx + 0, lower_32_bits(ctx->linst));
 	nv_wo32(ramin, pcopy->ctx + 4, upper_32_bits(ctx->linst));
-	ndev->subsys.instmem.flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	chan->engctx[engine] = ctx;
 	return 0;

@@ -25,11 +25,13 @@
  */
 
 #include "drmP.h"
-#include "drm.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_fifo.h"
 #include "nouveau_ramht.h"
 #include "nouveau_vm.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
 
 struct nv84_fifo_priv {
 	struct nouveau_fifo_priv base;
@@ -96,7 +98,7 @@ nv84_fifo_context_new(struct nouveau_channel *chan, int engine)
 	nv_wo32(chan->ramin, 0x00, chan->id);
 	nv_wo32(chan->ramin, 0x04, fctx->ramfc->vinst >> 8);
 
-	ndev->subsys.instmem.flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_wr32(ndev, 0x002600 + (chan->id * 4), 0x80000000 | instance);

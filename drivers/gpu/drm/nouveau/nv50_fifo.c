@@ -25,11 +25,13 @@
  */
 
 #include "drmP.h"
-#include "drm.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_fifo.h"
 #include "nouveau_ramht.h"
 #include "nouveau_vm.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
 
 struct nv50_fifo_priv {
 	struct nouveau_fifo_priv base;
@@ -56,7 +58,7 @@ nv50_fifo_playlist_update(struct nouveau_device *ndev)
 			nv_wo32(cur, p++ * 4, i);
 	}
 
-	ndev->subsys.instmem.flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	nv_wr32(ndev, 0x0032f4, cur->vinst >> 12);
 	nv_wr32(ndev, 0x0032ec, p);
@@ -102,7 +104,7 @@ nv50_fifo_context_new(struct nouveau_channel *chan, int engine)
 				   (4 << 24) /* SEARCH_FULL */ |
 				   (chan->ramht->gpuobj->cinst >> 4));
 
-	ndev->subsys.instmem.flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	spin_lock_irqsave(&ndev->context_switch_lock, flags);
 	nv_wr32(ndev, 0x002600 + (chan->id * 4), 0x80000000 | instance);

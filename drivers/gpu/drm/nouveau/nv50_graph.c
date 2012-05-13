@@ -1,27 +1,25 @@
 /*
- * Copyright (C) 2007 Ben Skeggs.
- * All Rights Reserved.
+ * Copyright 2012 Red Hat Inc.
  *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice (including the
- * next paragraph) shall be included in all copies or substantial
- * portions of the Software.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE COPYRIGHT OWNER(S) AND/OR ITS SUPPLIERS BE
- * LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
- * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
- * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
  *
+ * Authors: Ben Skeggs
  */
 
 #include "drmP.h"
@@ -33,6 +31,9 @@
 #include "nouveau_dma.h"
 #include "nouveau_vm.h"
 #include "nouveau_timer.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
+
 #include "nv50_evo.h"
 
 struct nv50_graph_engine {
@@ -164,7 +165,7 @@ nv50_graph_context_new(struct nouveau_channel *chan, int engine)
 	nv50_grctx_fill(ndev, grctx);
 	nv_wo32(grctx, 0x00000, chan->ramin->vinst >> 12);
 
-	ndev->subsys.instmem.flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	atomic_inc(&chan->vm->engref[NVOBJ_ENGINE_GR]);
 	chan->engctx[NVOBJ_ENGINE_GR] = grctx;
@@ -180,7 +181,7 @@ nv50_graph_context_del(struct nouveau_channel *chan, int engine)
 
 	for (i = hdr; i < hdr + 24; i += 4)
 		nv_wo32(chan->ramin, i, 0);
-	ndev->subsys.instmem.flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	atomic_dec(&chan->vm->engref[engine]);
 	nouveau_gpuobj_ref(NULL, &grctx);
@@ -205,7 +206,7 @@ nv50_graph_object_new(struct nouveau_channel *chan, int engine,
 	nv_wo32(obj, 0x04, 0x00000000);
 	nv_wo32(obj, 0x08, 0x00000000);
 	nv_wo32(obj, 0x0c, 0x00000000);
-	ndev->subsys.instmem.flush(ndev);
+	nouveau_instmem_flush(ndev);
 
 	ret = nouveau_ramht_insert(chan, handle, obj);
 	nouveau_gpuobj_ref(NULL, &obj);

@@ -23,11 +23,13 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_dma.h"
 #include "nouveau_fifo.h"
 #include "nouveau_ramht.h"
 #include "nouveau_fence.h"
+#include "nouveau_gpuobj.h"
 
 struct nv84_fence_chan {
 	struct nouveau_fence_chan base;

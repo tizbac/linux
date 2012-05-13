@@ -25,7 +25,9 @@
 #include "drmP.h"
 
 #include "nouveau_drv.h"
+#include "nouveau_instmem.h"
 #include "nouveau_vm.h"
+#include "nouveau_gpuobj.h"
 
 void
 nv50_vm_map_pgt(struct nouveau_gpuobj *pgd, u32 pde,
@@ -146,16 +148,9 @@ void
 nv50_vm_flush(struct nouveau_vm *vm)
 {
 	struct nouveau_device *ndev = vm->device;
-	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	int i;
 
-	pinstmem->flush(ndev);
-
-	/* BAR */
-	if (vm == ndev->bar1_vm || vm == ndev->bar3_vm) {
-		nv50_vm_flush_engine(ndev, 6);
-		return;
-	}
+	nouveau_instmem_flush(ndev);
 
 	for (i = 0; i < NVOBJ_ENGINE_NR; i++) {
 		if (atomic_read(&vm->engref[i]))

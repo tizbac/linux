@@ -23,10 +23,12 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_util.h"
 #include "nouveau_vm.h"
 #include "nouveau_ramht.h"
+#include "nouveau_gpuobj.h"
 
 /*XXX: This stub is currently used on NV98+ also, as soon as this becomes
  *     more than just an enable/disable stub this needs to be split out to

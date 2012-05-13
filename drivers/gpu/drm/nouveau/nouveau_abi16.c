@@ -29,6 +29,7 @@
 #include "nouveau_ramht.h"
 #include "nouveau_software.h"
 #include "nouveau_timer.h"
+#include "nouveau_gpuobj.h"
 
 int
 nouveau_abi16_ioctl_getparam(ABI16_IOCTL_ARGS)

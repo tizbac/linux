@@ -25,7 +25,9 @@
 #include "drmP.h"
 
 #include "nouveau_drv.h"
+#include "nouveau_instmem.h"
 #include "nouveau_vm.h"
+#include "nouveau_gpuobj.h"
 
 void
 nvc0_vm_map_pgt(struct nouveau_gpuobj *pgd, u32 index,
@@ -100,36 +102,39 @@ nvc0_vm_unmap(struct nouveau_gpuobj *pgt, u32 pte, u32 cnt)
 }
 
 void
+nvc0_vm_flush_engine(struct nouveau_device *ndev, u64 addr, u32 type)
+{
+	unsigned long flags;
+
+	/* looks like maybe a "free flush slots" counter, the
+	 * faster you write to 0x100cbc to more it decreases
+	 */
+	spin_lock_irqsave(&ndev->vm_lock, flags);
+	if (!nv_wait_ne(ndev, 0x100c80, 0x00ff0000, 0x00000000)) {
+		NV_ERROR(ndev, "vm timeout 0: 0x%08x %d\n",
+			 nv_rd32(ndev, 0x100c80), type);
+	}
+
+	nv_wr32(ndev, 0x100cb8, addr >> 8);
+	nv_wr32(ndev, 0x100cbc, 0x80000000 | type);
+
+	/* wait for flush to be queued? */
+	if (!nv_wait(ndev, 0x100c80, 0x00008000, 0x00008000)) {
+		NV_ERROR(ndev, "vm timeout 1: 0x%08x %d\n",
+			 nv_rd32(ndev, 0x100c80), type);
+	}
+	spin_unlock_irqrestore(&ndev->vm_lock, flags);
+}
+
+void
 nvc0_vm_flush(struct nouveau_vm *vm)
 {
 	struct nouveau_device *ndev = vm->device;
-	struct nouveau_instmem_engine *pinstmem = &ndev->subsys.instmem;
 	struct nouveau_vm_pgd *vpgd;
-	unsigned long flags;
-	u32 engine;
 
-	engine = 1;
-	if (vm == ndev->bar1_vm || vm == ndev->bar3_vm)
-		engine |= 4;
+	nouveau_instmem_flush(ndev);
 
-	pinstmem->flush(ndev);
-
-	spin_lock_irqsave(&ndev->vm_lock, flags);
 	list_for_each_entry(vpgd, &vm->pgd_list, head) {
-		/* looks like maybe a "free flush slots" counter, the
-		 * faster you write to 0x100cbc to more it decreases
-		 */
-		if (!nv_wait_ne(ndev, 0x100c80, 0x00ff0000, 0x00000000)) {
-			NV_ERROR(ndev, "vm timeout 0: 0x%08x %d\n",
-				 nv_rd32(ndev, 0x100c80), engine);
-		}
-		nv_wr32(ndev, 0x100cb8, vpgd->obj->vinst >> 8);
-		nv_wr32(ndev, 0x100cbc, 0x80000000 | engine);
-		/* wait for flush to be queued? */
-		if (!nv_wait(ndev, 0x100c80, 0x00008000, 0x00008000)) {
-			NV_ERROR(ndev, "vm timeout 1: 0x%08x %d\n",
-				 nv_rd32(ndev, 0x100c80), engine);
-		}
+		nvc0_vm_flush_engine(ndev, vpgd->obj->vinst, 1);
 	}
-	spin_unlock_irqrestore(&ndev->vm_lock, flags);
 }

@@ -31,6 +31,7 @@
 #include "nouveau_ramht.h"
 #include "nouveau_fence.h"
 #include "nouveau_software.h"
+#include "nouveau_gpuobj.h"
 
 static int
 nouveau_channel_pushbuf_init(struct nouveau_channel *chan)
@@ -144,6 +145,8 @@ nouveau_channel_alloc(struct nouveau_device *ndev,
 	/* allocate hw channel id */
 	spin_lock_irqsave(&ndev->channels.lock, flags);
 	for (chan->id = 0; chan->id < pfifo->channels; chan->id++) {
+		if (chan->id == 0 && ndev->card_type == NV_50)
+			continue;
 		if (!ndev->channels.ptr[chan->id]) {
 			nouveau_channel_ref(chan, &ndev->channels.ptr[chan->id]);
 			break;

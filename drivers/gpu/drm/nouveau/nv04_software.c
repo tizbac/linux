@@ -29,6 +29,7 @@
 #include "nouveau_fence.h"
 #include "nouveau_software.h"
 #include "nouveau_hw.h"
+#include "nouveau_gpuobj.h"
 
 struct nv04_software_priv {
 	struct nouveau_software_priv base;

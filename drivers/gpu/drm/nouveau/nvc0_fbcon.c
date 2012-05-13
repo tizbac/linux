@@ -23,11 +23,13 @@
  */
 
 #include "drmP.h"
+
 #include "nouveau_drv.h"
 #include "nouveau_dma.h"
 #include "nouveau_ramht.h"
 #include "nouveau_fbcon.h"
 #include "nouveau_mm.h"
+#include "nouveau_gpuobj.h"
 
 int
 nvc0_fbcon_fillrect(struct fb_info *info, const struct fb_fillrect *rect)

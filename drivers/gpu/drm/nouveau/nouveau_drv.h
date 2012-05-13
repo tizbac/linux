@@ -59,16 +59,19 @@ nouveau_fpriv(struct drm_file *file_priv)
 
 #define DRM_FILE_PAGE_OFFSET (0x100000000ULL >> PAGE_SHIFT)
 
-#define NVDEV_SUBDEV_VBIOS 0
-#define NVDEV_SUBDEV_MC    1
-#define NVDEV_SUBDEV_TIMER 2
-#define NVDEV_SUBDEV_FB    3
-#define NVDEV_SUBDEV_GPIO  4
-#define NVDEV_SUBDEV_VOLT  5
-#define NVDEV_SUBDEV_FAN0  6
-#define NVDEV_SUBDEV_CLOCK 7
-#define NVDEV_SUBDEV_THERM 8
-#define NVDEV_SUBDEV_NR    32
+#define NVDEV_SUBDEV_VBIOS   0
+#define NVDEV_SUBDEV_MC      1
+#define NVDEV_SUBDEV_TIMER   2
+#define NVDEV_SUBDEV_FB      3
+#define NVDEV_SUBDEV_INSTMEM 4
+#define NVDEV_SUBDEV_GPUOBJ  5
+#define NVDEV_SUBDEV_BAR     6
+#define NVDEV_SUBDEV_GPIO    7
+#define NVDEV_SUBDEV_VOLT    8
+#define NVDEV_SUBDEV_FAN0    9
+#define NVDEV_SUBDEV_CLOCK   10
+#define NVDEV_SUBDEV_THERM   11
+#define NVDEV_SUBDEV_NR      32
 struct nouveau_device;
 struct nouveau_subdev {
 	struct nouveau_device *device;
@@ -209,37 +212,6 @@ enum nouveau_flags {
 #define NVOBJ_ENGINE_NR		16
 #define NVOBJ_ENGINE_DISPLAY	(NVOBJ_ENGINE_NR + 0) /*XXX*/
 
-#define NVOBJ_FLAG_DONT_MAP             (1 << 0)
-#define NVOBJ_FLAG_ZERO_ALLOC		(1 << 1)
-#define NVOBJ_FLAG_ZERO_FREE		(1 << 2)
-#define NVOBJ_FLAG_VM			(1 << 3)
-#define NVOBJ_FLAG_VM_USER		(1 << 4)
-
-#define NVOBJ_CINST_GLOBAL	0xdeadbeef
-
-struct nouveau_gpuobj {
-	struct nouveau_device *device;
-	struct kref refcount;
-	struct list_head list;
-
-	void *node;
-	u32 *suspend;
-
-	u32 flags;
-
-	u32 size;
-	u32 pinst;	/* PRAMIN BAR offset */
-	u32 cinst;	/* Channel offset */
-	u64 vinst;	/* VRAM address */
-	u64 linst;	/* VM address */
-
-	u32 engine;
-	u32 class;
-
-	void (*dtor)(struct nouveau_device *, struct nouveau_gpuobj *);
-	void *priv;
-};
-
 struct nouveau_page_flip_state {
 	struct list_head head;
 	struct drm_pending_vblank_event *event;
@@ -338,23 +310,6 @@ struct nouveau_engine {
 			   u32 handle, u16 class);
 	void (*set_tile_region)(struct nouveau_device *, int i);
 	void (*tlb_flush)(struct nouveau_device *, int engine);
-};
-
-struct nouveau_instmem_engine {
-	void	*priv;
-
-	int	(*init)(struct nouveau_device *);
-	void	(*takedown)(struct nouveau_device *);
-	int	(*suspend)(struct nouveau_device *);
-	void	(*resume)(struct nouveau_device *);
-
-	int	(*get)(struct nouveau_gpuobj *, struct nouveau_channel *,
-		       u32 size, u32 align);
-	void	(*put)(struct nouveau_gpuobj *);
-	int	(*map)(struct nouveau_gpuobj *);
-	void	(*unmap)(struct nouveau_gpuobj *);
-
-	void	(*flush)(struct nouveau_device *);
 };
 
 struct nouveau_display_engine {
@@ -489,7 +444,6 @@ struct nouveau_pm_engine {
 };
 
 struct nouveau_subsys {
-	struct nouveau_instmem_engine instmem;
 	struct nouveau_display_engine display;
 	struct nouveau_pm_engine      pm;
 };
@@ -609,15 +563,9 @@ struct nouveau_device {
 
 	struct nouveau_subdev *subdev[NVDEV_SUBDEV_NR];
 
-	spinlock_t ramin_lock;
 	void __iomem *ramin;
 	u32 ramin_size;
-	u32 ramin_base;
-	bool ramin_available;
-	struct drm_mm ramin_heap;
 	struct nouveau_engine *engine[NVOBJ_ENGINE_NR];
-	struct list_head gpuobj_list;
-	struct list_head classes;
 
 	struct nouveau_bo *vga_ram;
 
@@ -709,10 +657,6 @@ struct nouveau_device {
 	u64 fb_mappable_pages;
 	u64 fb_aper_free;
 	int fb_mtrr;
-
-	/* BAR control (NV50-) */
-	struct nouveau_vm *bar1_vm;
-	struct nouveau_vm *bar3_vm;
 
 	/* G8x/G9x virtual address space */
 	struct nouveau_vm *chan_vm;
@@ -862,60 +806,6 @@ void nouveau_channel_put(struct nouveau_channel **);
 void nouveau_channel_ref(struct nouveau_channel *chan,
 				struct nouveau_channel **pchan);
 int  nouveau_channel_idle(struct nouveau_channel *chan);
-
-/* nouveau_gpuobj.c */
-#define NVOBJ_ENGINE_ADD(ndev, e, p) do {                                      \
-	(ndev)->engine[NVOBJ_ENGINE_##e] = (p);                                \
-} while (0)
-
-#define NVOBJ_ENGINE_DEL(ndev, e) do {                                         \
-	(ndev)->engine[NVOBJ_ENGINE_##e] = NULL;                               \
-} while (0)
-
-#define NVOBJ_CLASS(d, c, e) do {                                              \
-	int ret = nouveau_gpuobj_class_new((d), (c), NVOBJ_ENGINE_##e);        \
-	if (ret)                                                               \
-		return ret;                                                    \
-} while (0)
-
-#define NVOBJ_MTHD(d, c, m, e) do {                                            \
-	int ret = nouveau_gpuobj_mthd_new((d), (c), (m), (e));                 \
-	if (ret)                                                               \
-		return ret;                                                    \
-} while (0)
-
-int  nouveau_gpuobj_early_init(struct nouveau_device *);
-int  nouveau_gpuobj_init(struct nouveau_device *);
-void nouveau_gpuobj_takedown(struct nouveau_device *);
-int  nouveau_gpuobj_suspend(struct nouveau_device *);
-void nouveau_gpuobj_resume(struct nouveau_device *);
-int  nouveau_gpuobj_class_new(struct nouveau_device *, u32 class, u32 eng);
-int  nouveau_gpuobj_mthd_new(struct nouveau_device *, u32 class, u32 mthd,
-				    int (*exec)(struct nouveau_channel *,
-						u32 class, u32 mthd, u32 data));
-int  nouveau_gpuobj_mthd_call(struct nouveau_channel *, u32, u32, u32);
-int  nouveau_gpuobj_mthd_call2(struct nouveau_device *, int, u32, u32, u32);
-int nouveau_gpuobj_channel_init(struct nouveau_channel *,
-				       u32 vram_h, u32 tt_h);
-void nouveau_gpuobj_channel_takedown(struct nouveau_channel *);
-int nouveau_gpuobj_new(struct nouveau_device *, struct nouveau_channel *,
-			      u32 size, int align, u32 flags,
-			      struct nouveau_gpuobj **);
-void nouveau_gpuobj_ref(struct nouveau_gpuobj *,
-			       struct nouveau_gpuobj **);
-int nouveau_gpuobj_new_fake(struct nouveau_device *, u32 pinst, u64 vinst,
-				   u32 size, u32 flags,
-				   struct nouveau_gpuobj **);
-int nouveau_gpuobj_dma_new(struct nouveau_channel *, int class,
-				  u64 offset, u64 size, int access,
-				  int target, struct nouveau_gpuobj **);
-int nouveau_gpuobj_gr_new(struct nouveau_channel *, u32 handle, int class);
-int nv50_gpuobj_dma_new(struct nouveau_channel *, int class, u64 base,
-			       u64 size, int target, int access, u32 type,
-			       u32 comp, struct nouveau_gpuobj **pobj);
-void nv50_gpuobj_dma_init(struct nouveau_gpuobj *, u32 offset,
-				 int class, u64 base, u64 size, int target,
-				 int access, u32 type, u32 comp);
 
 /* nouveau_irq.c */
 int         nouveau_irq_init(struct nouveau_device *);
@@ -1077,37 +967,6 @@ int  nv84_vp_create(struct nouveau_device *);
 
 /* nv98_ppp.c */
 int  nv98_ppp_create(struct nouveau_device *);
-
-/* nv04_instmem.c */
-int  nv04_instmem_init(struct nouveau_device *);
-void nv04_instmem_takedown(struct nouveau_device *);
-int  nv04_instmem_suspend(struct nouveau_device *);
-void nv04_instmem_resume(struct nouveau_device *);
-int  nv04_instmem_get(struct nouveau_gpuobj *, struct nouveau_channel *,
-			     u32 size, u32 align);
-void nv04_instmem_put(struct nouveau_gpuobj *);
-int  nv04_instmem_map(struct nouveau_gpuobj *);
-void nv04_instmem_unmap(struct nouveau_gpuobj *);
-void nv04_instmem_flush(struct nouveau_device *);
-
-/* nv50_instmem.c */
-int  nv50_instmem_init(struct nouveau_device *);
-void nv50_instmem_takedown(struct nouveau_device *);
-int  nv50_instmem_suspend(struct nouveau_device *);
-void nv50_instmem_resume(struct nouveau_device *);
-int  nv50_instmem_get(struct nouveau_gpuobj *, struct nouveau_channel *,
-			     u32 size, u32 align);
-void nv50_instmem_put(struct nouveau_gpuobj *);
-int  nv50_instmem_map(struct nouveau_gpuobj *);
-void nv50_instmem_unmap(struct nouveau_gpuobj *);
-void nv50_instmem_flush(struct nouveau_device *);
-void nv84_instmem_flush(struct nouveau_device *);
-
-/* nvc0_instmem.c */
-int  nvc0_instmem_init(struct nouveau_device *);
-void nvc0_instmem_takedown(struct nouveau_device *);
-int  nvc0_instmem_suspend(struct nouveau_device *);
-void nvc0_instmem_resume(struct nouveau_device *);
 
 long nouveau_compat_ioctl(struct file *file, unsigned int cmd,
 				 unsigned long arg);

@@ -27,6 +27,9 @@
 #include "nouveau_drv.h"
 #include "nouveau_dma.h"
 #include "nouveau_ramht.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
+
 #include "nv50_display.h"
 
 static void
@@ -70,7 +73,7 @@ nv50_evo_dmaobj_init(struct nouveau_gpuobj *obj, u32 memtype, u64 base, u64 size
 	nv50_gpuobj_dma_init(obj, 0, 0x3d, base, size, NV_MEM_TARGET_VRAM,
 			     NV_MEM_ACCESS_RW, (memtype >> 8) & 0xff, 0);
 	nv_wo32(obj, 0x14, flags5);
-	ndev->subsys.instmem.flush(obj->device);
+	nouveau_instmem_flush(ndev);
 }
 
 int

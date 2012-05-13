@@ -30,6 +30,9 @@
 #include "nouveau_mc.h"
 #include "nouveau_timer.h"
 #include "nouveau_fb.h"
+#include "nouveau_instmem.h"
+#include "nouveau_gpuobj.h"
+#include "nouveau_bar.h"
 #include "nouveau_gpio.h"
 #include "nouveau_volt.h"
 #include "nouveau_fanctl.h"
@@ -186,6 +189,57 @@ nouveau_device_create(struct nouveau_device *ndev)
 	case NV_D0:
 	case NV_E0:
 		ret = nvc0_fb_create(ndev, NVDEV_SUBDEV_FB);
+		break;
+	default:
+		break;
+	}
+
+	/* kernel gpu memory objects and mapping */
+	switch (ndev->card_type * !ret) {
+	case NV_04:
+	case NV_10:
+	case NV_20:
+	case NV_30:
+	case NV_40:
+		ret = nv04_instmem_create(ndev, NVDEV_SUBDEV_INSTMEM);
+		break;
+	case NV_50:
+		ret = nv50_instmem_create(ndev, NVDEV_SUBDEV_INSTMEM);
+		break;
+	case NV_C0:
+	case NV_D0:
+	case NV_E0:
+		ret = nvc0_instmem_create(ndev, NVDEV_SUBDEV_INSTMEM);
+		break;
+	default:
+		break;
+	}
+
+	switch (ndev->card_type * !ret) {
+	case NV_04:
+	case NV_10:
+	case NV_20:
+	case NV_30:
+	case NV_40:
+	case NV_50:
+	case NV_C0:
+	case NV_D0:
+	case NV_E0:
+		ret = nouveau_gpuobj_create(ndev, NVDEV_SUBDEV_GPUOBJ);
+		break;
+	default:
+		break;
+	}
+
+	/* FB BAR allocation and management */
+	switch (ndev->card_type * !ret) {
+	case NV_50:
+		ret = nv50_bar_create(ndev, NVDEV_SUBDEV_BAR);
+		break;
+	case NV_C0:
+	case NV_D0:
+	case NV_E0:
+		ret = nvc0_bar_create(ndev, NVDEV_SUBDEV_BAR);
 		break;
 	default:
 		break;

@@ -115,5 +115,6 @@ void nvc0_vm_map_sg(struct nouveau_vma *, struct nouveau_gpuobj *,
 		    struct nouveau_mem *, u32 pte, u32 cnt, dma_addr_t *);
 void nvc0_vm_unmap(struct nouveau_gpuobj *, u32 pte, u32 cnt);
 void nvc0_vm_flush(struct nouveau_vm *);
+void nvc0_vm_flush_engine(struct nouveau_device *, u64 addr, u32 type);
 
 #endif

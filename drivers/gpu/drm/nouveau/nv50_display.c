@@ -24,6 +24,9 @@
  *
  */
 
+#include "drmP.h"
+#include "drm_crtc_helper.h"
+
 #define NOUVEAU_DMA_DEBUG (nouveau_reg_debug & NOUVEAU_REG_DEBUG_EVO)
 #include "nv50_display.h"
 #include "nouveau_crtc.h"
@@ -33,7 +36,7 @@
 #include "nouveau_ramht.h"
 #include "nouveau_software.h"
 #include "nouveau_timer.h"
-#include "drm_crtc_helper.h"
+#include "nouveau_gpuobj.h"
 
 static void nv50_display_isr(struct nouveau_device *);
 static void nv50_display_bh(unsigned long);
