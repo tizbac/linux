@@ -85,13 +85,19 @@ nv50_fanpwm_create(struct nouveau_device *ndev, int subdev)
 	struct gpio_func gpio;
 	u32 ctrl, line, indx;
 	u8 *perf, version;
-	u16 divs = 0;
+	u16 divs = 0, freq = 0;
+	u32 pwm_clock = 0;
 	int ret;
 
 	ret = nouveau_gpio_find(ndev, 0, DCB_GPIO_PWM_FAN, 0xff, &gpio);
 	if (ret) {
 		NV_DEBUG(ndev, "FANCTL: GPIO tag for PWM not found\n");
 		return ret;
+	}
+
+	if (ndev->chipset == 0x50) {
+		NV_ERROR(ndev, "FANCTL: PWM on nv50 is unsupported\n");
+		return -ENODEV;
 	}
 
 	switch (gpio.line) {
@@ -115,15 +121,35 @@ nv50_fanpwm_create(struct nouveau_device *ndev, int subdev)
 		return -ENODEV;
 	}
 
-	/*XXX: FIXME, mupuf's on it ;) */
-	if ((perf = nouveau_perf_table(ndev, &version)) && version < 0x40) {
+	perf = nouveau_perf_table(ndev, &version);
+	if (perf && version < 0x40)
 		divs = ROM16(perf[6]);
-	} else {
-		if (ptherm->fan.pwm_freq) {
-			divs = 135000 / ptherm->fan.pwm_freq;
-			if (ndev->chipset < 0xa3)
-				divs /= 4;
+
+	if (ptherm->fan.pwm_freq)
+		freq = ptherm->fan.pwm_freq;
+	else if (!divs) {
+		NV_ERROR(ndev, "FANCTL: unknown PWM freq. Set to 2500 Hz\n");
+		freq = 2500;
+	}
+
+	if (freq) {
+		/* determine the PWM source clock */
+		if (ndev->chipset > 0x50 && ndev->chipset < 0x94) {
+			u8 pwm_div = nv_rd32(ndev, 0x410c);
+			if (nv_rd32(ndev, 0xc040) & 0x800000) {
+				/* Use the HOST clock (100 MHz)
+				* Where does this constant(2.4) comes from? */
+				pwm_clock = (100000000 >> pwm_div) / 2.4;
+			} else {
+				/* Where does this constant(20) comes from? */
+				pwm_clock = (ndev->crystal * 1000) >> pwm_div;
+				pwm_clock /= 20;
+			}
+		} else {
+			pwm_clock = (ndev->crystal * 1000) / 20;
 		}
+
+		divs = pwm_clock / freq;
 	}
 
 	if (!divs) {
