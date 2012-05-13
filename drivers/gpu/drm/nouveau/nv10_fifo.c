@@ -53,6 +53,9 @@ static struct ramfc_desc {
 struct nv10_fifo_priv {
 	struct nouveau_fifo_priv base;
 	struct ramfc_desc *ramfc_desc;
+	struct nouveau_ramht  *ramht;
+	struct nouveau_gpuobj *ramro;
+	struct nouveau_gpuobj *ramfc;
 };
 
 struct nv10_fifo_chan {
@@ -82,7 +85,7 @@ nv10_fifo_context_new(struct nouveau_channel *chan, int engine)
 	}
 
 	/* initialise default fifo context */
-	ret = nouveau_gpuobj_new_fake(ndev, ndev->ramfc->pinst +
+	ret = nouveau_gpuobj_new_fake(ndev, priv->ramfc->pinst +
 				      chan->id * 32, ~0, 32,
 				      NVOBJ_FLAG_ZERO_FREE, &fctx->ramfc);
 	if (ret)
@@ -116,7 +119,10 @@ error:
 int
 nv10_fifo_create(struct nouveau_device *ndev)
 {
+	const int engine = NVOBJ_ENGINE_FIFO;
+	struct nouveau_gpuobj *ramht;
 	struct nv10_fifo_priv *priv;
+	int ret;
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -129,8 +135,31 @@ nv10_fifo_create(struct nouveau_device *ndev)
 	priv->base.base.context_del = nv04_fifo_context_del;
 	priv->base.channels = 31;
 	priv->ramfc_desc = nv10_ramfc;
-	ndev->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
+	ndev->engine[engine] = &priv->base.base;
+
+	ret = nouveau_gpuobj_new_fake(ndev, 0x10000, ~0, 0x1000,
+				      NVOBJ_FLAG_ZERO_ALLOC, &ramht);
+	if (ret == 0) {
+		ret = nouveau_ramht_new(ndev, ramht, &priv->ramht);
+		nouveau_gpuobj_ref(NULL, &ramht);
+	}
+
+	if (ret)
+		goto error;
+
+	ret = nouveau_gpuobj_new_fake(ndev, 0x11200, ~0, 512,
+				      NVOBJ_FLAG_ZERO_ALLOC, &priv->ramro);
+	if (ret)
+		goto error;
+
+	ret = nouveau_gpuobj_new_fake(ndev, 0x11400, ~0, 32 * 32,
+				      NVOBJ_FLAG_ZERO_ALLOC, &priv->ramfc);
+	if (ret)
+		goto error;
 
 	nouveau_irq_register(ndev, 8, nv04_fifo_isr);
-	return 0;
+error:
+	if (ret)
+		priv->base.base.destroy(ndev, engine);
+	return ret;
 }

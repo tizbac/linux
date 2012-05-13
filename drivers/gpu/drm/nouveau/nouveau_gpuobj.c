@@ -618,7 +618,7 @@ nouveau_gpuobj_channel_init(struct nouveau_channel *chan,
 
 	/* RAMHT */
 	if (ndev->card_type < NV_50) {
-		nouveau_ramht_ref(ndev->ramht, &chan->ramht, NULL);
+		nv04_fifo_ramht(ndev, &chan->ramht);
 	} else {
 		struct nouveau_gpuobj *ramht = NULL;
 

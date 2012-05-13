@@ -2,30 +2,10 @@
 #include "drm.h"
 
 #include "nouveau_drv.h"
-#include "nouveau_fifo.h"
-#include "nouveau_ramht.h"
-
-/* returns the size of fifo context */
-static int
-nouveau_fifo_ctx_size(struct nouveau_device *ndev)
-{
-
-	if (ndev->chipset >= 0x40)
-		return 128 * 32;
-	else
-	if (ndev->chipset >= 0x17)
-		return 64 * 32;
-	else
-	if (ndev->chipset >= 0x10)
-		return 32 * 32;
-
-	return 32 * 16;
-}
 
 int nv04_instmem_init(struct nouveau_device *ndev)
 {
-	struct nouveau_gpuobj *ramht = NULL;
-	u32 offset, length;
+	u32 offset;
 	int ret;
 
 	/* RAMIN always available */
@@ -52,42 +32,6 @@ int nv04_instmem_init(struct nouveau_device *ndev)
 		ndev->ramin_rsvd_vram = 512 * 1024;
 	}
 
-	/* Setup shared RAMHT */
-	ret = nouveau_gpuobj_new_fake(ndev, 0x10000, ~0, 4096,
-				      NVOBJ_FLAG_ZERO_ALLOC, &ramht);
-	if (ret)
-		return ret;
-
-	ret = nouveau_ramht_new(ndev, ramht, &ndev->ramht);
-	nouveau_gpuobj_ref(NULL, &ramht);
-	if (ret)
-		return ret;
-
-	/* And RAMRO */
-	ret = nouveau_gpuobj_new_fake(ndev, 0x11200, ~0, 512,
-				      NVOBJ_FLAG_ZERO_ALLOC, &ndev->ramro);
-	if (ret)
-		return ret;
-
-	/* And RAMFC */
-	length = nouveau_fifo_ctx_size(ndev);
-	switch (ndev->card_type) {
-	case NV_40:
-		offset = 0x20000;
-		break;
-	default:
-		offset = 0x11400;
-		break;
-	}
-
-	ret = nouveau_gpuobj_new_fake(ndev, offset, ~0, length,
-				      NVOBJ_FLAG_ZERO_ALLOC, &ndev->ramfc);
-	if (ret)
-		return ret;
-
-	/* Only allow space after RAMFC to be used for object allocation */
-	offset += length;
-
 	/* It appears RAMRO (or something?) is controlled by 0x2220/0x2230
 	 * on certain NV4x chipsets as well as RAMFC.  When 0x2230 == 0
 	 * ("new style" control) the upper 16-bits of 0x2220 points at this
@@ -96,10 +40,10 @@ int nv04_instmem_init(struct nouveau_device *ndev)
 	 * We're now pointing this at RAMIN+0x30000 to avoid RAMFC getting
 	 * smashed to pieces on us, so reserve 0x30000-0x40000 too..
 	 */
-	if (ndev->card_type >= NV_40) {
-		if (offset < 0x40000)
-			offset = 0x40000;
-	}
+	if (ndev->card_type < NV_40)
+		offset = 0x22800;
+	else
+		offset = 0x40000;
 
 	ret = drm_mm_init(&ndev->ramin_heap, offset,
 			  ndev->ramin_rsvd_vram - offset);
@@ -114,11 +58,6 @@ int nv04_instmem_init(struct nouveau_device *ndev)
 void
 nv04_instmem_takedown(struct nouveau_device *ndev)
 {
-
-	nouveau_ramht_ref(NULL, &ndev->ramht, NULL);
-	nouveau_gpuobj_ref(NULL, &ndev->ramro);
-	nouveau_gpuobj_ref(NULL, &ndev->ramfc);
-
 	if (drm_mm_initialized(&ndev->ramin_heap))
 		drm_mm_takedown(&ndev->ramin_heap);
 }

@@ -54,12 +54,22 @@ static struct ramfc_desc {
 struct nv04_fifo_priv {
 	struct nouveau_fifo_priv base;
 	struct ramfc_desc *ramfc_desc;
+	struct nouveau_ramht  *ramht;
+	struct nouveau_gpuobj *ramro;
+	struct nouveau_gpuobj *ramfc;
 };
 
 struct nv04_fifo_chan {
 	struct nouveau_fifo_chan base;
 	struct nouveau_gpuobj *ramfc;
 };
+
+void
+nv04_fifo_ramht(struct nouveau_device *ndev, struct nouveau_ramht **pramht)
+{
+	struct nv04_fifo_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	nouveau_ramht_ref(priv->ramht, pramht, NULL);
+}
 
 bool
 nv04_fifo_cache_pull(struct nouveau_device *ndev, bool enable)
@@ -112,7 +122,7 @@ nv04_fifo_context_new(struct nouveau_channel *chan, int engine)
 	}
 
 	/* initialise default fifo context */
-	ret = nouveau_gpuobj_new_fake(ndev, ndev->ramfc->pinst +
+	ret = nouveau_gpuobj_new_fake(ndev, priv->ramfc->pinst +
 				      chan->id * 32, ~0, 32,
 				      NVOBJ_FLAG_ZERO_FREE, &fctx->ramfc);
 	if (ret)
@@ -203,10 +213,10 @@ nv04_fifo_init(struct nouveau_device *ndev, int engine)
 	nv_wr32(ndev, NV04_PFIFO_DMA_TIMESLICE, 0x0101ffff);
 
 	nv_wr32(ndev, NV03_PFIFO_RAMHT, (0x03 << 24) /* search 128 */ |
-				       ((ndev->ramht->bits - 9) << 16) |
-				       (ndev->ramht->gpuobj->pinst >> 8));
-	nv_wr32(ndev, NV03_PFIFO_RAMRO, ndev->ramro->pinst >> 8);
-	nv_wr32(ndev, NV03_PFIFO_RAMFC, ndev->ramfc->pinst >> 8);
+				       ((priv->ramht->bits - 9) << 16) |
+				       (priv->ramht->gpuobj->pinst >> 8));
+	nv_wr32(ndev, NV03_PFIFO_RAMRO, priv->ramro->pinst >> 8);
+	nv_wr32(ndev, NV03_PFIFO_RAMFC, priv->ramfc->pinst >> 8);
 
 	nv_wr32(ndev, NV03_PFIFO_CACHE1_PUSH1, priv->base.channels);
 
@@ -472,6 +482,10 @@ nv04_fifo_destroy(struct nouveau_device *ndev, int engine)
 
 	nouveau_irq_unregister(ndev, 8);
 
+	nouveau_gpuobj_ref(NULL, &priv->ramfc);
+	nouveau_gpuobj_ref(NULL, &priv->ramro);
+	nouveau_ramht_ref(NULL, &priv->ramht, NULL);
+
 	ndev->engine[engine] = NULL;
 	kfree(priv);
 }
@@ -479,7 +493,10 @@ nv04_fifo_destroy(struct nouveau_device *ndev, int engine)
 int
 nv04_fifo_create(struct nouveau_device *ndev)
 {
+	const int engine = NVOBJ_ENGINE_FIFO;
+	struct nouveau_gpuobj *ramht;
 	struct nv04_fifo_priv *priv;
+	int ret;
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -492,8 +509,31 @@ nv04_fifo_create(struct nouveau_device *ndev)
 	priv->base.base.context_del = nv04_fifo_context_del;
 	priv->base.channels = 15;
 	priv->ramfc_desc = nv04_ramfc;
-	ndev->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
+	ndev->engine[engine] = &priv->base.base;
+
+	ret = nouveau_gpuobj_new_fake(ndev, 0x10000, ~0, 0x1000,
+				      NVOBJ_FLAG_ZERO_ALLOC, &ramht);
+	if (ret == 0) {
+		ret = nouveau_ramht_new(ndev, ramht, &priv->ramht);
+		nouveau_gpuobj_ref(NULL, &ramht);
+	}
+
+	if (ret)
+		goto error;
+
+	ret = nouveau_gpuobj_new_fake(ndev, 0x11200, ~0, 512,
+				      NVOBJ_FLAG_ZERO_ALLOC, &priv->ramro);
+	if (ret)
+		goto error;
+
+	ret = nouveau_gpuobj_new_fake(ndev, 0x11400, ~0, 16 * 32,
+				      NVOBJ_FLAG_ZERO_ALLOC, &priv->ramfc);
+	if (ret)
+		goto error;
 
 	nouveau_irq_register(ndev, 8, nv04_fifo_isr);
-	return 0;
+error:
+	if (ret)
+		priv->base.base.destroy(ndev, engine);
+	return ret;
 }

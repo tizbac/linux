@@ -15,6 +15,8 @@ int  nv04_fifo_fini(struct nouveau_device *, int, bool);
 int  nv04_fifo_init(struct nouveau_device *, int);
 void nv04_fifo_isr(struct nouveau_device *);
 void nv04_fifo_destroy(struct nouveau_device *, int);
+/*XXX: hack for the moment */
+void nv04_fifo_ramht(struct nouveau_device *, struct nouveau_ramht **);
 
 void nv50_fifo_playlist_update(struct nouveau_device *);
 void nv50_fifo_destroy(struct nouveau_device *, int);

@@ -657,11 +657,7 @@ struct nouveau_device {
 	/* VM/PRAMIN flush, legacy PRAMIN aperture */
 	spinlock_t vm_lock;
 
-	/* RAMIN configuration, RAMFC, RAMHT and RAMRO offsets */
-	struct nouveau_ramht  *ramht;
-	struct nouveau_gpuobj *ramfc;
-	struct nouveau_gpuobj *ramro;
-
+	/* amount of VRAM reserved for instmem allocations */
 	u32 ramin_rsvd_vram;
 
 	struct {
