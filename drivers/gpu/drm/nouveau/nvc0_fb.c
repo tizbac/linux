@@ -65,16 +65,20 @@ nvc0_fb_memtype_valid(struct nouveau_fb *pfb, u32 tile_flags)
 
 static int
 nvc0_fb_vram_new(struct nouveau_fb *pfb, u64 size, u32 align, u32 ncmin,
-		 u32 type, struct nouveau_mem **pmem)
+		 u32 memtype, struct nouveau_mem **pmem)
 {
 	struct nouveau_mm *mm = &pfb->mm;
 	struct nouveau_mm_node *r;
 	struct nouveau_mem *mem;
+	int type = (memtype & 0x0ff);
+	int back = (memtype & 0x800);
 	int ret;
 
 	size  >>= 12;
 	align >>= 12;
 	ncmin >>= 12;
+	if (!ncmin)
+		ncmin = size;
 
 	mem = kzalloc(sizeof(*mem), GFP_KERNEL);
 	if (!mem)
@@ -82,12 +86,15 @@ nvc0_fb_vram_new(struct nouveau_fb *pfb, u64 size, u32 align, u32 ncmin,
 
 	INIT_LIST_HEAD(&mem->regions);
 	mem->device = pfb->base.device;
-	mem->memtype = (type & 0xff);
+	mem->memtype = type;
 	mem->size = size;
 
 	mutex_lock(&mm->mutex);
 	do {
-		ret = nouveau_mm_get(mm, 1, size, ncmin, align, &r);
+		if (back)
+			ret = nouveau_mm_tail(mm, 1, size, ncmin, align, &r);
+		else
+			ret = nouveau_mm_head(mm, 1, size, ncmin, align, &r);
 		if (ret) {
 			mutex_unlock(&mm->mutex);
 			pfb->vram_put(pfb, &mem);

@@ -56,7 +56,7 @@ nv50_fb_memtype_valid(struct nouveau_fb *pfb, u32 tile_flags)
 }
 
 static int
-nv50_fb_vram_new(struct nouveau_fb *pfb, u64 size, u32 align, u32 size_nc,
+nv50_fb_vram_new(struct nouveau_fb *pfb, u64 size, u32 align, u32 ncmin,
 		 u32 memtype, struct nouveau_mem **pmem)
 {
 	struct nouveau_mm *mm = &pfb->mm;
@@ -64,13 +64,14 @@ nv50_fb_vram_new(struct nouveau_fb *pfb, u64 size, u32 align, u32 size_nc,
 	struct nouveau_mem *mem;
 	int comp = (memtype & 0x300) >> 8;
 	int type = (memtype & 0x07f);
+	int back = (memtype & 0x800);
 	int ret;
 
-	if (!types[type])
-		return -EINVAL;
-	size >>= 12;
+	size  >>= 12;
 	align >>= 12;
-	size_nc >>= 12;
+	ncmin >>= 12;
+	if (!ncmin)
+		ncmin = size;
 
 	mem = kzalloc(sizeof(*mem), GFP_KERNEL);
 	if (!mem)
@@ -95,8 +96,12 @@ nv50_fb_vram_new(struct nouveau_fb *pfb, u64 size, u32 align, u32 size_nc,
 	mem->memtype = (comp << 7) | type;
 	mem->size = size;
 
+	type = types[type];
 	do {
-		ret = nouveau_mm_get(mm, types[type], size, size_nc, align, &r);
+		if (back)
+			ret = nouveau_mm_tail(mm, type, size, ncmin, align, &r);
+		else
+			ret = nouveau_mm_head(mm, type, size, ncmin, align, &r);
 		if (ret) {
 			mutex_unlock(&mm->mutex);
 			pfb->vram_put(pfb, &mem);
@@ -131,7 +136,7 @@ nv50_fb_vram_del(struct nouveau_fb *pfb, struct nouveau_mem **pmem)
 		this = list_first_entry(&mem->regions, struct nouveau_mm_node, rl_entry);
 
 		list_del(&this->rl_entry);
-		nouveau_mm_put(mm, this);
+		nouveau_mm_free(mm, &this);
 	}
 
 	if (mem->tag) {
