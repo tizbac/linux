@@ -43,7 +43,8 @@ nouveau-y := nouveau_device.o nouveau_subdev.o nouveau_engine.o \
 	     nv50_calc.o \
 	     nv04_clock.o nv40_clock.o nv50_clock.o nva3_clock.o nvc0_clock.o \
 	     nv40_fantoggle.o nv40_fanpwm.o nv50_fanpwm.o \
-	     nv50_vm.o nvc0_vm.o
+	     nv50_vm.o nvc0_vm.o \
+	     nouveau_hwmon.o
 
 nouveau-$(CONFIG_DRM_NOUVEAU_DEBUG) += nouveau_debugfs.o
 nouveau-$(CONFIG_COMPAT) += nouveau_ioc32.o

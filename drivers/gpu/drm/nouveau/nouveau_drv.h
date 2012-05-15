@@ -446,7 +446,7 @@ struct nouveau_pm_engine {
 	struct nouveau_pm_level boot;
 	struct nouveau_pm_level *cur;
 
-	struct device *hwmon;
+	struct device *hwmon_dev;
 	struct notifier_block acpi_nb;
 
 	u16 pwm_divisor;
