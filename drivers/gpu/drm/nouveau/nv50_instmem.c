@@ -318,7 +318,7 @@ nv50_instmem_get(struct nouveau_gpuobj *gpuobj, struct nouveau_channel *chan,
 	size  = (size + 4095) & ~4095;
 	align = max(align, (u32)4096);
 
-	ret = pfb->vram_get(pfb, size, align, 0, 0, &node->vram);
+	ret = pfb->vram_get(pfb, size, align, 0, 0x800, &node->vram);
 	if (ret) {
 		kfree(node);
 		return ret;
