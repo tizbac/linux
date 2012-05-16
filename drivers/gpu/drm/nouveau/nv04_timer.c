@@ -31,6 +31,8 @@
 
 struct nv04_timer_priv {
 	struct nouveau_timer base;
+	struct list_head alarms;
+	spinlock_t lock;
 };
 
 static u64
@@ -47,13 +49,66 @@ nv04_timer_read(struct nouveau_timer *ptimer)
 	return ((u64)hi << 32 | lo);
 }
 
+static void
+nv04_timer_alarm_trigger(struct nouveau_timer *ptimer)
+{
+	struct nouveau_device *ndev = ptimer->base.device;
+	struct nv04_timer_priv *priv = (void *)ptimer;
+	struct nouveau_alarm *alarm, *atemp;
+	unsigned long flags;
+	LIST_HEAD(exec);
+
+	/* move any due alarms off the pending list */
+	spin_lock_irqsave(&priv->lock, flags);
+	list_for_each_entry_safe(alarm, atemp, &priv->alarms, head) {
+		if (alarm->timestamp <= ptimer->read(ptimer))
+			list_move_tail(&alarm->head, &exec);
+	}
+
+	/* reschedule interrupt for next alarm time */
+	if (!list_empty(&priv->alarms)) {
+		alarm = list_first_entry(&priv->alarms, typeof(*alarm), head);
+		nv_wr32(ndev, NV04_PTIMER_ALARM_0, alarm->timestamp);
+		nv_wr32(ndev, NV04_PTIMER_INTR_EN_0, 0x00000001);
+	} else {
+		nv_wr32(ndev, NV04_PTIMER_INTR_EN_0, 0x00000000);
+	}
+	spin_unlock_irqrestore(&priv->lock, flags);
+
+	/* execute any pending alarm handlers */
+	list_for_each_entry_safe(alarm, atemp, &exec, head) {
+		list_del(&alarm->head);
+		alarm->func(alarm);
+	}
+}
+
+static void
+nv04_timer_alarm(struct nouveau_timer *ptimer, u32 time,
+		 struct nouveau_alarm *alarm)
+{
+	struct nv04_timer_priv *priv = (void *)ptimer;
+	struct nouveau_alarm *list;
+	unsigned long flags;
+
+	alarm->timestamp = ptimer->read(ptimer) + time;
+
+	/* append new alarm to list, in soonest-alarm-first order */
+	spin_lock_irqsave(&priv->lock, flags);
+	list_for_each_entry(list, &priv->alarms, head) {
+		if (list->timestamp > alarm->timestamp)
+			break;
+	}
+	list_add_tail(&alarm->head, &list->head);
+	spin_unlock_irqrestore(&priv->lock, flags);
+
+	/* process pending alarms */
+	nv04_timer_alarm_trigger(ptimer);
+}
+
 static int
 nv04_timer_init(struct nouveau_device *ndev, int subdev)
 {
 	u32 m, n, d;
-
-	nv_wr32(ndev, NV04_PTIMER_INTR_EN_0, 0x00000000);
-	nv_wr32(ndev, NV04_PTIMER_INTR_0, 0xFFFFFFFF);
 
 	/* aim for 31.25MHz, which gives us nanosecond timestamps */
 	d = 1000000 / 32;
@@ -104,7 +159,40 @@ nv04_timer_init(struct nouveau_device *ndev, int subdev)
 
 	nv_wr32(ndev, NV04_PTIMER_NUMERATOR, n);
 	nv_wr32(ndev, NV04_PTIMER_DENOMINATOR, d);
+	nv_wr32(ndev, NV04_PTIMER_INTR_0, 0xffffffff);
+	nv_wr32(ndev, NV04_PTIMER_INTR_EN_0, 0x00000000);
 	return 0;
+}
+
+static int
+nv04_timer_fini(struct nouveau_device *ndev, int subdev, bool suspend)
+{
+	nv_wr32(ndev, NV04_PTIMER_INTR_EN_0, 0x00000000);
+	return 0;
+}
+
+static void
+nv04_timer_isr(struct nouveau_device *ndev)
+{
+	struct nouveau_timer *ptimer = nv_subdev(ndev, NVDEV_SUBDEV_TIMER);
+	u32 stat = nv_rd32(ndev, NV04_PTIMER_INTR_0);
+
+	if (stat & 0x00000001) {
+		nv04_timer_alarm_trigger(ptimer);
+		nv_wr32(ndev, NV04_PTIMER_INTR_0, 0x00000001);
+		stat &= ~0x00000001;
+	}
+
+	if (stat) {
+		NV_ERROR(ndev, "PTIMER: unknown stat 0x%08x\n", stat);
+		nv_wr32(ndev, NV04_PTIMER_INTR_0, stat);
+	}
+}
+
+static void
+nv04_timer_destroy(struct nouveau_device *ndev, int subdev)
+{
+	nouveau_irq_unregister(ndev, 20);
 }
 
 int
@@ -117,7 +205,15 @@ nv04_timer_create(struct nouveau_device *ndev, int subdev)
 	if (ret)
 		return ret;
 
+	priv->base.base.destroy = nv04_timer_destroy;
 	priv->base.base.init = nv04_timer_init;
+	priv->base.base.fini = nv04_timer_fini;
 	priv->base.read = nv04_timer_read;
+	priv->base.alarm = nv04_timer_alarm;
+
+	INIT_LIST_HEAD(&priv->alarms);
+	spin_lock_init(&priv->lock);
+
+	nouveau_irq_register(ndev, 20, nv04_timer_isr);
 	return nouveau_subdev_init(ndev, subdev, ret);
 }
