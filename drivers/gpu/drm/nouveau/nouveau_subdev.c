@@ -44,22 +44,27 @@ nouveau_subdev_init(struct nouveau_device *ndev, int subdev, int ret)
 		}
 
 		NV_INFO(ndev, "%s: created\n", sdev->name);
-		sdev->state = NVDEV_SUBDEV_STOPPED;
-		if (ret)
-			break;
+		sdev->refcount = 1;
+
 	case NVDEV_SUBDEV_SUSPEND:
+		nouveau_subdev_fini(ndev, subdev, false);
+		if (ret & 1)
+			break;
+
 	case NVDEV_SUBDEV_STOPPED:
-		if (sdev->init)
-			ret = sdev->init(ndev, subdev);
+		if (sdev->refcount) {
+			if (sdev->init)
+				ret = sdev->init(ndev, subdev);
 
-		if (ret) {
-			NV_ERROR(ndev, "%s: failed to initialise, %d\n",
-				 sdev->name, ret);
-			return ret;
+			if (ret) {
+				NV_ERROR(ndev, "%s: failed to initialise, %d\n",
+					 sdev->name, ret);
+				return ret;
+			}
+
+			NV_INFO(ndev, "%s: initialised\n", sdev->name);
+			sdev->state = NVDEV_SUBDEV_RUNNING;
 		}
-
-		NV_INFO(ndev, "%s: initialised\n", sdev->name);
-		sdev->state = NVDEV_SUBDEV_RUNNING;
 		break;
 	default:
 		break;
@@ -74,7 +79,7 @@ nouveau_subdev_fini(struct nouveau_device *ndev, int subdev, bool suspend)
 	struct nouveau_subdev *sdev = nv_subdev(ndev, subdev);
 	int ret = 0;
 
-	if (sdev) {
+	if (sdev && sdev->state < NVDEV_SUBDEV_STOPPED) {
 		if (sdev->fini)
 			ret = sdev->fini(ndev, subdev, suspend);
 
@@ -125,6 +130,8 @@ nouveau_subdev_create_(struct nouveau_device *ndev, int subdev, int length,
 	sdev->device = ndev;
 	sdev->name = subname;
 	sdev->state = NVDEV_SUBDEV_CREATED;
+	mutex_init(&sdev->mutex);
+
 	ndev->subdev[subdev] = sdev;
 	return 0;
 }

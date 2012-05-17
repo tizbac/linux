@@ -77,11 +77,13 @@ struct nouveau_subdev {
 	struct nouveau_device *device;
 	const char *name;
 	enum {
-		NVDEV_SUBDEV_CREATED,
-		NVDEV_SUBDEV_SUSPEND,
-		NVDEV_SUBDEV_STOPPED,
-		NVDEV_SUBDEV_RUNNING,
+		NVDEV_SUBDEV_CREATED = 0,
+		NVDEV_SUBDEV_RUNNING = 1,
+		NVDEV_SUBDEV_SUSPEND = 2,
+		NVDEV_SUBDEV_STOPPED = 3,
 	} state;
+	struct mutex mutex;
+	u32 refcount;
 
 	void (*destroy)(struct nouveau_device *, int subdev);
 	int  (*init)(struct nouveau_device *, int subdev);
