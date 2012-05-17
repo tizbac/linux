@@ -141,7 +141,7 @@ nvc0_fence_create(struct nouveau_device *ndev, int engine)
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.destroy = nvc0_fence_destroy;
+	priv->base.base.base.destroy = nvc0_fence_destroy;
 	priv->base.base.context_new = nvc0_fence_context_new;
 	priv->base.base.context_del = nvc0_fence_context_del;
 	priv->base.emit = nvc0_fence_emit;

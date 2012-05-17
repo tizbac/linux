@@ -708,9 +708,9 @@ nv20_graph_create(struct nouveau_device *ndev, int engine)
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.destroy = nv20_graph_destroy;
-	priv->base.base.subdev.fini = nv20_graph_fini;
-	priv->base.base.subdev.unit = 0x00001000;
+	priv->base.base.base.destroy = nv20_graph_destroy;
+	priv->base.base.base.fini = nv20_graph_fini;
+	priv->base.base.base.unit = 0x00001000;
 	priv->base.base.context_new = nv20_graph_context_new;
 	priv->base.base.context_del = nv20_graph_context_del;
 	priv->base.base.object_new = nv04_graph_object_new;
@@ -718,7 +718,7 @@ nv20_graph_create(struct nouveau_device *ndev, int engine)
 
 	priv->grctx_user = 0x0028;
 	if (ndev->card_type == NV_20) {
-		priv->base.base.subdev.init = nv20_graph_init;
+		priv->base.base.base.init = nv20_graph_init;
 		switch (ndev->chipset) {
 		case 0x20:
 			priv->grctx_init = nv20_graph_context_init;
@@ -741,7 +741,7 @@ nv20_graph_create(struct nouveau_device *ndev, int engine)
 			goto done;
 		}
 	} else {
-		priv->base.base.subdev.init = nv30_graph_init;
+		priv->base.base.base.init = nv30_graph_init;
 		switch (ndev->chipset) {
 		case 0x30:
 		case 0x31:

@@ -742,9 +742,9 @@ nve0_graph_create(struct nouveau_device *ndev, int engine)
 		goto done;
 	}
 
-	priv->base.base.subdev.destroy = nve0_graph_destroy;
-	priv->base.base.subdev.init = nve0_graph_init;
-	priv->base.base.subdev.unit = 0x18001000;
+	priv->base.base.base.destroy = nve0_graph_destroy;
+	priv->base.base.base.init = nve0_graph_init;
+	priv->base.base.base.unit = 0x18001000;
 	priv->base.base.context_new = nve0_graph_context_new;
 	priv->base.base.context_del = nve0_graph_context_del;
 	priv->base.base.object_new = nve0_graph_object_new;

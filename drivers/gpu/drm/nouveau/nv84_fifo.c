@@ -208,10 +208,10 @@ nv84_fifo_create(struct nouveau_device *ndev, int engine)
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.destroy = nv50_fifo_destroy;
-	priv->base.base.subdev.init = nv84_fifo_init;
-	priv->base.base.subdev.fini = nv84_fifo_fini;
-	priv->base.base.subdev.unit = 0x00000100;
+	priv->base.base.base.destroy = nv50_fifo_destroy;
+	priv->base.base.base.init = nv84_fifo_init;
+	priv->base.base.base.fini = nv84_fifo_fini;
+	priv->base.base.base.unit = 0x00000100;
 	priv->base.base.context_new = nv84_fifo_context_new;
 	priv->base.base.context_del = nv84_fifo_context_del;
 	priv->base.base.tlb_flush = nv50_fifo_tlb_flush;

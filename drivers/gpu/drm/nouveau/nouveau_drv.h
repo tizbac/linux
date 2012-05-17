@@ -98,6 +98,7 @@ struct nouveau_subdev {
 		NVDEV_SUBDEV_STOPPED = 3,
 	} state;
 	struct mutex mutex;
+	u32 handle;
 	u32 oclass;
 	u32 refcount;
 	u32 unit;
@@ -118,7 +119,7 @@ int  nouveau_subdev_init(struct nouveau_device *, int subdev, int ret);
 int  nouveau_subdev_fini(struct nouveau_device *, int subdev, bool suspend);
 
 struct nouveau_engine {
-	struct nouveau_subdev subdev;
+	struct nouveau_subdev base;
 	int  (*context_new)(struct nouveau_channel *, int engine);
 	void (*context_del)(struct nouveau_channel *, int engine);
 	int  (*object_new)(struct nouveau_channel *, int engine,

@@ -212,7 +212,7 @@ nvc0_copy_create(struct nouveau_device *ndev, int engine)
 		if (ret)
 			return ret;
 
-		priv->base.base.subdev.unit = 0x00000040;
+		priv->base.base.base.unit = 0x00000040;
 
 		priv->irq = 5;
 		priv->fuc = 0x104000;
@@ -225,7 +225,7 @@ nvc0_copy_create(struct nouveau_device *ndev, int engine)
 		if (ret)
 			return ret;
 
-		priv->base.base.subdev.unit = 0x00000080;
+		priv->base.base.base.unit = 0x00000080;
 
 		priv->irq = 6;
 		priv->fuc = 0x105000;
@@ -234,9 +234,9 @@ nvc0_copy_create(struct nouveau_device *ndev, int engine)
 		NVOBJ_CLASS(ndev, 0x90b8, COPY1);
 	}
 
-	priv->base.base.subdev.destroy = nvc0_copy_destroy;
-	priv->base.base.subdev.init = nvc0_copy_init;
-	priv->base.base.subdev.fini = nvc0_copy_fini;
+	priv->base.base.base.destroy = nvc0_copy_destroy;
+	priv->base.base.base.init = nvc0_copy_init;
+	priv->base.base.base.fini = nvc0_copy_fini;
 	priv->base.base.context_new = nvc0_copy_context_new;
 	priv->base.base.context_del = nvc0_copy_context_del;
 	priv->base.base.object_new = nvc0_copy_object_new;

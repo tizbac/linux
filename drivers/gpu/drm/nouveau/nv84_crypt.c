@@ -166,9 +166,9 @@ nv84_crypt_create(struct nouveau_device *ndev, int engine)
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.destroy = nv84_crypt_destroy;
-	priv->base.base.subdev.init = nv84_crypt_init;
-	priv->base.base.subdev.unit = 0x00004000;
+	priv->base.base.base.destroy = nv84_crypt_destroy;
+	priv->base.base.base.init = nv84_crypt_init;
+	priv->base.base.base.unit = 0x00004000;
 	priv->base.base.context_new = nv84_crypt_context_new;
 	priv->base.base.context_del = nv84_crypt_context_del;
 	priv->base.base.object_new = nv84_crypt_object_new;

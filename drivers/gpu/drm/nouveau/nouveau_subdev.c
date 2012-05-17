@@ -135,6 +135,7 @@ nouveau_subdev_create_(struct nouveau_device *ndev, int subdev, int length,
 	sdev->device = ndev;
 	sdev->name = subname;
 	sdev->state = NVDEV_SUBDEV_CREATED;
+	sdev->handle = subdev;
 	sdev->oclass = NVDEV_SUBDEV_CLASS_SUBDEV;
 	mutex_init(&sdev->mutex);
 

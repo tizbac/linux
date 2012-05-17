@@ -437,10 +437,10 @@ nvc0_fifo_create(struct nouveau_device *ndev, int engine)
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.destroy = nvc0_fifo_destroy;
-	priv->base.base.subdev.init = nvc0_fifo_init;
-	priv->base.base.subdev.fini = nvc0_fifo_fini;
-	priv->base.base.subdev.unit = 0x00000100;
+	priv->base.base.base.destroy = nvc0_fifo_destroy;
+	priv->base.base.base.init = nvc0_fifo_init;
+	priv->base.base.base.fini = nvc0_fifo_fini;
+	priv->base.base.base.unit = 0x00000100;
 	priv->base.base.context_new = nvc0_fifo_context_new;
 	priv->base.base.context_del = nvc0_fifo_context_del;
 	priv->base.channels = 128;

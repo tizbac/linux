@@ -1125,10 +1125,10 @@ nv10_graph_create(struct nouveau_device *ndev, int engine)
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.destroy = nv10_graph_destroy;
-	priv->base.base.subdev.init = nv10_graph_init;
-	priv->base.base.subdev.fini = nv10_graph_fini;
-	priv->base.base.subdev.unit = 0x00001000;
+	priv->base.base.base.destroy = nv10_graph_destroy;
+	priv->base.base.base.init = nv10_graph_init;
+	priv->base.base.base.fini = nv10_graph_fini;
+	priv->base.base.base.unit = 0x00001000;
 	priv->base.base.context_new = nv10_graph_context_new;
 	priv->base.base.context_del = nv10_graph_context_del;
 	priv->base.base.object_new = nv04_graph_object_new;

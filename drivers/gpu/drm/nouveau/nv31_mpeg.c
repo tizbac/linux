@@ -302,10 +302,10 @@ nv31_mpeg_create(struct nouveau_device *ndev, int engine)
 
 	atomic_set(&priv->refcount, 0);
 
-	priv->base.base.subdev.destroy = nv31_mpeg_destroy;
-	priv->base.base.subdev.init = nv31_mpeg_init;
-	priv->base.base.subdev.fini = nv31_mpeg_fini;
-	priv->base.base.subdev.unit = 0x00000002;
+	priv->base.base.base.destroy = nv31_mpeg_destroy;
+	priv->base.base.base.init = nv31_mpeg_init;
+	priv->base.base.base.fini = nv31_mpeg_fini;
+	priv->base.base.base.unit = 0x00000002;
 	if (ndev->card_type < NV_40) {
 		priv->base.base.context_new = nv31_mpeg_context_new;
 		priv->base.base.context_del = nv31_mpeg_context_del;

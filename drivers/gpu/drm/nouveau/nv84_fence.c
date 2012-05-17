@@ -140,7 +140,7 @@ nv84_fence_create(struct nouveau_device *ndev, int engine)
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.destroy = nv84_fence_destroy;
+	priv->base.base.base.destroy = nv84_fence_destroy;
 	priv->base.base.context_new = nv84_fence_context_new;
 	priv->base.base.context_del = nv84_fence_context_del;
 	priv->base.emit = nv84_fence_emit;

@@ -187,10 +187,10 @@ nva3_copy_create(struct nouveau_device *ndev, int engine)
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.destroy = nva3_copy_destroy;
-	priv->base.base.subdev.init = nva3_copy_init;
-	priv->base.base.subdev.fini = nva3_copy_fini;
-	priv->base.base.subdev.unit = 0x00802000;
+	priv->base.base.base.destroy = nva3_copy_destroy;
+	priv->base.base.base.init = nva3_copy_init;
+	priv->base.base.base.fini = nva3_copy_fini;
+	priv->base.base.base.unit = 0x00802000;
 	priv->base.base.context_new = nva3_copy_context_new;
 	priv->base.base.context_del = nva3_copy_context_del;
 	priv->base.base.object_new = nva3_copy_object_new;

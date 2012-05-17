@@ -45,6 +45,6 @@ nv98_ppp_create(struct nouveau_device *ndev, int engine)
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.unit = 0x00400002;
+	priv->base.base.base.unit = 0x00400002;
 	return nouveau_engine_init(ndev, engine, ret);
 }
