@@ -535,8 +535,6 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 
 	pci_set_master(dev->pdev);
 
-	ndev->flags = flags & NOUVEAU_FLAGS;
-
 	NV_DEBUG(ndev, "vendor: 0x%X device: 0x%X class: 0x%X\n",
 		 dev->pci_vendor, dev->pci_device, dev->pdev->class);
 
@@ -666,12 +664,6 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	}
 
 	nouveau_OF_copy_vbios_to_ramin(dev);
-
-	/* Special flags */
-	if (dev->pci_device == 0x01a0)
-		ndev->flags |= NV_NFORCE;
-	else if (dev->pci_device == 0x01f0)
-		ndev->flags |= NV_NFORCE2;
 
 	/* For kernel modesetting, init card now and bring up fbcon */
 	ret = nouveau_card_init(ndev);

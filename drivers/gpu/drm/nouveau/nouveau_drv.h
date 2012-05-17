@@ -36,9 +36,6 @@
 #define DRIVER_MINOR		0
 #define DRIVER_PATCHLEVEL	0
 
-#define NOUVEAU_FAMILY   0x0000FFFF
-#define NOUVEAU_FLAGS    0xFFFF0000
-
 #include "ttm/ttm_bo_api.h"
 #include "ttm/ttm_bo_driver.h"
 #include "ttm/ttm_placement.h"
@@ -232,11 +229,6 @@ nvbo_kmap_obj_iovirtual(struct nouveau_bo *nvbo)
 	WARN_ON_ONCE(ioptr && !is_iomem);
 	return ioptr;
 }
-
-enum nouveau_flags {
-	NV_NFORCE   = 0x10000000,
-	NV_NFORCE2  = 0x20000000
-};
 
 struct nouveau_page_flip_state {
 	struct list_head head;
@@ -499,7 +491,6 @@ struct nouveau_device {
 	enum nouveau_card_type card_type;
 	/* exact chipset, derived from NV_PMC_BOOT_0 */
 	int chipset;
-	int flags;
 	u32 crystal;
 
 	void __iomem *mmio;
@@ -526,12 +517,6 @@ struct nouveau_device {
 			    struct ttm_buffer_object *,
 			    struct ttm_mem_reg *, struct ttm_mem_reg *);
 	} ttm;
-
-	struct {
-		spinlock_t lock;
-		struct drm_mm heap;
-		struct nouveau_bo *bo;
-	} fence;
 
 	struct {
 		spinlock_t lock;
