@@ -36,6 +36,7 @@
 #include "drm_sarea.h"
 
 #include "nouveau_drv.h"
+#include "nouveau_agp.h"
 #include "nouveau_fb.h"
 #include "nouveau_pm.h"
 #include "nouveau_mm.h"
@@ -165,143 +166,8 @@ nouveau_mem_vram_fini(struct nouveau_device *ndev)
 void
 nouveau_mem_gart_fini(struct nouveau_device *ndev)
 {
-	struct drm_device *dev = ndev->dev;
-
 	nouveau_sgdma_takedown(ndev);
-
-	if (drm_core_has_AGP(dev) && dev->agp) {
-		struct drm_agp_mem *entry, *tempe;
-
-		/* Remove AGP resources, but leave dev->agp
-		   intact until drv_cleanup is called. */
-		list_for_each_entry_safe(entry, tempe, &dev->agp->memory, head) {
-			if (entry->bound)
-				drm_unbind_agp(entry->memory);
-			drm_free_agp(entry->memory, entry->pages);
-			kfree(entry);
-		}
-		INIT_LIST_HEAD(&dev->agp->memory);
-
-		if (dev->agp->acquired)
-			drm_agp_release(dev);
-
-		dev->agp->acquired = 0;
-		dev->agp->enabled = 0;
-	}
-}
-
-#if __OS_HAS_AGP
-static unsigned long
-get_agp_mode(struct nouveau_device *ndev, unsigned long mode)
-{
-	/*
-	 * FW seems to be broken on nv18, it makes the card lock up
-	 * randomly.
-	 */
-	if (ndev->chipset == 0x18)
-		mode &= ~PCI_AGP_COMMAND_FW;
-
-	/*
-	 * AGP mode set in the command line.
-	 */
-	if (nouveau_agpmode > 0) {
-		bool agpv3 = mode & 0x8;
-		int rate = agpv3 ? nouveau_agpmode / 4 : nouveau_agpmode;
-
-		mode = (mode & ~0x7) | (rate & 0x7);
-	}
-
-	return mode;
-}
-#endif
-
-int
-nouveau_mem_reset_agp(struct nouveau_device *ndev)
-{
-#if __OS_HAS_AGP
-	struct drm_device *dev = ndev->dev;
-	u32 saved_pci_nv_1, pmc_enable;
-	int ret;
-
-	/* First of all, disable fast writes, otherwise if it's
-	 * already enabled in the AGP bridge and we disable the card's
-	 * AGP controller we might be locking ourselves out of it. */
-	if ((nv_rd32(ndev, NV04_PBUS_PCI_NV_19) |
-	     dev->agp->mode) & PCI_AGP_COMMAND_FW) {
-		struct drm_agp_info info;
-		struct drm_agp_mode mode;
-
-		ret = drm_agp_info(dev, &info);
-		if (ret)
-			return ret;
-
-		mode.mode = get_agp_mode(ndev, info.mode) & ~PCI_AGP_COMMAND_FW;
-		ret = drm_agp_enable(dev, mode);
-		if (ret)
-			return ret;
-	}
-
-	saved_pci_nv_1 = nv_rd32(ndev, NV04_PBUS_PCI_NV_1);
-
-	/* clear busmaster bit */
-	nv_wr32(ndev, NV04_PBUS_PCI_NV_1, saved_pci_nv_1 & ~0x4);
-	/* disable AGP */
-	nv_wr32(ndev, NV04_PBUS_PCI_NV_19, 0);
-
-	/* power cycle pgraph, if enabled */
-	pmc_enable = nv_rd32(ndev, NV03_PMC_ENABLE);
-	if (pmc_enable & NV_PMC_ENABLE_PGRAPH) {
-		nv_wr32(ndev, NV03_PMC_ENABLE,
-				pmc_enable & ~NV_PMC_ENABLE_PGRAPH);
-		nv_wr32(ndev, NV03_PMC_ENABLE, nv_rd32(ndev, NV03_PMC_ENABLE) |
-				NV_PMC_ENABLE_PGRAPH);
-	}
-
-	/* and restore (gives effect of resetting AGP) */
-	nv_wr32(ndev, NV04_PBUS_PCI_NV_1, saved_pci_nv_1);
-#endif
-
-	return 0;
-}
-
-int
-nouveau_mem_init_agp(struct nouveau_device *ndev)
-{
-#if __OS_HAS_AGP
-	struct drm_device *dev = ndev->dev;
-	struct drm_agp_info info;
-	struct drm_agp_mode mode;
-	int ret;
-
-	if (!dev->agp->acquired) {
-		ret = drm_agp_acquire(dev);
-		if (ret) {
-			NV_ERROR(ndev, "Unable to acquire AGP: %d\n", ret);
-			return ret;
-		}
-	}
-
-	nouveau_mem_reset_agp(ndev);
-
-	ret = drm_agp_info(dev, &info);
-	if (ret) {
-		NV_ERROR(ndev, "Unable to get AGP info: %d\n", ret);
-		return ret;
-	}
-
-	/* see agp.h for the AGPSTAT_* modes available */
-	mode.mode = get_agp_mode(ndev, info.mode);
-	ret = drm_agp_enable(dev, mode);
-	if (ret) {
-		NV_ERROR(ndev, "Unable to enable AGP: %d\n", ret);
-		return ret;
-	}
-
-	ndev->gart_info.type	= NOUVEAU_GART_AGP;
-	ndev->gart_info.aper_base	= info.aperture_base;
-	ndev->gart_info.aper_size	= info.aperture_size;
-#endif
-	return 0;
+	nouveau_agp_fini(ndev->dev);
 }
 
 static const struct vram_types {
@@ -426,15 +292,7 @@ nouveau_mem_gart_init(struct nouveau_device *ndev)
 	struct ttm_bo_device *bdev = &ndev->ttm.bdev;
 	int ret;
 
-	ndev->gart_info.type = NOUVEAU_GART_NONE;
-
-#if !defined(__powerpc__) && !defined(__ia64__)
-	if (drm_pci_device_is_agp(ndev->dev) && ndev->dev->agp && nouveau_agpmode) {
-		ret = nouveau_mem_init_agp(ndev);
-		if (ret)
-			NV_ERROR(ndev, "Error initialising AGP: %d\n", ret);
-	}
-#endif
+	nouveau_agp_init(ndev->dev);
 
 	if (ndev->gart_info.type == NOUVEAU_GART_NONE) {
 		ret = nouveau_sgdma_init(ndev);

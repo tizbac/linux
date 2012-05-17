@@ -33,7 +33,7 @@
 #include <linux/vga_switcheroo.h>
 
 #include "nouveau_drv.h"
-#include "nouveau_drm.h"
+#include "nouveau_agp.h"
 #include "nouveau_device.h"
 #include "nouveau_fbcon.h"
 #include "nouveau_ramht.h"
@@ -249,6 +249,9 @@ nouveau_card_init(struct nouveau_device *ndev)
 	spin_lock_init(&ndev->tile.lock);
 	spin_lock_init(&ndev->context_switch_lock);
 	spin_lock_init(&ndev->vm_lock);
+
+	/* Make sure the AGP controller is in a consistent state */
+	nouveau_agp_reset(dev);
 
 	/* Make the CRTCs and I2C buses accessible */
 	ret = engine->display.early_init(ndev);

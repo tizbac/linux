@@ -13,7 +13,7 @@ nouveau-y := nouveau_device.o nouveau_subdev.o \
              nouveau_hdmi.o nouveau_dp.o nouveau_ramht.o \
 	     nouveau_pm.o nouveau_volt.o nouveau_perf.o nouveau_therm.o \
 	     nouveau_mm.o nouveau_vm.o nouveau_mxm.o nouveau_gpio.o \
-	     nouveau_fanctl.o nouveau_abi16.o nouveau_prime.o \
+	     nouveau_fanctl.o nouveau_abi16.o nouveau_agp.o nouveau_prime.o \
              nv04_timer.o \
              nv04_mc.o nv40_mc.o nv50_mc.o \
              nv04_fb.o nv10_fb.o nv20_fb.o nv30_fb.o nv40_fb.o \
