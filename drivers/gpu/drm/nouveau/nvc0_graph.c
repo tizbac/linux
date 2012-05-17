@@ -577,9 +577,6 @@ nvc0_graph_init(struct nouveau_device *ndev, int engine)
 {
 	int ret;
 
-	nv_mask(ndev, 0x000200, 0x18001000, 0x00000000);
-	nv_mask(ndev, 0x000200, 0x18001000, 0x18001000);
-
 	nvc0_graph_init_obj418880(ndev);
 	nvc0_graph_init_regs(ndev);
 	/*nvc0_graph_init_unitplemented_magics(ndev);*/
@@ -785,6 +782,7 @@ nvc0_graph_create(struct nouveau_device *ndev, int engine)
 
 	priv->base.base.subdev.destroy = nvc0_graph_destroy;
 	priv->base.base.subdev.init = nvc0_graph_init;
+	priv->base.base.subdev.unit = 0x18001000;
 	priv->base.base.context_new = nvc0_graph_context_new;
 	priv->base.base.context_del = nvc0_graph_context_del;
 	priv->base.base.object_new = nvc0_graph_object_new;

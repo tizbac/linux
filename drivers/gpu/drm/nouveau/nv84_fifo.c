@@ -152,8 +152,6 @@ nv84_fifo_init(struct nouveau_device *ndev, int engine)
 	u32 instance;
 	int i;
 
-	nv_mask(ndev, 0x000200, 0x00000100, 0x00000000);
-	nv_mask(ndev, 0x000200, 0x00000100, 0x00000100);
 	nv_wr32(ndev, 0x00250c, 0x6f3cfc34);
 	nv_wr32(ndev, 0x002044, 0x01003fff);
 
@@ -197,7 +195,6 @@ nv84_fifo_fini(struct nouveau_device *ndev, int engine, bool suspend)
 		}
 	}
 
-	nv_wr32(ndev, 0x002140, 0);
 	return 0;
 }
 
@@ -214,6 +211,7 @@ nv84_fifo_create(struct nouveau_device *ndev, int engine)
 	priv->base.base.subdev.destroy = nv50_fifo_destroy;
 	priv->base.base.subdev.init = nv84_fifo_init;
 	priv->base.base.subdev.fini = nv84_fifo_fini;
+	priv->base.base.subdev.unit = 0x00000100;
 	priv->base.base.context_new = nv84_fifo_context_new;
 	priv->base.base.context_del = nv84_fifo_context_del;
 	priv->base.base.tlb_flush = nv50_fifo_tlb_flush;

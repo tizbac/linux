@@ -83,6 +83,11 @@ nouveau_subdev_fini(struct nouveau_device *ndev, int subdev, bool suspend)
 		if (sdev->fini)
 			ret = sdev->fini(ndev, subdev, suspend);
 
+		if (sdev->unit) {
+			nv_mask(ndev, 0x000200, sdev->unit, 0x00000000);
+			nv_mask(ndev, 0x000200, sdev->unit, sdev->unit);
+		}
+
 		if (ret) {
 			NV_ERROR(ndev, "%s: failed to suspend, %d\n",
 				 sdev->name, ret);

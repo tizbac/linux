@@ -180,9 +180,7 @@ nve0_fifo_init(struct nouveau_device *ndev, int engine)
 	struct nouveau_mem *user = *(struct nouveau_mem **)priv->user->node;
 	int i;
 
-	/* reset PFIFO, enable all available PSUBFIFO areas */
-	nv_mask(ndev, 0x000200, 0x00000100, 0x00000000);
-	nv_mask(ndev, 0x000200, 0x00000100, 0x00000100);
+	/* enable all available PSUBFIFO areas */
 	nv_wr32(ndev, 0x000204, 0xffffffff);
 
 	priv->spoon_nr = hweight32(nv_rd32(ndev, 0x000204));
@@ -398,6 +396,7 @@ nve0_fifo_create(struct nouveau_device *ndev, int engine)
 	priv->base.base.subdev.destroy = nve0_fifo_destroy;
 	priv->base.base.subdev.init = nve0_fifo_init;
 	priv->base.base.subdev.fini = nve0_fifo_fini;
+	priv->base.base.subdev.unit = 0x00000100;
 	priv->base.base.context_new = nve0_fifo_context_new;
 	priv->base.base.context_del = nve0_fifo_context_del;
 	priv->base.channels = 4096;

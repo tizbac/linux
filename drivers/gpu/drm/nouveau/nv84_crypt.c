@@ -141,18 +141,8 @@ nv84_crypt_isr(struct nouveau_device *ndev)
 }
 
 static int
-nv84_crypt_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	nv_wr32(ndev, 0x102140, 0x00000000);
-	return 0;
-}
-
-static int
 nv84_crypt_init(struct nouveau_device *ndev, int engine)
 {
-	nv_mask(ndev, 0x000200, 0x00004000, 0x00000000);
-	nv_mask(ndev, 0x000200, 0x00004000, 0x00004000);
-
 	nv_wr32(ndev, 0x102130, 0xffffffff);
 	nv_wr32(ndev, 0x102140, 0xffffffbf);
 
@@ -178,7 +168,7 @@ nv84_crypt_create(struct nouveau_device *ndev, int engine)
 
 	priv->base.base.subdev.destroy = nv84_crypt_destroy;
 	priv->base.base.subdev.init = nv84_crypt_init;
-	priv->base.base.subdev.fini = nv84_crypt_fini;
+	priv->base.base.subdev.unit = 0x00004000;
 	priv->base.base.context_new = nv84_crypt_context_new;
 	priv->base.base.context_del = nv84_crypt_context_del;
 	priv->base.base.object_new = nv84_crypt_object_new;

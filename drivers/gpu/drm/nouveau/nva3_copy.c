@@ -106,8 +106,6 @@ nva3_copy_init(struct nouveau_device *ndev, int engine)
 {
 	int i;
 
-	nv_mask(ndev, 0x000200, 0x00002000, 0x00000000);
-	nv_mask(ndev, 0x000200, 0x00002000, 0x00002000);
 	nv_wr32(ndev, 0x104014, 0xffffffff); /* disable all interrupts */
 
 	/* upload ucode */
@@ -192,6 +190,7 @@ nva3_copy_create(struct nouveau_device *ndev, int engine)
 	priv->base.base.subdev.destroy = nva3_copy_destroy;
 	priv->base.base.subdev.init = nva3_copy_init;
 	priv->base.base.subdev.fini = nva3_copy_fini;
+	priv->base.base.subdev.unit = 0x00002000;
 	priv->base.base.context_new = nva3_copy_context_new;
 	priv->base.base.context_del = nva3_copy_context_del;
 	priv->base.base.object_new = nva3_copy_object_new;

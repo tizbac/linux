@@ -207,9 +207,6 @@ nv04_fifo_init(struct nouveau_device *ndev, int engine)
 	struct nv04_fifo_priv *priv = nv_engine(ndev, engine);
 	int i;
 
-	nv_mask(ndev, NV03_PMC_ENABLE, NV_PMC_ENABLE_PFIFO, 0);
-	nv_mask(ndev, NV03_PMC_ENABLE, NV_PMC_ENABLE_PFIFO, NV_PMC_ENABLE_PFIFO);
-
 	nv_wr32(ndev, NV04_PFIFO_DELAY_0, 0x000000ff);
 	nv_wr32(ndev, NV04_PFIFO_DMA_TIMESLICE, 0x0101ffff);
 
@@ -265,7 +262,6 @@ nv04_fifo_fini(struct nouveau_device *ndev, int engine, bool suspend)
 		} while ((++c)->bits);
 	}
 
-	nv_wr32(ndev, NV03_PFIFO_INTR_EN_0, 0x00000000);
 	return 0;
 }
 
@@ -502,6 +498,7 @@ nv04_fifo_create(struct nouveau_device *ndev, int engine)
 	priv->base.base.subdev.destroy = nv04_fifo_destroy;
 	priv->base.base.subdev.init = nv04_fifo_init;
 	priv->base.base.subdev.fini = nv04_fifo_fini;
+	priv->base.base.subdev.unit = 0x00000100;
 	priv->base.base.context_new = nv04_fifo_context_new;
 	priv->base.base.context_del = nv04_fifo_context_del;
 	priv->base.channels = 15;

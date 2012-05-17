@@ -134,8 +134,6 @@ nv31_mpeg_init(struct nouveau_device *ndev, int engine)
 	int i;
 
 	/* VPE init */
-	nv_mask(ndev, 0x000200, 0x00000002, 0x00000000);
-	nv_mask(ndev, 0x000200, 0x00000002, 0x00000002);
 	nv_wr32(ndev, 0x00b0e0, 0x00000020); /* nvidia: rd 0x01, wr 0x20 */
 	nv_wr32(ndev, 0x00b0e8, 0x00000020); /* nvidia: rd 0x01, wr 0x20 */
 
@@ -164,8 +162,6 @@ static int
 nv31_mpeg_fini(struct nouveau_device *ndev, int engine, bool suspend)
 {
 	/*XXX: context save? */
-	nv_mask(ndev, 0x00b32c, 0x00000001, 0x00000000);
-	nv_wr32(ndev, 0x00b140, 0x00000000);
 	return 0;
 }
 
@@ -309,6 +305,7 @@ nv31_mpeg_create(struct nouveau_device *ndev, int engine)
 	priv->base.base.subdev.destroy = nv31_mpeg_destroy;
 	priv->base.base.subdev.init = nv31_mpeg_init;
 	priv->base.base.subdev.fini = nv31_mpeg_fini;
+	priv->base.base.subdev.unit = 0x00000002;
 	if (ndev->card_type < NV_40) {
 		priv->base.base.context_new = nv31_mpeg_context_new;
 		priv->base.base.context_del = nv31_mpeg_context_del;

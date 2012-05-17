@@ -112,20 +112,9 @@ nv98_crypt_tlb_flush(struct nouveau_device *ndev, int engine)
 }
 
 static int
-nv98_crypt_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	nv_mask(ndev, 0x000200, 0x00004000, 0x00000000);
-	return 0;
-}
-
-static int
 nv98_crypt_init(struct nouveau_device *ndev, int engine)
 {
 	int i;
-
-	/* reset! */
-	nv_mask(ndev, 0x000200, 0x00004000, 0x00000000);
-	nv_mask(ndev, 0x000200, 0x00004000, 0x00004000);
 
 	/* wait for exit interrupt to signal */
 	nv_wait(ndev, 0x087008, 0x00000010, 0x00000010);
@@ -203,7 +192,7 @@ nv98_crypt_create(struct nouveau_device *ndev, int engine)
 
 	priv->base.base.subdev.destroy = nv98_crypt_destroy;
 	priv->base.base.subdev.init = nv98_crypt_init;
-	priv->base.base.subdev.fini = nv98_crypt_fini;
+	priv->base.base.subdev.unit = 0x00004000;
 	priv->base.base.context_new = nv98_crypt_context_new;
 	priv->base.base.context_del = nv98_crypt_context_del;
 	priv->base.base.object_new = nv98_crypt_object_new;

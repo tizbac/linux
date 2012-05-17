@@ -39,7 +39,6 @@
 struct nvc0_copy_priv {
 	struct nouveau_copy_priv base;
 	u32 irq;
-	u32 pmc;
 	u32 fuc;
 	u32 ctx;
 };
@@ -109,8 +108,6 @@ nvc0_copy_init(struct nouveau_device *ndev, int engine)
 	struct nvc0_copy_priv *priv = nv_engine(ndev, engine);
 	int i;
 
-	nv_mask(ndev, 0x000200, priv->pmc, 0x00000000);
-	nv_mask(ndev, 0x000200, priv->pmc, priv->pmc);
 	nv_wr32(ndev, priv->fuc + 0x014, 0xffffffff);
 
 	nv_wr32(ndev, priv->fuc + 0x1c0, 0x01000000);
@@ -215,8 +212,9 @@ nvc0_copy_create(struct nouveau_device *ndev, int engine)
 		if (ret)
 			return ret;
 
+		priv->base.base.subdev.unit = 0x00000040;
+
 		priv->irq = 5;
-		priv->pmc = 0x00000040;
 		priv->fuc = 0x104000;
 		priv->ctx = 0x0230;
 		nouveau_irq_register(ndev, priv->irq, nvc0_copy_isr_0);
@@ -227,8 +225,9 @@ nvc0_copy_create(struct nouveau_device *ndev, int engine)
 		if (ret)
 			return ret;
 
+		priv->base.base.subdev.unit = 0x00000080;
+
 		priv->irq = 6;
-		priv->pmc = 0x00000080;
 		priv->fuc = 0x105000;
 		priv->ctx = 0x0240;
 		nouveau_irq_register(ndev, priv->irq, nvc0_copy_isr_1);

@@ -103,6 +103,7 @@ struct nouveau_subdev {
 	struct mutex mutex;
 	u32 oclass;
 	u32 refcount;
+	u32 unit;
 
 	void (*destroy)(struct nouveau_device *, int subdev);
 	int  (*init)(struct nouveau_device *, int subdev);

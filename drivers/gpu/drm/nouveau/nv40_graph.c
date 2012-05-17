@@ -181,11 +181,6 @@ nv40_graph_init(struct nouveau_device *ndev, int engine)
 	u32 vramsz;
 	int i, j;
 
-	nv_wr32(ndev, NV03_PMC_ENABLE, nv_rd32(ndev, NV03_PMC_ENABLE) &
-			~NV_PMC_ENABLE_PGRAPH);
-	nv_wr32(ndev, NV03_PMC_ENABLE, nv_rd32(ndev, NV03_PMC_ENABLE) |
-			 NV_PMC_ENABLE_PGRAPH);
-
 	/* generate and upload context program */
 	nv40_grctx_init(ndev, &priv->grctx_size);
 
@@ -427,6 +422,7 @@ nv40_graph_create(struct nouveau_device *ndev, int engine)
 	priv->base.base.subdev.destroy = nv40_graph_destroy;
 	priv->base.base.subdev.init = nv40_graph_init;
 	priv->base.base.subdev.fini = nv40_graph_fini;
+	priv->base.base.subdev.unit = 0x00001000;
 	priv->base.base.context_new = nv40_graph_context_new;
 	priv->base.base.context_del = nv40_graph_context_del;
 	priv->base.base.object_new = nv40_graph_object_new;

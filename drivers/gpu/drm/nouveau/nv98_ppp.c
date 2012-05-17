@@ -35,24 +35,6 @@ struct nv98_ppp_priv {
 	struct nouveau_ppp_priv base;
 };
 
-static int
-nv98_ppp_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	if (!(nv_rd32(ndev, 0x000200) & 0x00000002))
-		return 0;
-
-	nv_mask(ndev, 0x000200, 0x00000002, 0x00000000);
-	return 0;
-}
-
-static int
-nv98_ppp_init(struct nouveau_device *ndev, int engine)
-{
-	nv_mask(ndev, 0x000200, 0x00000002, 0x00000000);
-	nv_mask(ndev, 0x000200, 0x00000002, 0x00000002);
-	return 0;
-}
-
 int
 nv98_ppp_create(struct nouveau_device *ndev, int engine)
 {
@@ -63,7 +45,6 @@ nv98_ppp_create(struct nouveau_device *ndev, int engine)
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.init = nv98_ppp_init;
-	priv->base.base.subdev.fini = nv98_ppp_fini;
+	priv->base.base.subdev.unit = 0x00000002;
 	return nouveau_engine_init(ndev, engine, ret);
 }

@@ -138,9 +138,6 @@ nv40_fifo_init(struct nouveau_device *ndev, int engine)
 	struct nv40_fifo_priv *priv = nv_engine(ndev, engine);
 	int i;
 
-	nv_mask(ndev, NV03_PMC_ENABLE, NV_PMC_ENABLE_PFIFO, 0);
-	nv_mask(ndev, NV03_PMC_ENABLE, NV_PMC_ENABLE_PFIFO, NV_PMC_ENABLE_PFIFO);
-
 	nv_wr32(ndev, 0x002040, 0x000000ff);
 	nv_wr32(ndev, 0x002044, 0x2101ffff);
 	nv_wr32(ndev, 0x002058, 0x00000001);
@@ -202,6 +199,7 @@ nv40_fifo_create(struct nouveau_device *ndev, int engine)
 	priv->base.base.subdev.destroy = nv04_fifo_destroy;
 	priv->base.base.subdev.init = nv40_fifo_init;
 	priv->base.base.subdev.fini = nv04_fifo_fini;
+	priv->base.base.subdev.unit = 0x00000100;
 	priv->base.base.context_new = nv40_fifo_context_new;
 	priv->base.base.context_del = nv04_fifo_context_del;
 	priv->base.channels = 31;

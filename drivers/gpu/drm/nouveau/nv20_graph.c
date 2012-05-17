@@ -497,11 +497,6 @@ nv20_graph_init(struct nouveau_device *ndev, int engine)
 	u32 tmp, vramsz;
 	int i;
 
-	nv_wr32(ndev, NV03_PMC_ENABLE,
-		nv_rd32(ndev, NV03_PMC_ENABLE) & ~NV_PMC_ENABLE_PGRAPH);
-	nv_wr32(ndev, NV03_PMC_ENABLE,
-		nv_rd32(ndev, NV03_PMC_ENABLE) |  NV_PMC_ENABLE_PGRAPH);
-
 	nv_wr32(ndev, NV20_PGRAPH_CHANNEL_CTX_TABLE, priv->ctxtab->pinst >> 4);
 
 	nv20_graph_rdi(ndev);
@@ -583,11 +578,6 @@ nv30_graph_init(struct nouveau_device *ndev, int engine)
 	struct nv20_graph_priv *priv = nv_engine(ndev, engine);
 	int i;
 
-	nv_wr32(ndev, NV03_PMC_ENABLE,
-		nv_rd32(ndev, NV03_PMC_ENABLE) & ~NV_PMC_ENABLE_PGRAPH);
-	nv_wr32(ndev, NV03_PMC_ENABLE,
-		nv_rd32(ndev, NV03_PMC_ENABLE) |  NV_PMC_ENABLE_PGRAPH);
-
 	nv_wr32(ndev, NV20_PGRAPH_CHANNEL_CTX_TABLE, priv->ctxtab->pinst >> 4);
 
 	nv_wr32(ndev, NV03_PGRAPH_INTR   , 0xFFFFFFFF);
@@ -656,7 +646,6 @@ nv20_graph_fini(struct nouveau_device *ndev, int engine, bool suspend)
 		return -EBUSY;
 	}
 	nv20_graph_unload_context(ndev);
-	nv_wr32(ndev, NV03_PGRAPH_INTR_EN, 0x00000000);
 	return 0;
 }
 
@@ -721,6 +710,7 @@ nv20_graph_create(struct nouveau_device *ndev, int engine)
 
 	priv->base.base.subdev.destroy = nv20_graph_destroy;
 	priv->base.base.subdev.fini = nv20_graph_fini;
+	priv->base.base.subdev.unit = 0x00001000;
 	priv->base.base.context_new = nv20_graph_context_new;
 	priv->base.base.context_del = nv20_graph_context_del;
 	priv->base.base.object_new = nv04_graph_object_new;

@@ -159,9 +159,7 @@ nvc0_fifo_init(struct nouveau_device *ndev, int engine)
 	struct nouveau_channel *chan;
 	int i;
 
-	/* reset PFIFO, enable all available PSUBFIFO areas */
-	nv_mask(ndev, 0x000200, 0x00000100, 0x00000000);
-	nv_mask(ndev, 0x000200, 0x00000100, 0x00000100);
+	/* enable all available PSUBFIFO areas */
 	nv_wr32(ndev, 0x000204, 0xffffffff);
 	nv_wr32(ndev, 0x002204, 0xffffffff);
 
@@ -225,7 +223,6 @@ nvc0_fifo_fini(struct nouveau_device *ndev, int engine, bool suspend)
 		}
 	}
 
-	nv_wr32(ndev, 0x002140, 0x00000000);
 	return 0;
 }
 
@@ -443,6 +440,7 @@ nvc0_fifo_create(struct nouveau_device *ndev, int engine)
 	priv->base.base.subdev.destroy = nvc0_fifo_destroy;
 	priv->base.base.subdev.init = nvc0_fifo_init;
 	priv->base.base.subdev.fini = nvc0_fifo_fini;
+	priv->base.base.subdev.unit = 0x00000100;
 	priv->base.base.context_new = nvc0_fifo_context_new;
 	priv->base.base.context_del = nvc0_fifo_context_del;
 	priv->base.channels = 128;

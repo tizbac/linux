@@ -53,10 +53,8 @@ nv50_graph_init(struct nouveau_device *ndev, int engine)
 
 	NV_DEBUG(ndev, "\n");
 
-	/* master reset */
-	nv_mask(ndev, 0x000200, 0x00201000, 0x00000000);
-	nv_mask(ndev, 0x000200, 0x00201000, 0x00201000);
-	nv_wr32(ndev, 0x40008c, 0x00000004); /* HW_CTX_SWITCH_ENABLED */
+	/* NV_PGRAPH_DEBUG_3_HW_CTX_SWITCH_ENABLED */
+	nv_wr32(ndev, 0x40008c, 0x00000004);
 
 	/* reset/enable traps and interrupts */
 	nv_wr32(ndev, 0x400804, 0xc0000000);
@@ -128,13 +126,6 @@ nv50_graph_init(struct nouveau_device *ndev, int engine)
 		nv_wr32(ndev, 0x402c2c + (i * 8), 0x00000000);
 	}
 
-	return 0;
-}
-
-static int
-nv50_graph_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	nv_wr32(ndev, 0x40013c, 0x00000000);
 	return 0;
 }
 
@@ -806,7 +797,7 @@ nv50_graph_create(struct nouveau_device *ndev, int engine)
 
 	priv->base.base.subdev.destroy = nv50_graph_destroy;
 	priv->base.base.subdev.init = nv50_graph_init;
-	priv->base.base.subdev.fini = nv50_graph_fini;
+	priv->base.base.subdev.unit = 0x00201000;
 	priv->base.base.context_new = nv50_graph_context_new;
 	priv->base.base.context_del = nv50_graph_context_del;
 	priv->base.base.object_new = nv50_graph_object_new;

@@ -495,11 +495,6 @@ nv04_graph_init(struct nouveau_device *ndev, int engine)
 {
 	u32 tmp;
 
-	nv_wr32(ndev, NV03_PMC_ENABLE, nv_rd32(ndev, NV03_PMC_ENABLE) &
-			~NV_PMC_ENABLE_PGRAPH);
-	nv_wr32(ndev, NV03_PMC_ENABLE, nv_rd32(ndev, NV03_PMC_ENABLE) |
-			 NV_PMC_ENABLE_PGRAPH);
-
 	/* Enable PGRAPH interrupts */
 	nv_wr32(ndev, NV03_PGRAPH_INTR, 0xFFFFFFFF);
 	nv_wr32(ndev, NV03_PGRAPH_INTR_EN, 0xFFFFFFFF);
@@ -543,7 +538,6 @@ nv04_graph_fini(struct nouveau_device *ndev, int engine, bool suspend)
 		return -EBUSY;
 	}
 	nv04_graph_unload_context(ndev);
-	nv_wr32(ndev, NV03_PGRAPH_INTR_EN, 0x00000000);
 	return 0;
 }
 
@@ -1068,6 +1062,7 @@ nv04_graph_create(struct nouveau_device *ndev, int engine)
 	priv->base.base.subdev.destroy = nv04_graph_destroy;
 	priv->base.base.subdev.init = nv04_graph_init;
 	priv->base.base.subdev.fini = nv04_graph_fini;
+	priv->base.base.subdev.unit = 0x00001000;
 	priv->base.base.context_new = nv04_graph_context_new;
 	priv->base.base.context_del = nv04_graph_context_del;
 	priv->base.base.object_new = nv04_graph_object_new;

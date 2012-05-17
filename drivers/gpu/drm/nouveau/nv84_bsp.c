@@ -40,24 +40,6 @@ struct nv84_bsp_priv {
 	struct nouveau_bsp_priv base;
 };
 
-static int
-nv84_bsp_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	if (!(nv_rd32(ndev, 0x000200) & 0x00008000))
-		return 0;
-
-	nv_mask(ndev, 0x000200, 0x00008000, 0x00000000);
-	return 0;
-}
-
-static int
-nv84_bsp_init(struct nouveau_device *ndev, int engine)
-{
-	nv_mask(ndev, 0x000200, 0x00008000, 0x00000000);
-	nv_mask(ndev, 0x000200, 0x00008000, 0x00008000);
-	return 0;
-}
-
 int
 nv84_bsp_create(struct nouveau_device *ndev, int engine)
 {
@@ -68,7 +50,6 @@ nv84_bsp_create(struct nouveau_device *ndev, int engine)
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.init = nv84_bsp_init;
-	priv->base.base.subdev.fini = nv84_bsp_fini;
+	priv->base.base.subdev.unit = 0x00008000;
 	return nouveau_engine_init(ndev, engine, ret);
 }
