@@ -62,8 +62,8 @@ void
 nouveau_fence_update(struct nouveau_channel *chan)
 {
 	struct nouveau_device *ndev = chan->device;
-	struct nouveau_fence_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FENCE);
-	struct nouveau_fence_chan *fctx = chan->engctx[NVOBJ_ENGINE_FENCE];
+	struct nouveau_fence_priv *priv = nv_engine(ndev, NVDEV_ENGINE_FENCE);
+	struct nouveau_fence_chan *fctx = chan->engctx[NVDEV_ENGINE_FENCE];
 	struct nouveau_fence *fence, *fnext;
 
 	spin_lock(&fctx->lock);
@@ -84,8 +84,8 @@ int
 nouveau_fence_emit(struct nouveau_fence *fence, struct nouveau_channel *chan)
 {
 	struct nouveau_device *ndev = chan->device;
-	struct nouveau_fence_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FENCE);
-	struct nouveau_fence_chan *fctx = chan->engctx[NVOBJ_ENGINE_FENCE];
+	struct nouveau_fence_priv *priv = nv_engine(ndev, NVDEV_ENGINE_FENCE);
+	struct nouveau_fence_chan *fctx = chan->engctx[NVDEV_ENGINE_FENCE];
 	int ret;
 
 	fence->channel  = chan;
@@ -148,7 +148,7 @@ int
 nouveau_fence_sync(struct nouveau_fence *fence, struct nouveau_channel *chan)
 {
 	struct nouveau_device *ndev = chan->device;
-	struct nouveau_fence_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FENCE);
+	struct nouveau_fence_priv *priv = nv_engine(ndev, NVDEV_ENGINE_FENCE);
 	struct nouveau_channel *prev;
 	int ret = 0;
 
@@ -193,7 +193,7 @@ nouveau_fence_new(struct nouveau_channel *chan, struct nouveau_fence **pfence)
 	struct nouveau_fence *fence;
 	int ret = 0;
 
-	if (unlikely(!chan->engctx[NVOBJ_ENGINE_FENCE]))
+	if (unlikely(!chan->engctx[NVDEV_ENGINE_FENCE]))
 		return -ENODEV;
 
 	fence = kzalloc(sizeof(*fence), GFP_KERNEL);

@@ -187,7 +187,7 @@ nv84_fifo_fini(struct nouveau_device *ndev, int engine, bool suspend)
 	nv_wr32(ndev, 0x0032ec, 0);
 
 	/* tell all connected engines to unload their contexts */
-	for (i = 0; i < priv->base.channels; i++) {
+	for (i = 0; suspend && i < priv->base.channels; i++) {
 		struct nouveau_channel *chan = ndev->channels.ptr[i];
 		if (chan)
 			nv_wr32(ndev, 0x0032fc, chan->ramin->vinst >> 12);
@@ -202,37 +202,34 @@ nv84_fifo_fini(struct nouveau_device *ndev, int engine, bool suspend)
 }
 
 int
-nv84_fifo_create(struct nouveau_device *ndev)
+nv84_fifo_create(struct nouveau_device *ndev, int engine)
 {
 	struct nv84_fifo_priv *priv;
 	int ret;
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PFIFO", "fifo", &priv);
+	if (ret)
+		return ret;
 
-	priv->base.base.destroy = nv50_fifo_destroy;
-	priv->base.base.init = nv84_fifo_init;
-	priv->base.base.fini = nv84_fifo_fini;
+	priv->base.base.subdev.destroy = nv50_fifo_destroy;
+	priv->base.base.subdev.init = nv84_fifo_init;
+	priv->base.base.subdev.fini = nv84_fifo_fini;
 	priv->base.base.context_new = nv84_fifo_context_new;
 	priv->base.base.context_del = nv84_fifo_context_del;
 	priv->base.base.tlb_flush = nv50_fifo_tlb_flush;
 	priv->base.channels = 127;
-	ndev->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
 
 	ret = nouveau_gpuobj_new(ndev, NULL, priv->base.channels * 4, 0x1000,
 				 NVOBJ_FLAG_ZERO_ALLOC, &priv->playlist[0]);
 	if (ret)
-		goto error;
+		goto done;
 
 	ret = nouveau_gpuobj_new(ndev, NULL, priv->base.channels * 4, 0x1000,
 				 NVOBJ_FLAG_ZERO_ALLOC, &priv->playlist[1]);
 	if (ret)
-		goto error;
+		goto done;
 
 	nouveau_irq_register(ndev, 8, nv04_fifo_isr);
-error:
-	if (ret)
-		priv->base.base.destroy(ndev, NVOBJ_ENGINE_FIFO);
-	return ret;
+done:
+	return nouveau_engine_init(ndev, engine, ret);
 }

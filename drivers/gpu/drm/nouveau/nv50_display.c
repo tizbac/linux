@@ -646,7 +646,7 @@ nv50_display_script_select(struct nouveau_device *ndev, struct dcb_entry *dcb,
 static void
 nv50_display_vblank_crtc_handler(struct nouveau_device *ndev, int crtc)
 {
-	struct nouveau_software_priv *psw = nv_engine(ndev, NVOBJ_ENGINE_SW);
+	struct nouveau_software_priv *psw = nv_engine(ndev, NVDEV_ENGINE_SW);
 	struct nouveau_software_chan *pch, *tmp;
 
 	list_for_each_entry_safe(pch, tmp, &psw->vblank, vblank.list) {

@@ -95,45 +95,21 @@ nv04_software_object_new(struct nouveau_channel *chan, int engine,
 	return ret;
 }
 
-static int
-nv04_software_init(struct nouveau_device *ndev, int engine)
-{
-	return 0;
-}
-
-static int
-nv04_software_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	return 0;
-}
-
-static void
-nv04_software_destroy(struct nouveau_device *ndev, int engine)
-{
-	struct nv04_software_priv *psw = nv_engine(ndev, engine);
-
-	NVOBJ_ENGINE_DEL(ndev, SW);
-	kfree(psw);
-}
-
 int
-nv04_software_create(struct nouveau_device *ndev)
+nv04_software_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv04_software_priv *psw;
+	struct nv04_software_priv *priv;
+	int ret;
 
-	psw = kzalloc(sizeof(*psw), GFP_KERNEL);
-	if (!psw)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "SW", "software", &priv);
+	if (ret)
+		return ret;
 
-	psw->base.base.destroy = nv04_software_destroy;
-	psw->base.base.init = nv04_software_init;
-	psw->base.base.fini = nv04_software_fini;
-	psw->base.base.context_new = nv04_software_context_new;
-	psw->base.base.context_del = nv04_software_context_del;
-	psw->base.base.object_new = nv04_software_object_new;
-	nouveau_software_create(&psw->base);
+	priv->base.base.context_new = nv04_software_context_new;
+	priv->base.base.context_del = nv04_software_context_del;
+	priv->base.base.object_new = nv04_software_object_new;
+	nouveau_software_create(&priv->base);
 
-	NVOBJ_ENGINE_ADD(ndev, SW, &psw->base.base);
 	if (ndev->card_type <= NV_04) {
 		NVOBJ_CLASS(ndev, 0x006e, SW);
 		NVOBJ_MTHD (ndev, 0x006e, 0x0150, nv04_fence_mthd);
@@ -143,5 +119,5 @@ nv04_software_create(struct nouveau_device *ndev)
 		NVOBJ_MTHD (ndev, 0x016e, 0x0500, mthd_flip);
 	}
 
-	return 0;
+	return nouveau_engine_init(ndev, engine, ret);
 }

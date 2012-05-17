@@ -72,9 +72,10 @@ nv10_mem_update_tile_region(struct nouveau_device *ndev,
 	nouveau_wait_for_idle(ndev);
 
 	pfb->set_tile_region(pfb, i);
-	for (j = 0; j < NVOBJ_ENGINE_NR; j++) {
-		if (ndev->engine[j] && ndev->engine[j]->set_tile_region)
-			ndev->engine[j]->set_tile_region(ndev, i);
+	for (j = 0; j < NVDEV_SUBDEV_NR; j++) {
+		struct nouveau_engine *engine = nv_engine(ndev, j);
+		if (engine && engine->set_tile_region)
+			engine->set_tile_region(ndev, i);
 	}
 
 	nv04_fifo_cache_pull(ndev, true);

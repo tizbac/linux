@@ -32,7 +32,7 @@ struct nouveau_fence_chan {
 };
 
 struct nouveau_fence_priv {
-	struct nouveau_engine engine;
+	struct nouveau_engine base;
 	int (*emit)(struct nouveau_fence *);
 	int (*sync)(struct nouveau_fence *, struct nouveau_channel *,
 		    struct nouveau_channel *);
@@ -42,11 +42,11 @@ struct nouveau_fence_priv {
 void nouveau_fence_context_new(struct nouveau_fence_chan *);
 void nouveau_fence_context_del(struct nouveau_fence_chan *);
 
-int nv04_fence_create(struct nouveau_device *);
-int nv04_fence_mthd(struct nouveau_channel *, u32, u32, u32);
+int nv04_fence_create(struct nouveau_device *, int engine);
+int nv10_fence_create(struct nouveau_device *, int engine);
+int nv84_fence_create(struct nouveau_device *, int engine);
+int nvc0_fence_create(struct nouveau_device *, int engine);
 
-int nv10_fence_create(struct nouveau_device *);
-int nv84_fence_create(struct nouveau_device *);
-int nvc0_fence_create(struct nouveau_device *);
+int nv04_fence_mthd(struct nouveau_channel *, u32, u32, u32);
 
 #endif

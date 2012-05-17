@@ -121,8 +121,8 @@ nouveau_channel_alloc(struct nouveau_device *ndev,
 		      struct drm_file *file_priv,
 		      u32 vram_handle, u32 gart_handle)
 {
-	struct nouveau_engine *fence = nv_engine(ndev, NVOBJ_ENGINE_FENCE);
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_engine *fence = nv_engine(ndev, NVDEV_ENGINE_FENCE);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_fpriv *fpriv = nouveau_fpriv(file_priv);
 	struct nouveau_channel *chan;
 	unsigned long flags;
@@ -193,7 +193,7 @@ nouveau_channel_alloc(struct nouveau_device *ndev,
 		chan->user_get_hi = 0x60;
 
 	/* create fifo context */
-	ret = pfifo->base.context_new(chan, NVOBJ_ENGINE_FIFO);
+	ret = pfifo->base.context_new(chan, NVDEV_ENGINE_FIFO);
 	if (ret) {
 		nouveau_channel_put(&chan);
 		return ret;
@@ -229,7 +229,7 @@ nouveau_channel_alloc(struct nouveau_device *ndev,
 
 	FIRE_RING(chan);
 
-	ret = fence->context_new(chan, NVOBJ_ENGINE_FENCE);
+	ret = fence->context_new(chan, NVDEV_ENGINE_FENCE);
 	if (ret) {
 		nouveau_channel_put(&chan);
 		return ret;
@@ -300,9 +300,10 @@ nouveau_channel_put_unlocked(struct nouveau_channel **pchan)
 	nouveau_channel_idle(chan);
 
 	/* destroy the engine specific contexts */
-	for (i = NVOBJ_ENGINE_NR - 1; i >= 0; i--) {
+	for (i = NVDEV_SUBDEV_NR - 1; i >= 0; i--) {
+		struct nouveau_engine *engine = nv_engine(ndev, i);
 		if (chan->engctx[i])
-			ndev->engine[i]->context_del(chan, i);
+			engine->context_del(chan, i);
 	}
 
 	/* aside from its resources, the channel should now be dead,
@@ -378,7 +379,7 @@ nouveau_channel_idle(struct nouveau_channel *chan)
 void
 nouveau_channel_cleanup(struct nouveau_device *ndev, struct drm_file *file_priv)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_channel *chan;
 	int i;
 

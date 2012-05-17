@@ -43,7 +43,7 @@ struct nvc0_software_chan {
 u64
 nvc0_software_crtc(struct nouveau_channel *chan, int crtc)
 {
-	struct nvc0_software_chan *pch = chan->engctx[NVOBJ_ENGINE_SW];
+	struct nvc0_software_chan *pch = chan->engctx[NVDEV_ENGINE_SW];
 	return pch->dispc_vma[crtc].offset;
 }
 
@@ -51,7 +51,7 @@ static int
 nvc0_software_context_new(struct nouveau_channel *chan, int engine)
 {
 	struct nouveau_device *ndev = chan->device;
-	struct nvc0_software_priv *psw = nv_engine(ndev, NVOBJ_ENGINE_SW);
+	struct nvc0_software_priv *psw = nv_engine(ndev, NVDEV_ENGINE_SW);
 	struct nvc0_software_chan *pch;
 	int ret = 0, i;
 
@@ -110,43 +110,21 @@ nvc0_software_object_new(struct nouveau_channel *chan, int engine,
 	return 0;
 }
 
-static int
-nvc0_software_init(struct nouveau_device *ndev, int engine)
-{
-	return 0;
-}
-
-static int
-nvc0_software_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	return 0;
-}
-
-static void
-nvc0_software_destroy(struct nouveau_device *ndev, int engine)
-{
-	struct nvc0_software_priv *psw = nv_engine(ndev, engine);
-
-	NVOBJ_ENGINE_DEL(ndev, SW);
-	kfree(psw);
-}
-
 int
-nvc0_software_create(struct nouveau_device *ndev)
+nvc0_software_create(struct nouveau_device *ndev, int engine)
 {
-	struct nvc0_software_priv *psw = kzalloc(sizeof(*psw), GFP_KERNEL);
-	if (!psw)
-		return -ENOMEM;
+	struct nvc0_software_priv *priv;
+	int ret;
 
-	psw->base.base.destroy = nvc0_software_destroy;
-	psw->base.base.init = nvc0_software_init;
-	psw->base.base.fini = nvc0_software_fini;
-	psw->base.base.context_new = nvc0_software_context_new;
-	psw->base.base.context_del = nvc0_software_context_del;
-	psw->base.base.object_new = nvc0_software_object_new;
-	nouveau_software_create(&psw->base);
+	ret = nouveau_engine_create(ndev, engine, "SW", "software", &priv);
+	if (ret)
+		return ret;
 
-	NVOBJ_ENGINE_ADD(ndev, SW, &psw->base.base);
+	priv->base.base.context_new = nvc0_software_context_new;
+	priv->base.base.context_del = nvc0_software_context_del;
+	priv->base.base.object_new = nvc0_software_object_new;
+	nouveau_software_create(&priv->base);
+
 	NVOBJ_CLASS(ndev, 0x906e, SW);
-	return 0;
+	return nouveau_engine_init(ndev, engine, ret);
 }

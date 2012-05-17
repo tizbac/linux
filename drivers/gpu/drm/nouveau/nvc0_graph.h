@@ -25,6 +25,8 @@
 #ifndef __NVC0_GRAPH_H__
 #define __NVC0_GRAPH_H__
 
+#include "nouveau_graph.h"
+
 #define GPC_MAX 4
 #define TP_MAX 32
 
@@ -40,7 +42,7 @@ struct nvc0_graph_fuc {
 };
 
 struct nvc0_graph_priv {
-	struct nouveau_engine base;
+	struct nouveau_graph_priv base;
 
 	struct nvc0_graph_fuc fuc409c;
 	struct nvc0_graph_fuc fuc409d;

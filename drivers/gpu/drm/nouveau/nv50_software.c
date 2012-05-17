@@ -42,7 +42,7 @@ struct nv50_software_chan {
 static int
 mthd_dma_vblsem(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 {
-	struct nv50_software_chan *pch = chan->engctx[NVOBJ_ENGINE_SW];
+	struct nv50_software_chan *pch = chan->engctx[NVDEV_ENGINE_SW];
 	struct nouveau_gpuobj *gpuobj;
 
 	gpuobj = nouveau_ramht_find(chan, data);
@@ -56,7 +56,7 @@ mthd_dma_vblsem(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 static int
 mthd_vblsem_offset(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 {
-	struct nv50_software_chan *pch = chan->engctx[NVOBJ_ENGINE_SW];
+	struct nv50_software_chan *pch = chan->engctx[NVDEV_ENGINE_SW];
 	pch->base.vblank.offset = data;
 	return 0;
 }
@@ -64,7 +64,7 @@ mthd_vblsem_offset(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 static int
 mthd_vblsem_value(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 {
-	struct nv50_software_chan *pch = chan->engctx[NVOBJ_ENGINE_SW];
+	struct nv50_software_chan *pch = chan->engctx[NVDEV_ENGINE_SW];
 	pch->base.vblank.value = data;
 	return 0;
 }
@@ -72,8 +72,8 @@ mthd_vblsem_value(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 static int
 mthd_vblsem_release(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 {
-	struct nv50_software_priv *psw = nv_engine(chan->device, NVOBJ_ENGINE_SW);
-	struct nv50_software_chan *pch = chan->engctx[NVOBJ_ENGINE_SW];
+	struct nv50_software_priv *psw = nv_engine(chan->device, NVDEV_ENGINE_SW);
+	struct nv50_software_chan *pch = chan->engctx[NVDEV_ENGINE_SW];
 	struct nouveau_device *ndev = chan->device;
 
 	if (data > 1)
@@ -96,7 +96,7 @@ mthd_flip(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 static int
 nv50_software_context_new(struct nouveau_channel *chan, int engine)
 {
-	struct nv50_software_priv *psw = nv_engine(chan->device, NVOBJ_ENGINE_SW);
+	struct nv50_software_priv *psw = nv_engine(chan->device, NVDEV_ENGINE_SW);
 	struct nv50_display *pdisp = nv50_display(chan->device);
 	struct nv50_software_chan *pch;
 	int ret = 0, i;
@@ -157,48 +157,27 @@ nv50_software_object_new(struct nouveau_channel *chan, int engine,
 	return ret;
 }
 
-static int
-nv50_software_init(struct nouveau_device *ndev, int engine)
-{
-	return 0;
-}
-
-static int
-nv50_software_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	return 0;
-}
-
-static void
-nv50_software_destroy(struct nouveau_device *ndev, int engine)
-{
-	struct nv50_software_priv *psw = nv_engine(ndev, engine);
-
-	NVOBJ_ENGINE_DEL(ndev, SW);
-	kfree(psw);
-}
-
 int
-nv50_software_create(struct nouveau_device *ndev)
+nv50_software_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv50_software_priv *psw = kzalloc(sizeof(*psw), GFP_KERNEL);
-	if (!psw)
-		return -ENOMEM;
+	struct nv50_software_priv *priv;
+	int ret;
 
-	psw->base.base.destroy = nv50_software_destroy;
-	psw->base.base.init = nv50_software_init;
-	psw->base.base.fini = nv50_software_fini;
-	psw->base.base.context_new = nv50_software_context_new;
-	psw->base.base.context_del = nv50_software_context_del;
-	psw->base.base.object_new = nv50_software_object_new;
-	nouveau_software_create(&psw->base);
+	ret = nouveau_engine_create(ndev, engine, "SW", "software", &priv);
+	if (ret)
+		return ret;
 
-	NVOBJ_ENGINE_ADD(ndev, SW, &psw->base.base);
+	priv->base.base.context_new = nv50_software_context_new;
+	priv->base.base.context_del = nv50_software_context_del;
+	priv->base.base.object_new = nv50_software_object_new;
+	nouveau_software_create(&priv->base);
+
 	NVOBJ_CLASS(ndev, 0x506e, SW);
 	NVOBJ_MTHD (ndev, 0x506e, 0x018c, mthd_dma_vblsem);
 	NVOBJ_MTHD (ndev, 0x506e, 0x0400, mthd_vblsem_offset);
 	NVOBJ_MTHD (ndev, 0x506e, 0x0404, mthd_vblsem_value);
 	NVOBJ_MTHD (ndev, 0x506e, 0x0408, mthd_vblsem_release);
 	NVOBJ_MTHD (ndev, 0x506e, 0x0500, mthd_flip);
-	return 0;
+
+	return nouveau_engine_init(ndev, engine, ret);
 }

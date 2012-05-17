@@ -33,11 +33,12 @@
 #include "nouveau_timer.h"
 #include "nouveau_instmem.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_graph.h"
 
 #include "nv50_evo.h"
 
-struct nv50_graph_engine {
-	struct nouveau_engine base;
+struct nv50_graph_priv {
+	struct nouveau_graph_priv base;
 	u32 ctxprog[512];
 	u32 ctxprog_size;
 	u32 grctx_size;
@@ -46,7 +47,7 @@ struct nv50_graph_engine {
 static int
 nv50_graph_init(struct nouveau_device *ndev, int engine)
 {
-	struct nv50_graph_engine *pgraph = nv_engine(ndev, engine);
+	struct nv50_graph_priv *priv = nv_engine(ndev, engine);
 	u32 units = nv_rd32(ndev, 0x001540);
 	int i;
 
@@ -87,8 +88,8 @@ nv50_graph_init(struct nouveau_device *ndev, int engine)
 
 	/* upload context program, initialise ctxctl defaults */
 	nv_wr32(ndev, 0x400324, 0x00000000);
-	for (i = 0; i < pgraph->ctxprog_size; i++)
-		nv_wr32(ndev, 0x400328, pgraph->ctxprog[i]);
+	for (i = 0; i < priv->ctxprog_size; i++)
+		nv_wr32(ndev, 0x400328, priv->ctxprog[i]);
 	nv_wr32(ndev, 0x400824, 0x00000000);
 	nv_wr32(ndev, 0x400828, 0x00000000);
 	nv_wr32(ndev, 0x40082c, 0x00000000);
@@ -143,12 +144,12 @@ nv50_graph_context_new(struct nouveau_channel *chan, int engine)
 	struct nouveau_device *ndev = chan->device;
 	struct nouveau_gpuobj *ramin = chan->ramin;
 	struct nouveau_gpuobj *grctx = NULL;
-	struct nv50_graph_engine *pgraph = nv_engine(ndev, engine);
+	struct nv50_graph_priv *priv = nv_engine(ndev, engine);
 	int hdr, ret;
 
 	NV_DEBUG(ndev, "ch%d\n", chan->id);
 
-	ret = nouveau_gpuobj_new(ndev, NULL, pgraph->grctx_size, 0,
+	ret = nouveau_gpuobj_new(ndev, NULL, priv->grctx_size, 0,
 				 NVOBJ_FLAG_ZERO_ALLOC |
 				 NVOBJ_FLAG_ZERO_FREE, &grctx);
 	if (ret)
@@ -167,8 +168,8 @@ nv50_graph_context_new(struct nouveau_channel *chan, int engine)
 
 	nouveau_instmem_flush(ndev);
 
-	atomic_inc(&chan->vm->engref[NVOBJ_ENGINE_GR]);
-	chan->engctx[NVOBJ_ENGINE_GR] = grctx;
+	atomic_inc(&chan->vm->engref[NVDEV_ENGINE_GR]);
+	chan->engctx[NVDEV_ENGINE_GR] = grctx;
 	return 0;
 }
 
@@ -358,7 +359,7 @@ static struct nouveau_bitfield nv50_graph_intr[] = {
 };
 
 static void
-nv50_pgraph_mp_trap(struct nouveau_device *ndev, int tpid, int display)
+nv50_priv_mp_trap(struct nouveau_device *ndev, int tpid, int display)
 {
 	u32 units = nv_rd32(ndev, 0x1540);
 	u32 addr, mp10, status, pc, oplow, ophigh;
@@ -397,7 +398,7 @@ nv50_pgraph_mp_trap(struct nouveau_device *ndev, int tpid, int display)
 }
 
 static void
-nv50_pgraph_tp_trap(struct nouveau_device *ndev, int type, u32 ustatus_old,
+nv50_priv_tp_trap(struct nouveau_device *ndev, int type, u32 ustatus_old,
 		u32 ustatus_new, int display, const char *name)
 {
 	int tps = 0;
@@ -426,7 +427,7 @@ nv50_pgraph_tp_trap(struct nouveau_device *ndev, int type, u32 ustatus_old,
 			break;
 		case 7: /* MP error */
 			if (ustatus & 0x04030000) {
-				nv50_pgraph_mp_trap(ndev, i, display);
+				nv50_priv_mp_trap(ndev, i, display);
 				ustatus &= ~0x04030000;
 			}
 			break;
@@ -496,7 +497,7 @@ nv50_pgraph_tp_trap(struct nouveau_device *ndev, int type, u32 ustatus_old,
 }
 
 static int
-nv50_pgraph_trap_handler(struct nouveau_device *ndev, u32 display, u64 inst, u32 chid)
+nv50_priv_trap_handler(struct nouveau_device *ndev, u32 display, u64 inst, u32 chid)
 {
 	u32 status = nv_rd32(ndev, 0x400108);
 	u32 ustatus;
@@ -674,7 +675,7 @@ nv50_pgraph_trap_handler(struct nouveau_device *ndev, u32 display, u64 inst, u32
 
 	/* TEXTURE: CUDA texturing units */
 	if (status & 0x040) {
-		nv50_pgraph_tp_trap(ndev, 6, 0x408900, 0x408600, display,
+		nv50_priv_tp_trap(ndev, 6, 0x408900, 0x408600, display,
 				    "PGRAPH - TRAP_TEXTURE");
 		nv_wr32(ndev, 0x400108, 0x040);
 		status &= ~0x040;
@@ -682,7 +683,7 @@ nv50_pgraph_trap_handler(struct nouveau_device *ndev, u32 display, u64 inst, u32
 
 	/* MP: CUDA execution engines. */
 	if (status & 0x080) {
-		nv50_pgraph_tp_trap(ndev, 7, 0x408314, 0x40831c, display,
+		nv50_priv_tp_trap(ndev, 7, 0x408314, 0x40831c, display,
 				    "PGRAPH - TRAP_MP");
 		nv_wr32(ndev, 0x400108, 0x080);
 		status &= ~0x080;
@@ -691,7 +692,7 @@ nv50_pgraph_trap_handler(struct nouveau_device *ndev, u32 display, u64 inst, u32
 	/* TPDMA:  Handles TP-initiated uncached memory accesses:
 	 * l[], g[], stack, 2d surfaces, render targets. */
 	if (status & 0x100) {
-		nv50_pgraph_tp_trap(ndev, 8, 0x408e08, 0x408708, display,
+		nv50_priv_tp_trap(ndev, 8, 0x408e08, 0x408708, display,
 				    "PGRAPH - TRAP_TPDMA");
 		nv_wr32(ndev, 0x400108, 0x100);
 		status &= ~0x100;
@@ -709,7 +710,7 @@ nv50_pgraph_trap_handler(struct nouveau_device *ndev, u32 display, u64 inst, u32
 int
 nv50_graph_isr_chid(struct nouveau_device *ndev, u64 inst)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_channel *chan;
 	unsigned long flags;
 	int i;
@@ -758,7 +759,7 @@ nv50_graph_isr(struct nouveau_device *ndev)
 		}
 
 		if (stat & 0x00200000) {
-			if (!nv50_pgraph_trap_handler(ndev, show, inst, chid))
+			if (!nv50_priv_trap_handler(ndev, show, inst, chid))
 				show &= ~0x00200000;
 		}
 
@@ -783,47 +784,39 @@ nv50_graph_isr(struct nouveau_device *ndev)
 static void
 nv50_graph_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv50_graph_engine *pgraph = nv_engine(ndev, engine);
-
-	NVOBJ_ENGINE_DEL(ndev, GR);
-
 	nouveau_irq_unregister(ndev, 12);
-	kfree(pgraph);
 }
 
 int
-nv50_graph_create(struct nouveau_device *ndev)
+nv50_graph_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv50_graph_engine *pgraph;
+	struct nv50_graph_priv *priv;
 	int ret;
 
-	pgraph = kzalloc(sizeof(*pgraph),GFP_KERNEL);
-	if (!pgraph)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PGRAPH", "graphics", &priv);
+	if (ret)
+		return ret;
 
-	ret = nv50_grctx_init(ndev, pgraph->ctxprog, ARRAY_SIZE(pgraph->ctxprog),
-				  &pgraph->ctxprog_size,
-				  &pgraph->grctx_size);
+	ret = nv50_grctx_init(ndev, priv->ctxprog, ARRAY_SIZE(priv->ctxprog),
+				   &priv->ctxprog_size, &priv->grctx_size);
 	if (ret) {
 		NV_ERROR(ndev, "PGRAPH: ctxprog build failed\n");
-		kfree(pgraph);
-		return 0;
+		goto done;
 	}
 
-	pgraph->base.destroy = nv50_graph_destroy;
-	pgraph->base.init = nv50_graph_init;
-	pgraph->base.fini = nv50_graph_fini;
-	pgraph->base.context_new = nv50_graph_context_new;
-	pgraph->base.context_del = nv50_graph_context_del;
-	pgraph->base.object_new = nv50_graph_object_new;
+	priv->base.base.subdev.destroy = nv50_graph_destroy;
+	priv->base.base.subdev.init = nv50_graph_init;
+	priv->base.base.subdev.fini = nv50_graph_fini;
+	priv->base.base.context_new = nv50_graph_context_new;
+	priv->base.base.context_del = nv50_graph_context_del;
+	priv->base.base.object_new = nv50_graph_object_new;
 	if (ndev->chipset == 0x50 || ndev->chipset == 0xac)
-		pgraph->base.tlb_flush = nv50_graph_tlb_flush;
+		priv->base.base.tlb_flush = nv50_graph_tlb_flush;
 	else
-		pgraph->base.tlb_flush = nv84_graph_tlb_flush;
+		priv->base.base.tlb_flush = nv84_graph_tlb_flush;
 
 	nouveau_irq_register(ndev, 12, nv50_graph_isr);
 
-	NVOBJ_ENGINE_ADD(ndev, GR, &pgraph->base);
 	NVOBJ_CLASS(ndev, 0x0030, GR); /* null */
 	NVOBJ_CLASS(ndev, 0x5039, GR); /* m2mf */
 	NVOBJ_CLASS(ndev, 0x502d, GR); /* 2d */
@@ -859,5 +852,6 @@ nv50_graph_create(struct nouveau_device *ndev)
 	    ndev->chipset != 0xac)
 		NVOBJ_CLASS(ndev, 0x85c0, GR);
 
-	return 0;
+done:
+	return nouveau_engine_init(ndev, engine, ret);
 }

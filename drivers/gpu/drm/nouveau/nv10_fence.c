@@ -66,7 +66,7 @@ static int
 nv17_fence_sync(struct nouveau_fence *fence,
 		struct nouveau_channel *prev, struct nouveau_channel *chan)
 {
-	struct nv10_fence_priv *priv = nv_engine(chan->device, NVOBJ_ENGINE_FENCE);
+	struct nv10_fence_priv *priv = nv_engine(chan->device, NVDEV_ENGINE_FENCE);
 	u32 value;
 	int ret;
 
@@ -148,47 +148,29 @@ nv10_fence_context_new(struct nouveau_channel *chan, int engine)
 	return ret;
 }
 
-static int
-nv10_fence_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	return 0;
-}
-
-static int
-nv10_fence_init(struct nouveau_device *ndev, int engine)
-{
-	return 0;
-}
-
 static void
 nv10_fence_destroy(struct nouveau_device *ndev, int engine)
 {
 	struct nv10_fence_priv *priv = nv_engine(ndev, engine);
-
 	nouveau_bo_ref(NULL, &priv->bo);
-	ndev->engine[engine] = NULL;
-	kfree(priv);
 }
 
 int
-nv10_fence_create(struct nouveau_device *ndev)
+nv10_fence_create(struct nouveau_device *ndev, int engine)
 {
 	struct nv10_fence_priv *priv;
 	int ret = 0;
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "FENCE", "fence", &priv);
+	if (ret)
+		return ret;
 
-	priv->base.engine.destroy = nv10_fence_destroy;
-	priv->base.engine.init = nv10_fence_init;
-	priv->base.engine.fini = nv10_fence_fini;
-	priv->base.engine.context_new = nv10_fence_context_new;
-	priv->base.engine.context_del = nv10_fence_context_del;
+	priv->base.base.subdev.destroy = nv10_fence_destroy;
+	priv->base.base.context_new = nv10_fence_context_new;
+	priv->base.base.context_del = nv10_fence_context_del;
 	priv->base.emit = nv10_fence_emit;
 	priv->base.read = nv10_fence_read;
 	priv->base.sync = nv10_fence_sync;
-	ndev->engine[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
 	spin_lock_init(&priv->lock);
 
 	if (ndev->chipset >= 0x17) {
@@ -208,7 +190,5 @@ nv10_fence_create(struct nouveau_device *ndev)
 		}
 	}
 
-	if (ret)
-		nv10_fence_destroy(ndev, NVOBJ_ENGINE_FENCE);
-	return ret;
+	return nouveau_engine_init(ndev, engine, ret);
 }

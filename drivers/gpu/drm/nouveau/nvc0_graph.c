@@ -92,8 +92,8 @@ nvc0_graph_unload_context_to(struct nouveau_device *ndev, u64 chan)
 static int
 nvc0_graph_construct_context(struct nouveau_channel *chan)
 {
-	struct nvc0_graph_priv *priv = nv_engine(chan->device, NVOBJ_ENGINE_GR);
-	struct nvc0_graph_chan *grch = chan->engctx[NVOBJ_ENGINE_GR];
+	struct nvc0_graph_priv *priv = nv_engine(chan->device, NVDEV_ENGINE_GR);
+	struct nvc0_graph_chan *grch = chan->engctx[NVDEV_ENGINE_GR];
 	struct nouveau_device *ndev = chan->device;
 	int ret, i;
 	u32 *ctx;
@@ -156,8 +156,8 @@ err:
 static int
 nvc0_graph_create_context_mmio_list(struct nouveau_channel *chan)
 {
-	struct nvc0_graph_priv *priv = nv_engine(chan->device, NVOBJ_ENGINE_GR);
-	struct nvc0_graph_chan *grch = chan->engctx[NVOBJ_ENGINE_GR];
+	struct nvc0_graph_priv *priv = nv_engine(chan->device, NVDEV_ENGINE_GR);
+	struct nvc0_graph_chan *grch = chan->engctx[NVDEV_ENGINE_GR];
 	struct nouveau_device *ndev = chan->device;
 	int i = 0, gpc, tp, ret;
 
@@ -258,7 +258,7 @@ nvc0_graph_context_new(struct nouveau_channel *chan, int engine)
 	grch = kzalloc(sizeof(*grch), GFP_KERNEL);
 	if (!grch)
 		return -ENOMEM;
-	chan->engctx[NVOBJ_ENGINE_GR] = grch;
+	chan->engctx[NVDEV_ENGINE_GR] = grch;
 
 	ret = nouveau_gpuobj_new(ndev, chan, priv->grctx_size, 256,
 				 NVOBJ_FLAG_VM | NVOBJ_FLAG_ZERO_ALLOC,
@@ -302,7 +302,7 @@ nvc0_graph_context_new(struct nouveau_channel *chan, int engine)
 	return 0;
 
 error:
-	priv->base.context_del(chan, engine);
+	priv->base.base.context_del(chan, engine);
 	return ret;
 }
 
@@ -326,16 +326,10 @@ nvc0_graph_object_new(struct nouveau_channel *chan, int engine,
 	return 0;
 }
 
-static int
-nvc0_graph_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	return 0;
-}
-
 static void
 nvc0_graph_init_obj418880(struct nouveau_device *ndev)
 {
-	struct nvc0_graph_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_GR);
+	struct nvc0_graph_priv *priv = nv_engine(ndev, NVDEV_ENGINE_GR);
 	int i;
 
 	nv_wr32(ndev, GPC_BCAST(0x0880), 0x00000000);
@@ -366,7 +360,7 @@ nvc0_graph_init_regs(struct nouveau_device *ndev)
 static void
 nvc0_graph_init_gpc_0(struct nouveau_device *ndev)
 {
-	struct nvc0_graph_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_GR);
+	struct nvc0_graph_priv *priv = nv_engine(ndev, NVDEV_ENGINE_GR);
 	const u32 magicgpc918 = DIV_ROUND_UP(0x00800000, priv->tp_total);
 	u32 data[TP_MAX / 8];
 	u8  tpnr[GPC_MAX];
@@ -429,7 +423,7 @@ nvc0_graph_init_units(struct nouveau_device *ndev)
 static void
 nvc0_graph_init_gpc_1(struct nouveau_device *ndev)
 {
-	struct nvc0_graph_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_GR);
+	struct nvc0_graph_priv *priv = nv_engine(ndev, NVDEV_ENGINE_GR);
 	int gpc, tp;
 
 	for (gpc = 0; gpc < priv->gpc_nr; gpc++) {
@@ -454,7 +448,7 @@ nvc0_graph_init_gpc_1(struct nouveau_device *ndev)
 static void
 nvc0_graph_init_rop(struct nouveau_device *ndev)
 {
-	struct nvc0_graph_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_GR);
+	struct nvc0_graph_priv *priv = nv_engine(ndev, NVDEV_ENGINE_GR);
 	int rop;
 
 	for (rop = 0; rop < priv->rop_nr; rop++) {
@@ -486,7 +480,7 @@ nvc0_graph_init_fuc(struct nouveau_device *ndev, u32 fuc_base,
 static int
 nvc0_graph_init_ctxctl(struct nouveau_device *ndev)
 {
-	struct nvc0_graph_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_GR);
+	struct nvc0_graph_priv *priv = nv_engine(ndev, NVDEV_ENGINE_GR);
 	u32 r000260;
 	int i;
 
@@ -618,7 +612,7 @@ nvc0_graph_init(struct nouveau_device *ndev, int engine)
 int
 nvc0_graph_isr_chid(struct nouveau_device *ndev, u64 inst)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_channel *chan;
 	unsigned long flags;
 	int i;
@@ -769,36 +763,32 @@ nvc0_graph_destroy(struct nouveau_device *ndev, int engine)
 
 	if (priv->grctx_vals)
 		kfree(priv->grctx_vals);
-
-	NVOBJ_ENGINE_DEL(ndev, GR);
-	kfree(priv);
 }
 
 int
-nvc0_graph_create(struct nouveau_device *ndev)
+nvc0_graph_create(struct nouveau_device *ndev, int engine)
 {
 	struct nvc0_graph_priv *priv;
 	int ret, gpc, i;
 	u32 fermi;
 
+	ret = nouveau_engine_create(ndev, engine, "PGRAPH", "graphics", &priv);
+	if (ret)
+		return ret;
+
 	fermi = nvc0_graph_class(ndev);
 	if (!fermi) {
 		NV_ERROR(ndev, "PGRAPH: unsupported chipset, please report!\n");
-		return 0;
+		ret = -ENODEV;
+		goto done;
 	}
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
+	priv->base.base.subdev.destroy = nvc0_graph_destroy;
+	priv->base.base.subdev.init = nvc0_graph_init;
+	priv->base.base.context_new = nvc0_graph_context_new;
+	priv->base.base.context_del = nvc0_graph_context_del;
+	priv->base.base.object_new = nvc0_graph_object_new;
 
-	priv->base.destroy = nvc0_graph_destroy;
-	priv->base.init = nvc0_graph_init;
-	priv->base.fini = nvc0_graph_fini;
-	priv->base.context_new = nvc0_graph_context_new;
-	priv->base.context_del = nvc0_graph_context_del;
-	priv->base.object_new = nvc0_graph_object_new;
-
-	NVOBJ_ENGINE_ADD(ndev, GR, &priv->base);
 	nouveau_irq_register(ndev, 12, nvc0_graph_isr);
 
 	if (nouveau_ctxfw) {
@@ -807,18 +797,18 @@ nvc0_graph_create(struct nouveau_device *ndev)
 		    nvc0_graph_create_fw(ndev, "fuc409d", &priv->fuc409d) ||
 		    nvc0_graph_create_fw(ndev, "fuc41ac", &priv->fuc41ac) ||
 		    nvc0_graph_create_fw(ndev, "fuc41ad", &priv->fuc41ad)) {
-			ret = 0;
-			goto error;
+			ret = -EINVAL;
+			goto done;
 		}
 	}
 
 	ret = nouveau_gpuobj_new(ndev, NULL, 0x1000, 256, 0, &priv->unk4188b4);
 	if (ret)
-		goto error;
+		goto done;
 
 	ret = nouveau_gpuobj_new(ndev, NULL, 0x1000, 256, 0, &priv->unk4188b8);
 	if (ret)
-		goto error;
+		goto done;
 
 	for (i = 0; i < 0x1000; i += 4) {
 		nv_wo32(priv->unk4188b4, i, 0x00000010);
@@ -883,9 +873,7 @@ nvc0_graph_create(struct nouveau_device *ndev)
 	if (fermi >= 0x9297)
 		NVOBJ_CLASS(ndev, 0x9297, GR); /* 3D (NVC8-) */
 	NVOBJ_CLASS(ndev, 0x90c0, GR); /* COMPUTE */
-	return 0;
 
-error:
-	nvc0_graph_destroy(ndev, NVOBJ_ENGINE_GR);
-	return ret;
+done:
+	return nouveau_engine_init(ndev, engine, ret);
 }

@@ -29,9 +29,10 @@
 #include "nouveau_util.h"
 #include "nouveau_ramht.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_graph.h"
 
-struct nv04_graph_engine {
-	struct nouveau_engine base;
+struct nv04_graph_priv {
+	struct nouveau_graph_priv base;
 };
 
 static u32 nv04_graph_ctx_regs[] = {
@@ -381,7 +382,7 @@ static u32 *ctx_reg(struct graph_state *ctx, u32 reg)
 static int
 nv04_graph_load_context(struct nouveau_channel *chan)
 {
-	struct graph_state *pgraph_ctx = chan->engctx[NVOBJ_ENGINE_GR];
+	struct graph_state *pgraph_ctx = chan->engctx[NVDEV_ENGINE_GR];
 	struct nouveau_device *ndev = chan->device;
 	u32 tmp;
 	int i;
@@ -411,7 +412,7 @@ nv04_graph_unload_context(struct nouveau_device *ndev)
 	chan = nv04_graph_channel(ndev);
 	if (!chan)
 		return 0;
-	ctx = chan->engctx[NVOBJ_ENGINE_GR];
+	ctx = chan->engctx[NVDEV_ENGINE_GR];
 
 	for (i = 0; i < ARRAY_SIZE(nv04_graph_ctx_regs); i++)
 		ctx->nv04[i] = nv_rd32(ndev, nv04_graph_ctx_regs[i]);
@@ -1051,31 +1052,26 @@ nv04_graph_isr(struct nouveau_device *ndev)
 static void
 nv04_graph_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv04_graph_engine *pgraph = nv_engine(ndev, engine);
-
 	nouveau_irq_unregister(ndev, 12);
-
-	NVOBJ_ENGINE_DEL(ndev, GR);
-	kfree(pgraph);
 }
 
 int
-nv04_graph_create(struct nouveau_device *ndev)
+nv04_graph_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv04_graph_engine *pgraph;
+	struct nv04_graph_priv *priv;
+	int ret;
 
-	pgraph = kzalloc(sizeof(*pgraph), GFP_KERNEL);
-	if (!pgraph)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PGRAPH", "graphics", &priv);
+	if (ret)
+		return ret;
 
-	pgraph->base.destroy = nv04_graph_destroy;
-	pgraph->base.init = nv04_graph_init;
-	pgraph->base.fini = nv04_graph_fini;
-	pgraph->base.context_new = nv04_graph_context_new;
-	pgraph->base.context_del = nv04_graph_context_del;
-	pgraph->base.object_new = nv04_graph_object_new;
+	priv->base.base.subdev.destroy = nv04_graph_destroy;
+	priv->base.base.subdev.init = nv04_graph_init;
+	priv->base.base.subdev.fini = nv04_graph_fini;
+	priv->base.base.context_new = nv04_graph_context_new;
+	priv->base.base.context_del = nv04_graph_context_del;
+	priv->base.base.object_new = nv04_graph_object_new;
 
-	NVOBJ_ENGINE_ADD(ndev, GR, &pgraph->base);
 	nouveau_irq_register(ndev, 12, nv04_graph_isr);
 
 	/* dvd subpicture */
@@ -1319,5 +1315,5 @@ nv04_graph_create(struct nouveau_device *ndev)
 	NVOBJ_MTHD (ndev, 0x005e, 0x0198, nv04_graph_mthd_bind_surf2d);
 	NVOBJ_MTHD (ndev, 0x005e, 0x02fc, nv04_graph_mthd_set_operation);
 
-	return 0;
+	return nouveau_engine_init(ndev, engine, ret);
 }

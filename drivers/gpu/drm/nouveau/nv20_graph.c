@@ -2,6 +2,7 @@
 
 #include "nouveau_drv.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_graph.h"
 
 /*
  * NV20
@@ -24,8 +25,8 @@
  *
  */
 
-struct nv20_graph_engine {
-	struct nouveau_engine base;
+struct nv20_graph_priv {
+	struct nouveau_graph_priv base;
 	struct nouveau_gpuobj *ctxtab;
 	void (*grctx_init)(struct nouveau_gpuobj *);
 	u32 grctx_size;
@@ -50,7 +51,7 @@ nv20_graph_unload_context(struct nouveau_device *ndev)
 	chan = nv10_graph_channel(ndev);
 	if (!chan)
 		return 0;
-	grctx = chan->engctx[NVOBJ_ENGINE_GR];
+	grctx = chan->engctx[NVDEV_ENGINE_GR];
 
 	nv_wr32(ndev, NV20_PGRAPH_CHANNEL_CTX_POINTER, grctx->pinst >> 4);
 	nv_wr32(ndev, NV20_PGRAPH_CHANNEL_CTX_XFER,
@@ -419,24 +420,24 @@ nv35_36_graph_context_init(struct nouveau_gpuobj *ctx)
 int
 nv20_graph_context_new(struct nouveau_channel *chan, int engine)
 {
-	struct nv20_graph_engine *pgraph = nv_engine(chan->device, engine);
+	struct nv20_graph_priv *priv = nv_engine(chan->device, engine);
 	struct nouveau_gpuobj *grctx = NULL;
 	struct nouveau_device *ndev = chan->device;
 	int ret;
 
-	ret = nouveau_gpuobj_new(ndev, NULL, pgraph->grctx_size, 16,
+	ret = nouveau_gpuobj_new(ndev, NULL, priv->grctx_size, 16,
 				 NVOBJ_FLAG_ZERO_ALLOC, &grctx);
 	if (ret)
 		return ret;
 
 	/* Initialise default context values */
-	pgraph->grctx_init(grctx);
+	priv->grctx_init(grctx);
 
 	/* nv20: nv_wo32(ndev, chan->ramin_grctx->gpuobj, 10, chan->id<<24); */
 	/* CTX_USER */
-	nv_wo32(grctx, pgraph->grctx_user, (chan->id << 24) | 0x1);
+	nv_wo32(grctx, priv->grctx_user, (chan->id << 24) | 0x1);
 
-	nv_wo32(pgraph->ctxtab, chan->id * 4, grctx->pinst >> 4);
+	nv_wo32(priv->ctxtab, chan->id * 4, grctx->pinst >> 4);
 	chan->engctx[engine] = grctx;
 	return 0;
 }
@@ -444,7 +445,7 @@ nv20_graph_context_new(struct nouveau_channel *chan, int engine)
 void
 nv20_graph_context_del(struct nouveau_channel *chan, int engine)
 {
-	struct nv20_graph_engine *pgraph = nv_engine(chan->device, engine);
+	struct nv20_graph_priv *priv = nv_engine(chan->device, engine);
 	struct nouveau_gpuobj *grctx = chan->engctx[engine];
 	struct nouveau_device *ndev = chan->device;
 	unsigned long flags;
@@ -460,7 +461,7 @@ nv20_graph_context_del(struct nouveau_channel *chan, int engine)
 	spin_unlock_irqrestore(&ndev->context_switch_lock, flags);
 
 	/* Free the context resources */
-	nv_wo32(pgraph->ctxtab, chan->id * 4, 0);
+	nv_wo32(priv->ctxtab, chan->id * 4, 0);
 
 	nouveau_gpuobj_ref(NULL, &grctx);
 	chan->engctx[engine] = NULL;
@@ -492,7 +493,7 @@ nv20_graph_set_tile_region(struct nouveau_device *ndev, int i)
 int
 nv20_graph_init(struct nouveau_device *ndev, int engine)
 {
-	struct nv20_graph_engine *pgraph = nv_engine(ndev, engine);
+	struct nv20_graph_priv *priv = nv_engine(ndev, engine);
 	u32 tmp, vramsz;
 	int i;
 
@@ -501,7 +502,7 @@ nv20_graph_init(struct nouveau_device *ndev, int engine)
 	nv_wr32(ndev, NV03_PMC_ENABLE,
 		nv_rd32(ndev, NV03_PMC_ENABLE) |  NV_PMC_ENABLE_PGRAPH);
 
-	nv_wr32(ndev, NV20_PGRAPH_CHANNEL_CTX_TABLE, pgraph->ctxtab->pinst >> 4);
+	nv_wr32(ndev, NV20_PGRAPH_CHANNEL_CTX_TABLE, priv->ctxtab->pinst >> 4);
 
 	nv20_graph_rdi(ndev);
 
@@ -579,7 +580,7 @@ nv20_graph_init(struct nouveau_device *ndev, int engine)
 int
 nv30_graph_init(struct nouveau_device *ndev, int engine)
 {
-	struct nv20_graph_engine *pgraph = nv_engine(ndev, engine);
+	struct nv20_graph_priv *priv = nv_engine(ndev, engine);
 	int i;
 
 	nv_wr32(ndev, NV03_PMC_ENABLE,
@@ -587,7 +588,7 @@ nv30_graph_init(struct nouveau_device *ndev, int engine)
 	nv_wr32(ndev, NV03_PMC_ENABLE,
 		nv_rd32(ndev, NV03_PMC_ENABLE) |  NV_PMC_ENABLE_PGRAPH);
 
-	nv_wr32(ndev, NV20_PGRAPH_CHANNEL_CTX_TABLE, pgraph->ctxtab->pinst >> 4);
+	nv_wr32(ndev, NV20_PGRAPH_CHANNEL_CTX_TABLE, priv->ctxtab->pinst >> 4);
 
 	nv_wr32(ndev, NV03_PGRAPH_INTR   , 0xFFFFFFFF);
 	nv_wr32(ndev, NV03_PGRAPH_INTR_EN, 0xFFFFFFFF);
@@ -703,89 +704,82 @@ nv20_graph_isr(struct nouveau_device *ndev)
 static void
 nv20_graph_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv20_graph_engine *pgraph = nv_engine(ndev, engine);
-
+	struct nv20_graph_priv *priv = nv_engine(ndev, engine);
 	nouveau_irq_unregister(ndev, 12);
-	nouveau_gpuobj_ref(NULL, &pgraph->ctxtab);
-
-	NVOBJ_ENGINE_DEL(ndev, GR);
-	kfree(pgraph);
+	nouveau_gpuobj_ref(NULL, &priv->ctxtab);
 }
 
 int
-nv20_graph_create(struct nouveau_device *ndev)
+nv20_graph_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv20_graph_engine *pgraph;
+	struct nv20_graph_priv *priv;
 	int ret;
 
-	pgraph = kzalloc(sizeof(*pgraph), GFP_KERNEL);
-	if (!pgraph)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PGRAPH", "graphics", &priv);
+	if (ret)
+		return ret;
 
-	pgraph->base.destroy = nv20_graph_destroy;
-	pgraph->base.fini = nv20_graph_fini;
-	pgraph->base.context_new = nv20_graph_context_new;
-	pgraph->base.context_del = nv20_graph_context_del;
-	pgraph->base.object_new = nv04_graph_object_new;
-	pgraph->base.set_tile_region = nv20_graph_set_tile_region;
+	priv->base.base.subdev.destroy = nv20_graph_destroy;
+	priv->base.base.subdev.fini = nv20_graph_fini;
+	priv->base.base.context_new = nv20_graph_context_new;
+	priv->base.base.context_del = nv20_graph_context_del;
+	priv->base.base.object_new = nv04_graph_object_new;
+	priv->base.base.set_tile_region = nv20_graph_set_tile_region;
 
-	pgraph->grctx_user = 0x0028;
+	priv->grctx_user = 0x0028;
 	if (ndev->card_type == NV_20) {
-		pgraph->base.init = nv20_graph_init;
+		priv->base.base.subdev.init = nv20_graph_init;
 		switch (ndev->chipset) {
 		case 0x20:
-			pgraph->grctx_init = nv20_graph_context_init;
-			pgraph->grctx_size = NV20_GRCTX_SIZE;
-			pgraph->grctx_user = 0x0000;
+			priv->grctx_init = nv20_graph_context_init;
+			priv->grctx_size = NV20_GRCTX_SIZE;
+			priv->grctx_user = 0x0000;
 			break;
 		case 0x25:
 		case 0x28:
-			pgraph->grctx_init = nv25_graph_context_init;
-			pgraph->grctx_size = NV25_GRCTX_SIZE;
+			priv->grctx_init = nv25_graph_context_init;
+			priv->grctx_size = NV25_GRCTX_SIZE;
 			break;
 		case 0x2a:
-			pgraph->grctx_init = nv2a_graph_context_init;
-			pgraph->grctx_size = NV2A_GRCTX_SIZE;
-			pgraph->grctx_user = 0x0000;
+			priv->grctx_init = nv2a_graph_context_init;
+			priv->grctx_size = NV2A_GRCTX_SIZE;
+			priv->grctx_user = 0x0000;
 			break;
 		default:
 			NV_ERROR(ndev, "PGRAPH: unknown chipset\n");
-			kfree(pgraph);
-			return 0;
+			ret = -ENODEV;
+			goto done;
 		}
 	} else {
-		pgraph->base.init = nv30_graph_init;
+		priv->base.base.subdev.init = nv30_graph_init;
 		switch (ndev->chipset) {
 		case 0x30:
 		case 0x31:
-			pgraph->grctx_init = nv30_31_graph_context_init;
-			pgraph->grctx_size = NV30_31_GRCTX_SIZE;
+			priv->grctx_init = nv30_31_graph_context_init;
+			priv->grctx_size = NV30_31_GRCTX_SIZE;
 			break;
 		case 0x34:
-			pgraph->grctx_init = nv34_graph_context_init;
-			pgraph->grctx_size = NV34_GRCTX_SIZE;
+			priv->grctx_init = nv34_graph_context_init;
+			priv->grctx_size = NV34_GRCTX_SIZE;
 			break;
 		case 0x35:
 		case 0x36:
-			pgraph->grctx_init = nv35_36_graph_context_init;
-			pgraph->grctx_size = NV35_36_GRCTX_SIZE;
+			priv->grctx_init = nv35_36_graph_context_init;
+			priv->grctx_size = NV35_36_GRCTX_SIZE;
 			break;
 		default:
 			NV_ERROR(ndev, "PGRAPH: unknown chipset\n");
-			kfree(pgraph);
-			return 0;
+			ret = -ENODEV;
+			goto done;
 		}
 	}
 
 	/* Create Context Pointer Table */
 	ret = nouveau_gpuobj_new(ndev, NULL, 32 * 4, 16, NVOBJ_FLAG_ZERO_ALLOC,
-				 &pgraph->ctxtab);
-	if (ret) {
-		kfree(pgraph);
-		return ret;
-	}
+				 &priv->ctxtab);
+	if (ret)
+		goto done;
 
-	NVOBJ_ENGINE_ADD(ndev, GR, &pgraph->base);
 	nouveau_irq_register(ndev, 12, nv20_graph_isr);
 
 	NVOBJ_CLASS(ndev, 0x0030, GR); /* null */
@@ -826,5 +820,6 @@ nv20_graph_create(struct nouveau_device *ndev)
 			NVOBJ_CLASS(ndev, 0x0497, GR);
 	}
 
-	return 0;
+done:
+	return nouveau_engine_init(ndev, engine, ret);
 }

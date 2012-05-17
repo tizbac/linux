@@ -55,7 +55,7 @@ struct nve0_fifo_chan {
 static void
 nve0_fifo_playlist_update(struct nouveau_device *ndev, u32 engine)
 {
-	struct nve0_fifo_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nve0_fifo_priv *priv = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nve0_fifo_engine *peng = &priv->engine[engine];
 	struct nouveau_gpuobj *cur;
 	u32 match = (engine << 16) | 0x00000001;
@@ -168,7 +168,7 @@ nve0_fifo_context_del(struct nouveau_channel *chan, int engine)
 		chan->user = NULL;
 	}
 
-	chan->engctx[NVOBJ_ENGINE_FIFO] = NULL;
+	chan->engctx[NVDEV_ENGINE_FIFO] = NULL;
 	kfree(fctx);
 }
 
@@ -382,42 +382,36 @@ nve0_fifo_destroy(struct nouveau_device *ndev, int engine)
 		nouveau_gpuobj_ref(NULL, &priv->engine[i].playlist[0]);
 		nouveau_gpuobj_ref(NULL, &priv->engine[i].playlist[1]);
 	}
-
-	ndev->engine[engine] = NULL;
-	kfree(priv);
 }
 
 int
-nve0_fifo_create(struct nouveau_device *ndev)
+nve0_fifo_create(struct nouveau_device *ndev, int engine)
 {
 	struct nouveau_bar *pbar = nv_subdev(ndev, NVDEV_SUBDEV_BAR);
 	struct nve0_fifo_priv *priv;
 	int ret;
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PFIFO", "fifo", &priv);
+	if (ret)
+		return ret;
 
-	priv->base.base.destroy = nve0_fifo_destroy;
-	priv->base.base.init = nve0_fifo_init;
-	priv->base.base.fini = nve0_fifo_fini;
+	priv->base.base.subdev.destroy = nve0_fifo_destroy;
+	priv->base.base.subdev.init = nve0_fifo_init;
+	priv->base.base.subdev.fini = nve0_fifo_fini;
 	priv->base.base.context_new = nve0_fifo_context_new;
 	priv->base.base.context_del = nve0_fifo_context_del;
 	priv->base.channels = 4096;
-	ndev->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
 
 	ret = nouveau_gpuobj_new(ndev, NULL, priv->base.channels * 512, 0x1000,
 				 NVOBJ_FLAG_ZERO_ALLOC, &priv->user);
 	if (ret)
-		goto error;
+		goto done;
 
 	ret = pbar->map(pbar, *(struct nouveau_mem **)priv->user->node);
 	if (ret)
-		goto error;
+		goto done;
 
 	nouveau_irq_register(ndev, 8, nve0_fifo_isr);
-error:
-	if (ret)
-		priv->base.base.destroy(ndev, NVOBJ_ENGINE_FIFO);
-	return ret;
+done:
+	return nouveau_engine_init(ndev, engine, ret);
 }

@@ -29,19 +29,19 @@
 #include "nouveau_fifo.h"
 #include "nouveau_ramht.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_mpeg.h"
 
-struct nv31_mpeg_engine {
-	struct nouveau_engine base;
+struct nv31_mpeg_priv {
+	struct nouveau_mpeg_priv base;
 	atomic_t refcount;
 };
-
 
 static int
 nv31_mpeg_context_new(struct nouveau_channel *chan, int engine)
 {
-	struct nv31_mpeg_engine *pmpeg = nv_engine(chan->device, engine);
+	struct nv31_mpeg_priv *priv = nv_engine(chan->device, engine);
 
-	if (!atomic_add_unless(&pmpeg->refcount, 1, 1))
+	if (!atomic_add_unless(&priv->refcount, 1, 1))
 		return -EBUSY;
 
 	chan->engctx[engine] = (void *)0xdeadcafe;
@@ -51,8 +51,8 @@ nv31_mpeg_context_new(struct nouveau_channel *chan, int engine)
 static void
 nv31_mpeg_context_del(struct nouveau_channel *chan, int engine)
 {
-	struct nv31_mpeg_engine *pmpeg = nv_engine(chan->device, engine);
-	atomic_dec(&pmpeg->refcount);
+	struct nv31_mpeg_priv *priv = nv_engine(chan->device, engine);
+	atomic_dec(&priv->refcount);
 	chan->engctx[engine] = NULL;
 }
 
@@ -130,7 +130,7 @@ static int
 nv31_mpeg_init(struct nouveau_device *ndev, int engine)
 {
 	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
-	struct nv31_mpeg_engine *pmpeg = nv_engine(ndev, engine);
+	struct nv31_mpeg_priv *priv = nv_engine(ndev, engine);
 	int i;
 
 	/* VPE init */
@@ -140,7 +140,7 @@ nv31_mpeg_init(struct nouveau_device *ndev, int engine)
 	nv_wr32(ndev, 0x00b0e8, 0x00000020); /* nvidia: rd 0x01, wr 0x20 */
 
 	for (i = 0; i < pfb->num_tiles; i++)
-		pmpeg->base.set_tile_region(ndev, i);
+		priv->base.base.set_tile_region(ndev, i);
 
 	/* PMPEG init */
 	nv_wr32(ndev, 0x00b32c, 0x00000000);
@@ -210,7 +210,7 @@ nv31_mpeg_mthd_dma(struct nouveau_channel *chan, u32 class, u32 mthd, u32 data)
 static int
 nv31_mpeg_isr_chid(struct nouveau_device *ndev, u32 inst)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_gpuobj *ctx;
 	unsigned long flags;
 	int i;
@@ -224,7 +224,7 @@ nv31_mpeg_isr_chid(struct nouveau_device *ndev, u32 inst)
 		if (!ndev->channels.ptr[i])
 			continue;
 
-		ctx = ndev->channels.ptr[i]->engctx[NVOBJ_ENGINE_MPEG];
+		ctx = ndev->channels.ptr[i]->engctx[NVDEV_ENGINE_MPEG];
 		if (ctx && ctx->pinst == inst)
 			break;
 	}
@@ -291,54 +291,49 @@ nv31_vpe_isr(struct nouveau_device *ndev)
 static void
 nv31_mpeg_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv31_mpeg_engine *pmpeg = nv_engine(ndev, engine);
-
 	nouveau_irq_unregister(ndev, 0);
-
-	NVOBJ_ENGINE_DEL(ndev, MPEG);
-	kfree(pmpeg);
 }
 
 int
-nv31_mpeg_create(struct nouveau_device *ndev)
+nv31_mpeg_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv31_mpeg_engine *pmpeg;
+	struct nv31_mpeg_priv *priv;
+	int ret;
 
-	pmpeg = kzalloc(sizeof(*pmpeg), GFP_KERNEL);
-	if (!pmpeg)
-		return -ENOMEM;
-	atomic_set(&pmpeg->refcount, 0);
+	ret = nouveau_engine_create(ndev, engine, "PMPEG", "mpeg", &priv);
+	if (ret)
+		return ret;
 
-	pmpeg->base.destroy = nv31_mpeg_destroy;
-	pmpeg->base.init = nv31_mpeg_init;
-	pmpeg->base.fini = nv31_mpeg_fini;
+	atomic_set(&priv->refcount, 0);
+
+	priv->base.base.subdev.destroy = nv31_mpeg_destroy;
+	priv->base.base.subdev.init = nv31_mpeg_init;
+	priv->base.base.subdev.fini = nv31_mpeg_fini;
 	if (ndev->card_type < NV_40) {
-		pmpeg->base.context_new = nv31_mpeg_context_new;
-		pmpeg->base.context_del = nv31_mpeg_context_del;
+		priv->base.base.context_new = nv31_mpeg_context_new;
+		priv->base.base.context_del = nv31_mpeg_context_del;
 	} else {
-		pmpeg->base.context_new = nv40_mpeg_context_new;
-		pmpeg->base.context_del = nv40_mpeg_context_del;
+		priv->base.base.context_new = nv40_mpeg_context_new;
+		priv->base.base.context_del = nv40_mpeg_context_del;
 	}
-	pmpeg->base.object_new = nv31_mpeg_object_new;
+	priv->base.base.object_new = nv31_mpeg_object_new;
 
 	/* ISR vector, PMC_ENABLE bit,  and TILE regs are shared between
 	 * all VPE engines, for this driver's purposes the PMPEG engine
 	 * will be treated as the "master" and handle the global VPE
 	 * bits too
 	 */
-	pmpeg->base.set_tile_region = nv31_vpe_set_tile_region;
+	priv->base.base.set_tile_region = nv31_vpe_set_tile_region;
 	nouveau_irq_register(ndev, 0, nv31_vpe_isr);
 
-	NVOBJ_ENGINE_ADD(ndev, MPEG, &pmpeg->base);
 	NVOBJ_CLASS(ndev, 0x3174, MPEG);
 	NVOBJ_MTHD (ndev, 0x3174, 0x0190, nv31_mpeg_mthd_dma);
 	NVOBJ_MTHD (ndev, 0x3174, 0x01a0, nv31_mpeg_mthd_dma);
 	NVOBJ_MTHD (ndev, 0x3174, 0x01b0, nv31_mpeg_mthd_dma);
 
 #if 0
-	NVOBJ_ENGINE_ADD(ndev, ME, &pme->base);
+	NVDEV_ENGINE_ADD(ndev, ME, &pme->base);
 	NVOBJ_CLASS(ndev, 0x4075, ME);
 #endif
-	return 0;
-
+	return nouveau_engine_init(ndev, engine, ret);
 }

@@ -433,7 +433,7 @@ nouveau_page_flip_emit(struct nouveau_channel *chan,
 		       struct nouveau_page_flip_state *s,
 		       struct nouveau_fence **pfence)
 {
-	struct nouveau_software_chan *swch = chan->engctx[NVOBJ_ENGINE_SW];
+	struct nouveau_software_chan *swch = chan->engctx[NVDEV_ENGINE_SW];
 	struct nouveau_device *ndev = chan->device;
 	unsigned long flags;
 	int ret;
@@ -549,7 +549,7 @@ int
 nouveau_finish_page_flip(struct nouveau_channel *chan,
 			 struct nouveau_page_flip_state *ps)
 {
-	struct nouveau_software_chan *swch = chan->engctx[NVOBJ_ENGINE_SW];
+	struct nouveau_software_chan *swch = chan->engctx[NVDEV_ENGINE_SW];
 	struct nouveau_device *ndev = chan->device;
 	struct nouveau_page_flip_state *s;
 	unsigned long flags;

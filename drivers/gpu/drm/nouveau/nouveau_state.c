@@ -235,7 +235,7 @@ nouveau_card_init(struct nouveau_device *ndev)
 {
 	struct drm_device *dev = ndev->dev;
 	struct nouveau_subsys *engine;
-	int ret, e = 0;
+	int ret;
 
 	vga_client_register(dev->pdev, dev, NULL, nouveau_vga_set_decode);
 	vga_switcheroo_register_client(dev->pdev, &nouveau_switcheroo_ops);
@@ -278,42 +278,10 @@ nouveau_card_init(struct nouveau_device *ndev)
 	if (ret)
 		goto out_ttmvram;
 
-	if (!ndev->noaccel) {
+	if (ndev->subdev[NVDEV_ENGINE_FIFO]) {
 		switch (ndev->card_type) {
 		case NV_04:
-			nv04_fifo_create(ndev);
-			break;
-		case NV_10:
-		case NV_20:
-		case NV_30:
-			if (ndev->chipset < 0x17)
-				nv10_fifo_create(ndev);
-			else
-				nv17_fifo_create(ndev);
-			break;
-		case NV_40:
-			nv40_fifo_create(ndev);
-			break;
-		case NV_50:
-			if (ndev->chipset == 0x50)
-				nv50_fifo_create(ndev);
-			else
-				nv84_fifo_create(ndev);
-			break;
-		case NV_C0:
-		case NV_D0:
-			nvc0_fifo_create(ndev);
-			break;
-		case NV_E0:
-			nve0_fifo_create(ndev);
-			break;
-		default:
-			break;
-		}
-
-		switch (ndev->card_type) {
-		case NV_04:
-			nv04_fence_create(ndev);
+			nv04_fence_create(ndev, NVDEV_ENGINE_FENCE);
 			break;
 		case NV_10:
 		case NV_20:
@@ -321,135 +289,23 @@ nouveau_card_init(struct nouveau_device *ndev)
 		case NV_40:
 		case NV_50:
 			if (ndev->chipset < 0x84)
-				nv10_fence_create(ndev);
+				nv10_fence_create(ndev, NVDEV_ENGINE_FENCE);
 			else
-				nv84_fence_create(ndev);
+				nv84_fence_create(ndev, NVDEV_ENGINE_FENCE);
 			break;
 		case NV_C0:
 		case NV_D0:
 		case NV_E0:
-			nvc0_fence_create(ndev);
+			nvc0_fence_create(ndev, NVDEV_ENGINE_FENCE);
 			break;
 		default:
 			break;
-		}
-
-		switch (ndev->card_type) {
-		case NV_04:
-		case NV_10:
-		case NV_20:
-		case NV_30:
-		case NV_40:
-			nv04_software_create(ndev);
-			break;
-		case NV_50:
-			nv50_software_create(ndev);
-			break;
-		case NV_C0:
-		case NV_D0:
-		case NV_E0:
-			nvc0_software_create(ndev);
-			break;
-		default:
-			break;
-		}
-
-		switch (ndev->card_type) {
-		case NV_04:
-			nv04_graph_create(ndev);
-			break;
-		case NV_10:
-			nv10_graph_create(ndev);
-			break;
-		case NV_20:
-		case NV_30:
-			nv20_graph_create(ndev);
-			break;
-		case NV_40:
-			nv40_graph_create(ndev);
-			break;
-		case NV_50:
-			nv50_graph_create(ndev);
-			break;
-		case NV_C0:
-		case NV_D0:
-			nvc0_graph_create(ndev);
-			break;
-		case NV_E0:
-			nve0_graph_create(ndev);
-			break;
-		default:
-			break;
-		}
-
-		switch (ndev->chipset) {
-		case 0x84:
-		case 0x86:
-		case 0x92:
-		case 0x94:
-		case 0x96:
-		case 0xa0:
-			nv84_crypt_create(ndev);
-			break;
-		case 0x98:
-		case 0xaa:
-		case 0xac:
-			nv98_crypt_create(ndev);
-			break;
-		}
-
-		switch (ndev->card_type) {
-		case NV_50:
-			switch (ndev->chipset) {
-			case 0xa3:
-			case 0xa5:
-			case 0xa8:
-			case 0xaf:
-				nva3_copy_create(ndev);
-				break;
-			}
-			break;
-		case NV_C0:
-			nvc0_copy_create(ndev, 1);
-		case NV_D0:
-			nvc0_copy_create(ndev, 0);
-			break;
-		default:
-			break;
-		}
-
-		if (ndev->chipset >= 0xa3 || ndev->chipset == 0x98) {
-			nv84_bsp_create(ndev);
-			nv84_vp_create(ndev);
-			nv98_ppp_create(ndev);
-		} else
-		if (ndev->chipset >= 0x84) {
-			nv50_mpeg_create(ndev);
-			nv84_bsp_create(ndev);
-			nv84_vp_create(ndev);
-		} else
-		if (ndev->chipset >= 0x50) {
-			nv50_mpeg_create(ndev);
-		} else
-		if (ndev->card_type == NV_40 ||
-		    ndev->chipset == 0x31 ||
-		    ndev->chipset == 0x34 ||
-		    ndev->chipset == 0x36) {
-			nv31_mpeg_create(ndev);
-		}
-
-		for (e = 0; e < NVOBJ_ENGINE_NR; e++) {
-			if (ndev->engine[e]) {
-				ret = ndev->engine[e]->init(ndev, e);
-				if (ret)
-					goto out_engine;
-			}
 		}
 	}
 
 	ret = nouveau_irq_init(ndev);
 	if (ret)
-		goto out_engine;
+		goto out_ttmgart;
 
 	ret = nouveau_display_create(ndev);
 	if (ret)
@@ -458,7 +314,7 @@ nouveau_card_init(struct nouveau_device *ndev)
 	nouveau_backlight_init(ndev);
 	nouveau_pm_init(ndev);
 
-	if (ndev->engine[NVOBJ_ENGINE_GR]) {
+	if (ndev->subdev[NVDEV_ENGINE_GR]) {
 		ret = nouveau_card_channel_init(ndev);
 		if (ret)
 			goto out_pm;
@@ -482,15 +338,7 @@ out_pm:
 	nouveau_display_destroy(ndev);
 out_irq:
 	nouveau_irq_fini(ndev);
-out_engine:
-	if (!ndev->noaccel) {
-		for (e = e - 1; e >= 0; e--) {
-			if (!ndev->engine[e])
-				continue;
-			ndev->engine[e]->fini(ndev, e, false);
-			ndev->engine[e]->destroy(ndev,e );
-		}
-	}
+out_ttmgart:
 	nouveau_mem_gart_fini(ndev);
 out_ttmvram:
 	nouveau_mem_vram_fini(ndev);
@@ -509,7 +357,6 @@ static void nouveau_card_takedown(struct nouveau_device *ndev)
 {
 	struct nouveau_subsys *engine = &ndev->subsys;
 	struct drm_device *dev = ndev->dev;
-	int e;
 
 	if (dev->mode_config.num_crtc) {
 		nouveau_fbcon_fini(ndev);
@@ -521,13 +368,9 @@ static void nouveau_card_takedown(struct nouveau_device *ndev)
 	nouveau_backlight_exit(ndev);
 	nouveau_display_destroy(ndev);
 
-	if (!ndev->noaccel) {
-		for (e = NVOBJ_ENGINE_NR - 1; e >= 0; e--) {
-			if (ndev->engine[e]) {
-				ndev->engine[e]->fini(ndev, e, false);
-				ndev->engine[e]->destroy(ndev,e );
-			}
-		}
+	if (nv_subdev(ndev, NVDEV_ENGINE_FENCE)) {
+		nouveau_subdev_fini(ndev, NVDEV_ENGINE_FENCE, false);
+		nouveau_subdev_destroy(ndev, NVDEV_ENGINE_FENCE);
 	}
 
 	if (ndev->vga_ram) {
@@ -791,26 +634,6 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	}
 
 	NV_DEBUG(ndev, "crystal freq: %dKHz\n", ndev->crystal);
-
-	/* Determine whether we'll attempt acceleration or not, some
-	 * cards are disabled by default here due to them being known
-	 * non-functional, or never been tested due to lack of hw.
-	 */
-	ndev->noaccel = !!nouveau_noaccel;
-	if (nouveau_noaccel == -1) {
-		switch (ndev->chipset) {
-		case 0xd9: /* known broken */
-		case 0xe4: /* needs binary driver firmware */
-		case 0xe7: /* needs binary driver firmware */
-			NV_INFO(ndev, "acceleration disabled by default, pass "
-				     "noaccel=0 to force enable\n");
-			ndev->noaccel = true;
-			break;
-		default:
-			ndev->noaccel = false;
-			break;
-		}
-	}
 
 	ret = nouveau_remove_conflicting_drivers(dev);
 	if (ret)

@@ -2621,8 +2621,8 @@ nve0_graph_generate_tpcunk(struct nouveau_device *ndev)
 int
 nve0_grctx_generate(struct nouveau_channel *chan)
 {
-	struct nve0_graph_priv *priv = nv_engine(chan->device, NVOBJ_ENGINE_GR);
-	struct nve0_graph_chan *grch = chan->engctx[NVOBJ_ENGINE_GR];
+	struct nve0_graph_priv *priv = nv_engine(chan->device, NVDEV_ENGINE_GR);
+	struct nve0_graph_chan *grch = chan->engctx[NVDEV_ENGINE_GR];
 	struct nouveau_device *ndev = chan->device;
 	u32 data[6] = {}, data2[2] = {}, tmp;
 	u32 tpc_set = 0, tpc_mask = 0;

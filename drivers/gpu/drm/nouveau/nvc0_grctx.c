@@ -1782,8 +1782,8 @@ nvc0_grctx_generate_tp(struct nouveau_device *ndev)
 int
 nvc0_grctx_generate(struct nouveau_channel *chan)
 {
-	struct nvc0_graph_priv *priv = nv_engine(chan->device, NVOBJ_ENGINE_GR);
-	struct nvc0_graph_chan *grch = chan->engctx[NVOBJ_ENGINE_GR];
+	struct nvc0_graph_priv *priv = nv_engine(chan->device, NVDEV_ENGINE_GR);
+	struct nvc0_graph_chan *grch = chan->engctx[NVDEV_ENGINE_GR];
 	struct nouveau_device *ndev = chan->device;
 	int i, gpc, tp, id;
 	u32 fermi = nvc0_graph_class(ndev);

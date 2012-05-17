@@ -29,15 +29,15 @@
 #include "nouveau_ramht.h"
 #include "nouveau_instmem.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_mpeg.h"
 
-struct nv50_mpeg_engine {
-	struct nouveau_engine base;
+struct nv50_mpeg_priv {
+	struct nouveau_mpeg_priv base;
 };
 
 static inline u32
 CTX_PTR(struct nouveau_device *ndev, u32 offset)
 {
-
 	if (ndev->chipset == 0x50)
 		offset += 0x0260;
 	else
@@ -197,45 +197,39 @@ nv50_vpe_isr(struct nouveau_device *ndev)
 static void
 nv50_mpeg_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv50_mpeg_engine *pmpeg = nv_engine(ndev, engine);
-
 	nouveau_irq_unregister(ndev, 0);
-
-	NVOBJ_ENGINE_DEL(ndev, MPEG);
-	kfree(pmpeg);
 }
 
 int
-nv50_mpeg_create(struct nouveau_device *ndev)
+nv50_mpeg_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv50_mpeg_engine *pmpeg;
+	struct nv50_mpeg_priv *priv;
+	int ret;
 
-	pmpeg = kzalloc(sizeof(*pmpeg), GFP_KERNEL);
-	if (!pmpeg)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PMPEG", "mpeg", &priv);
+	if (ret)
+		return ret;
 
-	pmpeg->base.destroy = nv50_mpeg_destroy;
-	pmpeg->base.init = nv50_mpeg_init;
-	pmpeg->base.fini = nv50_mpeg_fini;
-	pmpeg->base.context_new = nv50_mpeg_context_new;
-	pmpeg->base.context_del = nv50_mpeg_context_del;
-	pmpeg->base.object_new = nv50_mpeg_object_new;
-	pmpeg->base.tlb_flush = nv50_mpeg_tlb_flush;
+	priv->base.base.subdev.destroy = nv50_mpeg_destroy;
+	priv->base.base.subdev.init = nv50_mpeg_init;
+	priv->base.base.subdev.fini = nv50_mpeg_fini;
+	priv->base.base.context_new = nv50_mpeg_context_new;
+	priv->base.base.context_del = nv50_mpeg_context_del;
+	priv->base.base.object_new = nv50_mpeg_object_new;
+	priv->base.base.tlb_flush = nv50_mpeg_tlb_flush;
 
 	if (ndev->chipset == 0x50) {
 		nouveau_irq_register(ndev, 0, nv50_vpe_isr);
-		NVOBJ_ENGINE_ADD(ndev, MPEG, &pmpeg->base);
 		NVOBJ_CLASS(ndev, 0x3174, MPEG);
 #if 0
-		NVOBJ_ENGINE_ADD(ndev, ME, &pme->base);
+		NVDEV_ENGINE_ADD(ndev, ME, &pme->base);
 		NVOBJ_CLASS(ndev, 0x4075, ME);
 #endif
 	} else {
 		nouveau_irq_register(ndev, 0, nv50_mpeg_isr);
-		NVOBJ_ENGINE_ADD(ndev, MPEG, &pmpeg->base);
 		NVOBJ_CLASS(ndev, 0x8274, MPEG);
 	}
 
-	return 0;
+	return nouveau_engine_init(ndev, engine, ret);
 
 }

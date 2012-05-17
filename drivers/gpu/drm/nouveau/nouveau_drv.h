@@ -71,8 +71,26 @@ nouveau_fpriv(struct drm_file *file_priv)
 #define NVDEV_SUBDEV_FAN0    9
 #define NVDEV_SUBDEV_CLOCK   10
 #define NVDEV_SUBDEV_THERM   11
-#define NVDEV_SUBDEV_NR      32
+#define NVDEV_ENGINE_SW      12
+#define NVDEV_ENGINE_GR      13
+#define NVDEV_ENGINE_CRYPT   14
+#define NVDEV_ENGINE_COPY0   15
+#define NVDEV_ENGINE_COPY1   16
+#define NVDEV_ENGINE_MPEG    17
+#define NVDEV_ENGINE_PPP     18
+#define NVDEV_ENGINE_BSP     19
+#define NVDEV_ENGINE_VP      20
+#define NVDEV_ENGINE_FIFO    21
+#define NVDEV_ENGINE_FENCE   22
+#define NVDEV_SUBDEV_NR      23
+#define NVDEV_ENGINE_DISPLAY (NVDEV_SUBDEV_NR + 0) /*XXX*/
+
 struct nouveau_device;
+struct nouveau_channel;
+
+#define NVDEV_SUBDEV_CLASS_SUBDEV 0x55555555
+#define NVDEV_SUBDEV_CLASS_ENGINE 0xaaaaaaaa
+
 struct nouveau_subdev {
 	struct nouveau_device *device;
 	const char *name;
@@ -83,6 +101,7 @@ struct nouveau_subdev {
 		NVDEV_SUBDEV_STOPPED = 3,
 	} state;
 	struct mutex mutex;
+	u32 oclass;
 	u32 refcount;
 
 	void (*destroy)(struct nouveau_device *, int subdev);
@@ -99,6 +118,24 @@ int  nouveau_subdev_create_(struct nouveau_device *, int subdev, int length,
 void nouveau_subdev_destroy(struct nouveau_device *, int subdev);
 int  nouveau_subdev_init(struct nouveau_device *, int subdev, int ret);
 int  nouveau_subdev_fini(struct nouveau_device *, int subdev, bool suspend);
+
+struct nouveau_engine {
+	struct nouveau_subdev subdev;
+	int  (*context_new)(struct nouveau_channel *, int engine);
+	void (*context_del)(struct nouveau_channel *, int engine);
+	int  (*object_new)(struct nouveau_channel *, int engine,
+			   u32 handle, u16 class);
+	void (*set_tile_region)(struct nouveau_device *, int i);
+	void (*tlb_flush)(struct nouveau_device *, int engine);
+};
+
+#define nouveau_engine_create(ndev,engine,sstr,fstr,data)                      \
+	nouveau_engine_create_((ndev), (engine), sizeof(**data),               \
+			       (sstr), (fstr), (void **)data)
+
+int  nouveau_engine_create_(struct nouveau_device *, int engine, int length,
+			    const char *sname, const char *fname, void **);
+int  nouveau_engine_init(struct nouveau_device *, int engine, int ret);
 
 #include "nouveau_drm.h"
 #include "nouveau_reg.h"
@@ -200,20 +237,6 @@ enum nouveau_flags {
 	NV_NFORCE2  = 0x20000000
 };
 
-#define NVOBJ_ENGINE_SW		0
-#define NVOBJ_ENGINE_GR		1
-#define NVOBJ_ENGINE_CRYPT	2
-#define NVOBJ_ENGINE_COPY0	3
-#define NVOBJ_ENGINE_COPY1	4
-#define NVOBJ_ENGINE_MPEG	5
-#define NVOBJ_ENGINE_PPP	NVOBJ_ENGINE_MPEG
-#define NVOBJ_ENGINE_BSP	6
-#define NVOBJ_ENGINE_VP		7
-#define NVOBJ_ENGINE_FIFO	14
-#define NVOBJ_ENGINE_FENCE	15
-#define NVOBJ_ENGINE_NR		16
-#define NVOBJ_ENGINE_DISPLAY	(NVOBJ_ENGINE_NR + 0) /*XXX*/
-
 struct nouveau_page_flip_state {
 	struct list_head head;
 	struct drm_pending_vblank_event *event;
@@ -264,7 +287,7 @@ struct nouveau_channel {
 	struct nouveau_gpuobj *ramfc;
 
 	/* Execution engine contexts */
-	void *engctx[NVOBJ_ENGINE_NR];
+	void *engctx[NVDEV_SUBDEV_NR];
 
 	/* NV50 VM */
 	struct nouveau_vm     *vm;
@@ -300,18 +323,6 @@ struct nouveau_channel {
 		char name[32];
 		struct drm_info_list info;
 	} debugfs;
-};
-
-struct nouveau_engine {
-	void (*destroy)(struct nouveau_device *, int engine);
-	int  (*init)(struct nouveau_device *, int engine);
-	int  (*fini)(struct nouveau_device *, int engine, bool suspend);
-	int  (*context_new)(struct nouveau_channel *, int engine);
-	void (*context_del)(struct nouveau_channel *, int engine);
-	int  (*object_new)(struct nouveau_channel *, int engine,
-			   u32 handle, u16 class);
-	void (*set_tile_region)(struct nouveau_device *, int i);
-	void (*tlb_flush)(struct nouveau_device *, int engine);
 };
 
 struct nouveau_display_engine {
@@ -552,7 +563,6 @@ enum nouveau_card_type {
 
 struct nouveau_device {
 	struct drm_device *dev;
-	bool noaccel;
 
 	/* the card type, takes NV_* as values */
 	enum nouveau_card_type card_type;
@@ -567,7 +577,6 @@ struct nouveau_device {
 
 	void __iomem *ramin;
 	u32 ramin_size;
-	struct nouveau_engine *engine[NVOBJ_ENGINE_NR];
 
 	struct nouveau_bo *vga_ram;
 
@@ -699,6 +708,16 @@ nv_subdev(struct nouveau_device *ndev, int subdev)
 {
 	return (void *)ndev->subdev[subdev];
 }
+
+static inline void *
+nv_engine(struct nouveau_device *ndev, int engine)
+{
+	struct nouveau_subdev *sdev = nv_subdev(ndev, engine);
+	if (sdev && sdev->oclass == NVDEV_SUBDEV_CLASS_ENGINE)
+		return (void *)sdev;
+	return NULL;
+}
+
 
 static inline int
 nouveau_bo_ref(struct nouveau_bo *ref, struct nouveau_bo **pnvbo)
@@ -902,70 +921,6 @@ int nouveau_ttm_mmap(struct file *, struct vm_area_struct *);
 
 /* nouveau_hdmi.c */
 void nouveau_hdmi_mode_set(struct drm_encoder *, struct drm_display_mode *);
-
-/* nv04_graph.c */
-int  nv04_graph_create(struct nouveau_device *);
-int  nv04_graph_object_new(struct nouveau_channel *, int, u32, u16);
-int  nv04_graph_mthd_page_flip(struct nouveau_channel *chan,
-				      u32 class, u32 mthd, u32 data);
-extern struct nouveau_bitfield nv04_graph_nsource[];
-
-/* nv10_graph.c */
-int  nv10_graph_create(struct nouveau_device *);
-struct nouveau_channel *nv10_graph_channel(struct nouveau_device *);
-extern struct nouveau_bitfield nv10_graph_intr[];
-extern struct nouveau_bitfield nv10_graph_nstatus[];
-
-/* nv20_graph.c */
-int  nv20_graph_create(struct nouveau_device *);
-
-/* nv40_graph.c */
-int  nv40_graph_create(struct nouveau_device *);
-void nv40_grctx_init(struct nouveau_device *, u32 *size);
-void nv40_grctx_fill(struct nouveau_device *, struct nouveau_gpuobj *);
-
-/* nv50_graph.c */
-int  nv50_graph_create(struct nouveau_device *);
-extern struct nouveau_enum nv50_data_error_names[];
-int  nv50_graph_isr_chid(struct nouveau_device *, u64 inst);
-int  nv50_grctx_init(struct nouveau_device *, u32 *, u32, u32 *, u32 *);
-void nv50_grctx_fill(struct nouveau_device *, struct nouveau_gpuobj *);
-
-/* nvc0_graph.c */
-int  nvc0_graph_create(struct nouveau_device *);
-int  nvc0_graph_isr_chid(struct nouveau_device *, u64 inst);
-
-/* nve0_graph.c */
-int  nve0_graph_create(struct nouveau_device *);
-
-/* nv84_crypt.c */
-int  nv84_crypt_create(struct nouveau_device *);
-
-/* nv98_crypt.c */
-int  nv98_crypt_create(struct nouveau_device *);
-
-/* nva3_copy.c */
-int  nva3_copy_create(struct nouveau_device *);
-
-/* nvc0_copy.c */
-int  nvc0_copy_create(struct nouveau_device *, int engine);
-
-/* nv31_mpeg.c */
-int  nv31_mpeg_create(struct nouveau_device *);
-
-/* nv50_mpeg.c */
-int  nv50_mpeg_create(struct nouveau_device *);
-
-/* nv84_bsp.c */
-/* nv98_bsp.c */
-int  nv84_bsp_create(struct nouveau_device *);
-
-/* nv84_vp.c */
-/* nv98_vp.c */
-int  nv84_vp_create(struct nouveau_device *);
-
-/* nv98_ppp.c */
-int  nv98_ppp_create(struct nouveau_device *);
 
 long nouveau_compat_ioctl(struct file *file, unsigned int cmd,
 				 unsigned long arg);
@@ -1263,12 +1218,6 @@ nv_match_device(struct nouveau_device *ndev, unsigned device,
 	return ndev->dev->pdev->device == device &&
 	       ndev->dev->pdev->subsystem_vendor == sub_vendor &&
 	       ndev->dev->pdev->subsystem_device == sub_device;
-}
-
-static inline void *
-nv_engine(struct nouveau_device *ndev, int engine)
-{
-	return (void *)ndev->engine[engine];
 }
 
 /* returns 1 if device is one of the nv4x using the 0x4497 object class,

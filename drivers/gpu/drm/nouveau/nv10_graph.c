@@ -27,9 +27,10 @@
 #include "nouveau_drv.h"
 #include "nouveau_util.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_graph.h"
 
-struct nv10_graph_engine {
-	struct nouveau_engine base;
+struct nv10_graph_priv {
+	struct nouveau_graph_priv base;
 };
 
 struct pipe_state {
@@ -413,7 +414,7 @@ struct graph_state {
 
 static void nv10_graph_save_pipe(struct nouveau_channel *chan)
 {
-	struct graph_state *pgraph_ctx = chan->engctx[NVOBJ_ENGINE_GR];
+	struct graph_state *pgraph_ctx = chan->engctx[NVDEV_ENGINE_GR];
 	struct pipe_state *pipe = &pgraph_ctx->pipe_state;
 	struct nouveau_device *ndev = chan->device;
 
@@ -431,7 +432,7 @@ static void nv10_graph_save_pipe(struct nouveau_channel *chan)
 
 static void nv10_graph_load_pipe(struct nouveau_channel *chan)
 {
-	struct graph_state *pgraph_ctx = chan->engctx[NVOBJ_ENGINE_GR];
+	struct graph_state *pgraph_ctx = chan->engctx[NVDEV_ENGINE_GR];
 	struct pipe_state *pipe = &pgraph_ctx->pipe_state;
 	struct nouveau_device *ndev = chan->device;
 	u32 xfmode0, xfmode1;
@@ -481,7 +482,7 @@ static void nv10_graph_load_pipe(struct nouveau_channel *chan)
 
 static void nv10_graph_create_pipe(struct nouveau_channel *chan)
 {
-	struct graph_state *pgraph_ctx = chan->engctx[NVOBJ_ENGINE_GR];
+	struct graph_state *pgraph_ctx = chan->engctx[NVDEV_ENGINE_GR];
 	struct pipe_state *fifo_pipe_state = &pgraph_ctx->pipe_state;
 	struct nouveau_device *ndev = chan->device;
 	u32 *fifo_pipe_state_addr;
@@ -730,7 +731,7 @@ static int
 nv10_graph_load_context(struct nouveau_channel *chan)
 {
 	struct nouveau_device *ndev = chan->device;
-	struct graph_state *pgraph_ctx = chan->engctx[NVOBJ_ENGINE_GR];
+	struct graph_state *pgraph_ctx = chan->engctx[NVDEV_ENGINE_GR];
 	u32 tmp;
 	int i;
 
@@ -765,7 +766,7 @@ nv10_graph_unload_context(struct nouveau_device *ndev)
 	chan = nv10_graph_channel(ndev);
 	if (!chan)
 		return 0;
-	ctx = chan->engctx[NVOBJ_ENGINE_GR];
+	ctx = chan->engctx[NVDEV_ENGINE_GR];
 
 	for (i = 0; i < ARRAY_SIZE(nv10_graph_ctx_regs); i++)
 		ctx->nv10[i] = nv_rd32(ndev, nv10_graph_ctx_regs[i]);
@@ -798,7 +799,7 @@ nv10_graph_context_switch(struct nouveau_device *ndev)
 	/* Load context for next channel */
 	chid = (nv_rd32(ndev, NV04_PGRAPH_TRAPPED_ADDR) >> 20) & 0x1f;
 	chan = ndev->channels.ptr[chid];
-	if (chan && chan->engctx[NVOBJ_ENGINE_GR])
+	if (chan && chan->engctx[NVDEV_ENGINE_GR])
 		nv10_graph_load_context(chan);
 }
 
@@ -964,7 +965,7 @@ static int
 nv17_graph_mthd_lma_window(struct nouveau_channel *chan,
 			   u32 class, u32 mthd, u32 data)
 {
-	struct graph_state *ctx = chan->engctx[NVOBJ_ENGINE_GR];
+	struct graph_state *ctx = chan->engctx[NVDEV_ENGINE_GR];
 	struct nouveau_device *ndev = chan->device;
 	struct pipe_state *pipe = &ctx->pipe_state;
 	u32 pipe_0x0040[1], pipe_0x64c0[8], pipe_0x6a80[3], pipe_0x6ab0[3];
@@ -1117,30 +1118,27 @@ nv10_graph_isr(struct nouveau_device *ndev)
 static void
 nv10_graph_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv10_graph_engine *pgraph = nv_engine(ndev, engine);
-
 	nouveau_irq_unregister(ndev, 12);
-	kfree(pgraph);
 }
 
 int
-nv10_graph_create(struct nouveau_device *ndev)
+nv10_graph_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv10_graph_engine *pgraph;
+	struct nv10_graph_priv *priv;
+	int ret;
 
-	pgraph = kzalloc(sizeof(*pgraph), GFP_KERNEL);
-	if (!pgraph)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PGRAPH", "graphics", &priv);
+	if (ret)
+		return ret;
 
-	pgraph->base.destroy = nv10_graph_destroy;
-	pgraph->base.init = nv10_graph_init;
-	pgraph->base.fini = nv10_graph_fini;
-	pgraph->base.context_new = nv10_graph_context_new;
-	pgraph->base.context_del = nv10_graph_context_del;
-	pgraph->base.object_new = nv04_graph_object_new;
-	pgraph->base.set_tile_region = nv10_graph_set_tile_region;
+	priv->base.base.subdev.destroy = nv10_graph_destroy;
+	priv->base.base.subdev.init = nv10_graph_init;
+	priv->base.base.subdev.fini = nv10_graph_fini;
+	priv->base.base.context_new = nv10_graph_context_new;
+	priv->base.base.context_del = nv10_graph_context_del;
+	priv->base.base.object_new = nv04_graph_object_new;
+	priv->base.base.set_tile_region = nv10_graph_set_tile_region;
 
-	NVOBJ_ENGINE_ADD(ndev, GR, &pgraph->base);
 	nouveau_irq_register(ndev, 12, nv10_graph_isr);
 
 	NVOBJ_CLASS(ndev, 0x0030, GR); /* null */
@@ -1176,5 +1174,5 @@ nv10_graph_create(struct nouveau_device *ndev)
 		NVOBJ_MTHD (ndev, 0x0099, 0x1658, nv17_graph_mthd_lma_enable);
 	}
 
-	return 0;
+	return nouveau_engine_init(ndev, engine, ret);
 }

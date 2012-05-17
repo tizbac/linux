@@ -31,11 +31,13 @@
 #include "nouveau_ramht.h"
 #include "nouveau_instmem.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_crypt.h"
+#include "nouveau_graph.h"
 
 #include "nv98_crypt.fuc.h"
 
 struct nv98_crypt_priv {
-	struct nouveau_engine base;
+	struct nouveau_crypt_priv base;
 };
 
 struct nv98_crypt_chan {
@@ -71,7 +73,7 @@ nv98_crypt_context_new(struct nouveau_channel *chan, int engine)
 
 error:
 	if (ret)
-		priv->base.context_del(chan, engine);
+		priv->base.base.context_del(chan, engine);
 	return ret;
 }
 
@@ -186,33 +188,29 @@ nv98_crypt_isr(struct nouveau_device *ndev)
 static void
 nv98_crypt_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv98_crypt_priv *priv = nv_engine(ndev, engine);
-
 	nouveau_irq_unregister(ndev, 14);
-	NVOBJ_ENGINE_DEL(ndev, CRYPT);
-	kfree(priv);
 }
 
 int
-nv98_crypt_create(struct nouveau_device *ndev)
+nv98_crypt_create(struct nouveau_device *ndev, int engine)
 {
 	struct nv98_crypt_priv *priv;
+	int ret;
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PCRYPT", "crypt", &priv);
+	if (ret)
+		return ret;
 
-	priv->base.destroy = nv98_crypt_destroy;
-	priv->base.init = nv98_crypt_init;
-	priv->base.fini = nv98_crypt_fini;
-	priv->base.context_new = nv98_crypt_context_new;
-	priv->base.context_del = nv98_crypt_context_del;
-	priv->base.object_new = nv98_crypt_object_new;
-	priv->base.tlb_flush = nv98_crypt_tlb_flush;
+	priv->base.base.subdev.destroy = nv98_crypt_destroy;
+	priv->base.base.subdev.init = nv98_crypt_init;
+	priv->base.base.subdev.fini = nv98_crypt_fini;
+	priv->base.base.context_new = nv98_crypt_context_new;
+	priv->base.base.context_del = nv98_crypt_context_del;
+	priv->base.base.object_new = nv98_crypt_object_new;
+	priv->base.base.tlb_flush = nv98_crypt_tlb_flush;
 
 	nouveau_irq_register(ndev, 14, nv98_crypt_isr);
 
-	NVOBJ_ENGINE_ADD(ndev, CRYPT, &priv->base);
 	NVOBJ_CLASS(ndev, 0x88b4, CRYPT);
-	return 0;
+	return nouveau_engine_init(ndev, engine, ret);
 }

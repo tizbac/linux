@@ -62,16 +62,16 @@ void nv50_gpuobj_dma_init(struct nouveau_gpuobj *, u32 offset, int class,
 			  u64 base, u64 size, int target, int access,
 			  u32 type, u32 comp);
 
-#define NVOBJ_ENGINE_ADD(ndev, e, p) do {                                      \
-	(ndev)->engine[NVOBJ_ENGINE_##e] = (p);                                \
+#define NVDEV_ENGINE_ADD(ndev, e, p) do {                                      \
+	(ndev)->engine[NVDEV_ENGINE_##e] = (p);                                \
 } while (0)
 
-#define NVOBJ_ENGINE_DEL(ndev, e) do {                                         \
-	(ndev)->engine[NVOBJ_ENGINE_##e] = NULL;                               \
+#define NVDEV_ENGINE_DEL(ndev, e) do {                                         \
+	(ndev)->engine[NVDEV_ENGINE_##e] = NULL;                               \
 } while (0)
 
 #define NVOBJ_CLASS(d, c, e) do {                                              \
-	int ret = nouveau_gpuobj_class_new((d), (c), NVOBJ_ENGINE_##e);        \
+	int ret = nouveau_gpuobj_class_new((d), (c), NVDEV_ENGINE_##e);        \
 	if (ret)                                                               \
 		return ret;                                                    \
 } while (0)

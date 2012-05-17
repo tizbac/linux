@@ -22,13 +22,13 @@ void nv50_fifo_playlist_update(struct nouveau_device *);
 void nv50_fifo_destroy(struct nouveau_device *, int);
 void nv50_fifo_tlb_flush(struct nouveau_device *, int);
 
-int  nv04_fifo_create(struct nouveau_device *);
-int  nv10_fifo_create(struct nouveau_device *);
-int  nv17_fifo_create(struct nouveau_device *);
-int  nv40_fifo_create(struct nouveau_device *);
-int  nv50_fifo_create(struct nouveau_device *);
-int  nv84_fifo_create(struct nouveau_device *);
-int  nvc0_fifo_create(struct nouveau_device *);
-int  nve0_fifo_create(struct nouveau_device *);
+int  nv04_fifo_create(struct nouveau_device *, int engine);
+int  nv10_fifo_create(struct nouveau_device *, int engine);
+int  nv17_fifo_create(struct nouveau_device *, int engine);
+int  nv40_fifo_create(struct nouveau_device *, int engine);
+int  nv50_fifo_create(struct nouveau_device *, int engine);
+int  nv84_fifo_create(struct nouveau_device *, int engine);
+int  nvc0_fifo_create(struct nouveau_device *, int engine);
+int  nve0_fifo_create(struct nouveau_device *, int engine);
 
 #endif

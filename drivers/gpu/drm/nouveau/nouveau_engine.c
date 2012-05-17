@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Red Hat Inc.
+ * Copyright 2012 Red Hat Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -25,50 +25,25 @@
 #include "drmP.h"
 
 #include "nouveau_drv.h"
-#include "nouveau_util.h"
-#include "nouveau_vm.h"
-#include "nouveau_ramht.h"
-#include "nouveau_gpuobj.h"
-#include "nouveau_bsp.h"
 
-/*XXX: This stub is currently used on NV98+ also, as soon as this becomes
- *     more than just an enable/disable stub this needs to be split out to
- *     nv98_bsp.c...
- */
-
-struct nv84_bsp_priv {
-	struct nouveau_bsp_priv base;
-};
-
-static int
-nv84_bsp_fini(struct nouveau_device *ndev, int engine, bool suspend)
+int
+nouveau_engine_init(struct nouveau_device *ndev, int engine, int ret)
 {
-	if (!(nv_rd32(ndev, 0x000200) & 0x00008000))
-		return 0;
-
-	nv_mask(ndev, 0x000200, 0x00008000, 0x00000000);
-	return 0;
-}
-
-static int
-nv84_bsp_init(struct nouveau_device *ndev, int engine)
-{
-	nv_mask(ndev, 0x000200, 0x00008000, 0x00000000);
-	nv_mask(ndev, 0x000200, 0x00008000, 0x00008000);
-	return 0;
+	return nouveau_subdev_init(ndev, engine, ret);
 }
 
 int
-nv84_bsp_create(struct nouveau_device *ndev, int engine)
+nouveau_engine_create_(struct nouveau_device *ndev, int engine, int length,
+		       const char *ename, const char *fname, void **data)
 {
-	struct nv84_bsp_priv *priv;
+	struct nouveau_subdev *sdev;
 	int ret;
 
-	ret = nouveau_engine_create(ndev, engine, "PBSP", "bsp", &priv);
+	ret = nouveau_subdev_create_(ndev, engine, length, ename, fname, data);
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.init = nv84_bsp_init;
-	priv->base.base.subdev.fini = nv84_bsp_fini;
-	return nouveau_engine_init(ndev, engine, ret);
+	sdev = nv_subdev(ndev, engine);
+	sdev->oclass = NVDEV_SUBDEV_CLASS_ENGINE;
+	return 0;
 }

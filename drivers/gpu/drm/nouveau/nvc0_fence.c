@@ -43,7 +43,7 @@ static int
 nvc0_fence_emit(struct nouveau_fence *fence)
 {
 	struct nouveau_channel *chan = fence->channel;
-	struct nvc0_fence_chan *fctx = chan->engctx[NVOBJ_ENGINE_FENCE];
+	struct nvc0_fence_chan *fctx = chan->engctx[NVDEV_ENGINE_FENCE];
 	u64 addr = fctx->vma.offset + chan->id * 16;
 	int ret;
 
@@ -64,7 +64,7 @@ static int
 nvc0_fence_sync(struct nouveau_fence *fence,
 		struct nouveau_channel *prev, struct nouveau_channel *chan)
 {
-	struct nvc0_fence_chan *fctx = chan->engctx[NVOBJ_ENGINE_FENCE];
+	struct nvc0_fence_chan *fctx = chan->engctx[NVDEV_ENGINE_FENCE];
 	u64 addr = fctx->vma.offset + prev->id * 16;
 	int ret;
 
@@ -85,7 +85,7 @@ nvc0_fence_sync(struct nouveau_fence *fence,
 static u32
 nvc0_fence_read(struct nouveau_channel *chan)
 {
-	struct nvc0_fence_priv *priv = nv_engine(chan->device, NVOBJ_ENGINE_FENCE);
+	struct nvc0_fence_priv *priv = nv_engine(chan->device, NVDEV_ENGINE_FENCE);
 	return nouveau_bo_rd32(priv->bo, chan->id * 16/4);
 }
 
@@ -122,49 +122,31 @@ nvc0_fence_context_new(struct nouveau_channel *chan, int engine)
 	return ret;
 }
 
-static int
-nvc0_fence_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	return 0;
-}
-
-static int
-nvc0_fence_init(struct nouveau_device *ndev, int engine)
-{
-	return 0;
-}
-
 static void
 nvc0_fence_destroy(struct nouveau_device *ndev, int engine)
 {
 	struct nvc0_fence_priv *priv = nv_engine(ndev, engine);
-
 	nouveau_bo_unmap(priv->bo);
 	nouveau_bo_ref(NULL, &priv->bo);
-	ndev->engine[engine] = NULL;
-	kfree(priv);
 }
 
 int
-nvc0_fence_create(struct nouveau_device *ndev)
+nvc0_fence_create(struct nouveau_device *ndev, int engine)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nvc0_fence_priv *priv;
 	int ret;
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "FENCE", "fence", &priv);
+	if (ret)
+		return ret;
 
-	priv->base.engine.destroy = nvc0_fence_destroy;
-	priv->base.engine.init = nvc0_fence_init;
-	priv->base.engine.fini = nvc0_fence_fini;
-	priv->base.engine.context_new = nvc0_fence_context_new;
-	priv->base.engine.context_del = nvc0_fence_context_del;
+	priv->base.base.subdev.destroy = nvc0_fence_destroy;
+	priv->base.base.context_new = nvc0_fence_context_new;
+	priv->base.base.context_del = nvc0_fence_context_del;
 	priv->base.emit = nvc0_fence_emit;
 	priv->base.sync = nvc0_fence_sync;
 	priv->base.read = nvc0_fence_read;
-	ndev->engine[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
 
 	ret = nouveau_bo_new(ndev, 16 * pfifo->channels, 0, TTM_PL_FLAG_VRAM,
 			     0, 0, NULL, &priv->bo);
@@ -176,7 +158,5 @@ nvc0_fence_create(struct nouveau_device *ndev)
 			nouveau_bo_ref(NULL, &priv->bo);
 	}
 
-	if (ret)
-		nvc0_fence_destroy(ndev, NVOBJ_ENGINE_FENCE);
-	return ret;
+	return nouveau_engine_init(ndev, engine, ret);
 }

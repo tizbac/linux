@@ -48,7 +48,7 @@ struct nvc0_fifo_chan {
 static void
 nvc0_fifo_playlist_update(struct nouveau_device *ndev)
 {
-	struct nvc0_fifo_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nvc0_fifo_priv *priv = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_gpuobj *cur;
 	int i, p;
 
@@ -319,7 +319,7 @@ nvc0_fifo_isr_vm_fault(struct nouveau_device *ndev, int unit)
 static int
 nvc0_fifo_page_flip(struct nouveau_device *ndev, u32 chid)
 {
-	struct nvc0_fifo_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nvc0_fifo_priv *priv = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_channel *chan = NULL;
 	unsigned long flags;
 	int ret = -EINVAL;
@@ -418,7 +418,7 @@ nvc0_fifo_isr(struct nouveau_device *ndev)
 static void
 nvc0_fifo_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nvc0_fifo_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nvc0_fifo_priv *priv = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_bar *pbar = nv_subdev(ndev, NVDEV_SUBDEV_BAR);
 
 	if (priv->user) {
@@ -427,50 +427,44 @@ nvc0_fifo_destroy(struct nouveau_device *ndev, int engine)
 	}
 	nouveau_gpuobj_ref(NULL, &priv->playlist[1]);
 	nouveau_gpuobj_ref(NULL, &priv->playlist[0]);
-
-	ndev->engine[engine] = NULL;
-	kfree(priv);
 }
 
 int
-nvc0_fifo_create(struct nouveau_device *ndev)
+nvc0_fifo_create(struct nouveau_device *ndev, int engine)
 {
 	struct nouveau_bar *pbar = nv_subdev(ndev, NVDEV_SUBDEV_BAR);
 	struct nvc0_fifo_priv *priv;
 	int ret;
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PFIFO", "fifo", &priv);
+	if (ret)
+		return ret;
 
-	priv->base.base.destroy = nvc0_fifo_destroy;
-	priv->base.base.init = nvc0_fifo_init;
-	priv->base.base.fini = nvc0_fifo_fini;
+	priv->base.base.subdev.destroy = nvc0_fifo_destroy;
+	priv->base.base.subdev.init = nvc0_fifo_init;
+	priv->base.base.subdev.fini = nvc0_fifo_fini;
 	priv->base.base.context_new = nvc0_fifo_context_new;
 	priv->base.base.context_del = nvc0_fifo_context_del;
 	priv->base.channels = 128;
-	ndev->engine[NVOBJ_ENGINE_FIFO] = &priv->base.base;
 
 	ret = nouveau_gpuobj_new(ndev, NULL, 4096, 4096, 0, &priv->playlist[0]);
 	if (ret)
-		goto error;
+		goto done;
 
 	ret = nouveau_gpuobj_new(ndev, NULL, 4096, 4096, 0, &priv->playlist[1]);
 	if (ret)
-		goto error;
+		goto done;
 
 	ret = nouveau_gpuobj_new(ndev, NULL, priv->base.channels * 4096, 4096,
 				 NVOBJ_FLAG_ZERO_ALLOC, &priv->user);
 	if (ret)
-		goto error;
+		goto done;
 
 	ret = pbar->map(pbar, *(struct nouveau_mem **)priv->user->node);
 	if (ret)
-		goto error;
+		goto done;
 
 	nouveau_irq_register(ndev, 8, nvc0_fifo_isr);
-error:
-	if (ret)
-		priv->base.base.destroy(ndev, NVOBJ_ENGINE_FIFO);
-	return ret;
+done:
+	return nouveau_engine_init(ndev, engine, ret);
 }

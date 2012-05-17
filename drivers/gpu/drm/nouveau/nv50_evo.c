@@ -87,7 +87,7 @@ nv50_evo_dmaobj_new(struct nouveau_channel *evo, u32 handle, u32 memtype,
 	ret = nouveau_gpuobj_new(evo->device, disp->master, 6*4, 32, 0, &obj);
 	if (ret)
 		return ret;
-	obj->engine = NVOBJ_ENGINE_DISPLAY;
+	obj->engine = NVDEV_ENGINE_DISPLAY;
 
 	nv50_evo_dmaobj_init(obj, memtype, base, size);
 

@@ -106,7 +106,7 @@ nouveau_abi16_ioctl_channel_alloc(ABI16_IOCTL_ARGS)
 	struct nouveau_channel *chan;
 	int ret;
 
-	if (!ndev->engine[NVOBJ_ENGINE_GR])
+	if (!nv_engine(ndev, NVDEV_ENGINE_FIFO))
 		return -ENODEV;
 
 	if (init->fb_ctxdma_handle == ~0 || init->tt_ctxdma_handle == ~0)

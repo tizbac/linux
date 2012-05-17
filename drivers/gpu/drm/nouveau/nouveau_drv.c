@@ -173,10 +173,10 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 {
 	struct drm_device *dev = pci_get_drvdata(pdev);
 	struct nouveau_device *ndev = nouveau_device(dev);
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_channel *chan;
 	struct drm_crtc *crtc;
-	int ret, i, e;
+	int ret, i;
 
 	if (pm_state.event == PM_EVENT_PRETHAW)
 		return 0;
@@ -219,20 +219,10 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 			nouveau_channel_idle(chan);
 	}
 
-	for (e = NVOBJ_ENGINE_NR - 1; e >= 0; e--) {
-		if (!ndev->engine[e])
-			continue;
-
-		ret = ndev->engine[e]->fini(ndev, e, true);
-		if (ret) {
-			NV_ERROR(ndev, "... engine %d failed: %d\n", e, ret);
-			goto out_abort;
-		}
-	}
-
+	NV_INFO(ndev, "Disabling engines...\n");
 	ret = nouveau_device_fini(ndev, true);
 	if (ret)
-		return ret;
+		goto out_abort;
 
 	nouveau_agp_fini(dev);
 
@@ -246,11 +236,8 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 	return 0;
 
 out_abort:
-	NV_INFO(ndev, "Re-enabling acceleration..\n");
-	for (e = e + 1; e < NVOBJ_ENGINE_NR; e++) {
-		if (ndev->engine[e])
-			ndev->engine[e]->init(ndev, e);
-	}
+	NV_INFO(ndev, "Re-enabling engines..\n");
+	nouveau_device_init(ndev);
 	return ret;
 }
 
@@ -259,7 +246,7 @@ nouveau_pci_resume(struct pci_dev *pdev)
 {
 	struct drm_device *dev = pci_get_drvdata(pdev);
 	struct nouveau_device *ndev = nouveau_device(dev);
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_subsys *engine = &ndev->subsys;
 	struct drm_crtc *crtc;
 	int ret, i;
@@ -286,12 +273,6 @@ nouveau_pci_resume(struct pci_dev *pdev)
 		return ret;
 
 	nouveau_agp_init(dev);
-
-	NV_INFO(ndev, "Reinitialising engines...\n");
-	for (i = 0; i < NVOBJ_ENGINE_NR; i++) {
-		if (ndev->engine[i])
-			ndev->engine[i]->init(ndev, i);
-	}
 
 	nouveau_irq_postinstall(dev);
 

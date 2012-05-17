@@ -46,9 +46,9 @@ nouveau_software_class(struct nouveau_device *ndev)
 	return 0x0000;
 }
 
-int nv04_software_create(struct nouveau_device *);
-int nv50_software_create(struct nouveau_device *);
-int nvc0_software_create(struct nouveau_device *);
+int nv04_software_create(struct nouveau_device *, int engine);
+int nv50_software_create(struct nouveau_device *, int engine);
+int nvc0_software_create(struct nouveau_device *, int engine);
 u64 nvc0_software_crtc(struct nouveau_channel *, int crtc);
 
 #endif

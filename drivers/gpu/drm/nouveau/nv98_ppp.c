@@ -29,9 +29,10 @@
 #include "nouveau_vm.h"
 #include "nouveau_ramht.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_ppp.h"
 
-struct nv98_ppp_engine {
-	struct nouveau_engine base;
+struct nv98_ppp_priv {
+	struct nouveau_ppp_priv base;
 };
 
 static int
@@ -52,29 +53,17 @@ nv98_ppp_init(struct nouveau_device *ndev, int engine)
 	return 0;
 }
 
-static void
-nv98_ppp_destroy(struct nouveau_device *ndev, int engine)
-{
-	struct nv98_ppp_engine *pppp = nv_engine(ndev, engine);
-
-	NVOBJ_ENGINE_DEL(ndev, PPP);
-
-	kfree(pppp);
-}
-
 int
-nv98_ppp_create(struct nouveau_device *ndev)
+nv98_ppp_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv98_ppp_engine *pppp;
+	struct nv98_ppp_priv *priv;
+	int ret;
 
-	pppp = kzalloc(sizeof(*pppp), GFP_KERNEL);
-	if (!pppp)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PPPP", "ppp", &priv);
+	if (ret)
+		return ret;
 
-	pppp->base.destroy = nv98_ppp_destroy;
-	pppp->base.init = nv98_ppp_init;
-	pppp->base.fini = nv98_ppp_fini;
-
-	NVOBJ_ENGINE_ADD(ndev, PPP, &pppp->base);
-	return 0;
+	priv->base.base.subdev.init = nv98_ppp_init;
+	priv->base.base.subdev.fini = nv98_ppp_fini;
+	return nouveau_engine_init(ndev, engine, ret);
 }

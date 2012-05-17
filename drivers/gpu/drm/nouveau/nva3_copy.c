@@ -32,11 +32,13 @@
 #include "nouveau_ramht.h"
 #include "nouveau_instmem.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_copy.h"
+#include "nouveau_graph.h"
 
 #include "nva3_copy.fuc.h"
 
-struct nva3_copy_engine {
-	struct nouveau_engine base;
+struct nva3_copy_priv {
+	struct nouveau_copy_priv base;
 };
 
 static int
@@ -174,34 +176,29 @@ nva3_copy_isr(struct nouveau_device *ndev)
 static void
 nva3_copy_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nva3_copy_engine *pcopy = nv_engine(ndev, engine);
-
 	nouveau_irq_unregister(ndev, 22);
-
-	NVOBJ_ENGINE_DEL(ndev, COPY0);
-	kfree(pcopy);
 }
 
 int
-nva3_copy_create(struct nouveau_device *ndev)
+nva3_copy_create(struct nouveau_device *ndev, int engine)
 {
-	struct nva3_copy_engine *pcopy;
+	struct nva3_copy_priv *priv;
+	int ret;
 
-	pcopy = kzalloc(sizeof(*pcopy), GFP_KERNEL);
-	if (!pcopy)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PCOPY", "copy", &priv);
+	if (ret)
+		return ret;
 
-	pcopy->base.destroy = nva3_copy_destroy;
-	pcopy->base.init = nva3_copy_init;
-	pcopy->base.fini = nva3_copy_fini;
-	pcopy->base.context_new = nva3_copy_context_new;
-	pcopy->base.context_del = nva3_copy_context_del;
-	pcopy->base.object_new = nva3_copy_object_new;
-	pcopy->base.tlb_flush = nva3_copy_tlb_flush;
+	priv->base.base.subdev.destroy = nva3_copy_destroy;
+	priv->base.base.subdev.init = nva3_copy_init;
+	priv->base.base.subdev.fini = nva3_copy_fini;
+	priv->base.base.context_new = nva3_copy_context_new;
+	priv->base.base.context_del = nva3_copy_context_del;
+	priv->base.base.object_new = nva3_copy_object_new;
+	priv->base.base.tlb_flush = nva3_copy_tlb_flush;
 
 	nouveau_irq_register(ndev, 22, nva3_copy_isr);
 
-	NVOBJ_ENGINE_ADD(ndev, COPY0, &pcopy->base);
 	NVOBJ_CLASS(ndev, 0x85b5, COPY0);
-	return 0;
+	return nouveau_engine_init(ndev, engine, ret);
 }

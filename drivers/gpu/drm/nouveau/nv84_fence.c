@@ -80,7 +80,7 @@ nv84_fence_sync(struct nouveau_fence *fence,
 static u32
 nv84_fence_read(struct nouveau_channel *chan)
 {
-	struct nv84_fence_priv *priv = nv_engine(chan->device, NVOBJ_ENGINE_FENCE);
+	struct nv84_fence_priv *priv = nv_engine(chan->device, NVDEV_ENGINE_FENCE);
 	return nv_ro32(priv->mem, chan->id * 16);
 }
 
@@ -122,56 +122,36 @@ nv84_fence_context_new(struct nouveau_channel *chan, int engine)
 	return ret;
 }
 
-static int
-nv84_fence_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	return 0;
-}
-
-static int
-nv84_fence_init(struct nouveau_device *ndev, int engine)
-{
-	return 0;
-}
-
 static void
 nv84_fence_destroy(struct nouveau_device *ndev, int engine)
 {
 	struct nv84_fence_priv *priv = nv_engine(ndev, engine);
-
 	nouveau_gpuobj_ref(NULL, &priv->mem);
-	ndev->engine[engine] = NULL;
-	kfree(priv);
 }
 
 int
-nv84_fence_create(struct nouveau_device *ndev)
+nv84_fence_create(struct nouveau_device *ndev, int engine)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nv84_fence_priv *priv;
 	int ret;
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "FENCE", "fence", &priv);
+	if (ret)
+		return ret;
 
-	priv->base.engine.destroy = nv84_fence_destroy;
-	priv->base.engine.init = nv84_fence_init;
-	priv->base.engine.fini = nv84_fence_fini;
-	priv->base.engine.context_new = nv84_fence_context_new;
-	priv->base.engine.context_del = nv84_fence_context_del;
+	priv->base.base.subdev.destroy = nv84_fence_destroy;
+	priv->base.base.context_new = nv84_fence_context_new;
+	priv->base.base.context_del = nv84_fence_context_del;
 	priv->base.emit = nv84_fence_emit;
 	priv->base.sync = nv84_fence_sync;
 	priv->base.read = nv84_fence_read;
-	ndev->engine[NVOBJ_ENGINE_FENCE] = &priv->base.engine;
 
 	ret = nouveau_gpuobj_new(ndev, NULL, 16 * pfifo->channels,
 				 0x1000, 0, &priv->mem);
 	if (ret)
-		goto out;
+		goto done;
 
-out:
-	if (ret)
-		nv84_fence_destroy(ndev, NVOBJ_ENGINE_FENCE);
-	return ret;
+done:
+	return nouveau_engine_init(ndev, engine, ret);
 }

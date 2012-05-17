@@ -131,7 +131,7 @@ int
 nouveau_gpuobj_mthd_call2(struct nouveau_device *ndev, int chid,
 			  u32 class, u32 mthd, u32 data)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_channel *chan = NULL;
 	unsigned long flags;
 	int ret = -EINVAL;
@@ -447,7 +447,7 @@ nouveau_gpuobj_dma_new(struct nouveau_channel *chan, int class, u64 base,
 	nv_wo32(obj, 0x08, flags2);
 	nv_wo32(obj, 0x0c, flags2);
 
-	obj->engine = NVOBJ_ENGINE_SW;
+	obj->engine = 0;
 	obj->class  = class;
 	*pobj = obj;
 	return 0;
@@ -464,7 +464,7 @@ nouveau_gpuobj_gr_new(struct nouveau_channel *chan, u32 handle, int class)
 	NV_DEBUG(ndev, "ch%d class=0x%04x\n", chan->id, class);
 
 	list_for_each_entry(oc, &priv->classes, head) {
-		struct nouveau_engine *eng = ndev->engine[oc->engine];
+		struct nouveau_engine *eng = nv_engine(ndev, oc->engine);
 
 		if (oc->id != class)
 			continue;

@@ -90,8 +90,8 @@ nve0_graph_unload_context_to(struct nouveau_device *ndev, u64 chan)
 static int
 nve0_graph_construct_context(struct nouveau_channel *chan)
 {
-	struct nve0_graph_priv *priv = nv_engine(chan->device, NVOBJ_ENGINE_GR);
-	struct nve0_graph_chan *grch = chan->engctx[NVOBJ_ENGINE_GR];
+	struct nve0_graph_priv *priv = nv_engine(chan->device, NVDEV_ENGINE_GR);
+	struct nve0_graph_chan *grch = chan->engctx[NVDEV_ENGINE_GR];
 	struct nouveau_device *ndev = chan->device;
 	int ret, i;
 	u32 *ctx;
@@ -130,8 +130,8 @@ err:
 static int
 nve0_graph_create_context_mmio_list(struct nouveau_channel *chan)
 {
-	struct nve0_graph_priv *priv = nv_engine(chan->device, NVOBJ_ENGINE_GR);
-	struct nve0_graph_chan *grch = chan->engctx[NVOBJ_ENGINE_GR];
+	struct nve0_graph_priv *priv = nv_engine(chan->device, NVDEV_ENGINE_GR);
+	struct nve0_graph_chan *grch = chan->engctx[NVDEV_ENGINE_GR];
 	struct nouveau_device *ndev = chan->device;
 	u32 magic[GPC_MAX][2];
 	u16 offset = 0x0000;
@@ -211,7 +211,7 @@ nve0_graph_context_new(struct nouveau_channel *chan, int engine)
 	grch = kzalloc(sizeof(*grch), GFP_KERNEL);
 	if (!grch)
 		return -ENOMEM;
-	chan->engctx[NVOBJ_ENGINE_GR] = grch;
+	chan->engctx[NVDEV_ENGINE_GR] = grch;
 
 	ret = nouveau_gpuobj_new(ndev, chan, priv->grctx_size, 256,
 				 NVOBJ_FLAG_VM | NVOBJ_FLAG_ZERO_ALLOC,
@@ -250,7 +250,7 @@ nve0_graph_context_new(struct nouveau_channel *chan, int engine)
 	return 0;
 
 error:
-	priv->base.context_del(chan, engine);
+	priv->base.base.context_del(chan, engine);
 	return ret;
 }
 
@@ -274,16 +274,10 @@ nve0_graph_object_new(struct nouveau_channel *chan, int engine,
 	return 0;
 }
 
-static int
-nve0_graph_fini(struct nouveau_device *ndev, int engine, bool suspend)
-{
-	return 0;
-}
-
 static void
 nve0_graph_init_obj418880(struct nouveau_device *ndev)
 {
-	struct nve0_graph_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_GR);
+	struct nve0_graph_priv *priv = nv_engine(ndev, NVDEV_ENGINE_GR);
 	int i;
 
 	nv_wr32(ndev, GPC_BCAST(0x0880), 0x00000000);
@@ -335,7 +329,7 @@ nve0_graph_init_units(struct nouveau_device *ndev)
 static void
 nve0_graph_init_gpc_0(struct nouveau_device *ndev)
 {
-	struct nve0_graph_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_GR);
+	struct nve0_graph_priv *priv = nv_engine(ndev, NVDEV_ENGINE_GR);
 	const u32 magicgpc918 = DIV_ROUND_UP(0x00800000, priv->tpc_total);
 	u32 data[TPC_MAX / 8];
 	u8  tpcnr[GPC_MAX];
@@ -373,7 +367,7 @@ nve0_graph_init_gpc_0(struct nouveau_device *ndev)
 static void
 nve0_graph_init_gpc_1(struct nouveau_device *ndev)
 {
-	struct nve0_graph_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_GR);
+	struct nve0_graph_priv *priv = nv_engine(ndev, NVDEV_ENGINE_GR);
 	int gpc, tpc;
 
 	for (gpc = 0; gpc < priv->gpc_nr; gpc++) {
@@ -399,7 +393,7 @@ nve0_graph_init_gpc_1(struct nouveau_device *ndev)
 static void
 nve0_graph_init_rop(struct nouveau_device *ndev)
 {
-	struct nve0_graph_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_GR);
+	struct nve0_graph_priv *priv = nv_engine(ndev, NVDEV_ENGINE_GR);
 	int rop;
 
 	for (rop = 0; rop < priv->rop_nr; rop++) {
@@ -431,7 +425,7 @@ nve0_graph_init_fuc(struct nouveau_device *ndev, u32 fuc_base,
 static int
 nve0_graph_init_ctxctl(struct nouveau_device *ndev)
 {
-	struct nve0_graph_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_GR);
+	struct nve0_graph_priv *priv = nv_engine(ndev, NVDEV_ENGINE_GR);
 	u32 r000260;
 
 	/* load fuc microcode */
@@ -548,7 +542,7 @@ nve0_graph_init(struct nouveau_device *ndev, int engine)
 int
 nve0_graph_isr_chid(struct nouveau_device *ndev, u64 inst)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_channel *chan;
 	unsigned long flags;
 	int i;
@@ -585,7 +579,7 @@ nve0_graph_ctxctl_isr(struct nouveau_device *ndev)
 static void
 nve0_graph_trap_isr(struct nouveau_device *ndev, int chid)
 {
-	struct nve0_graph_priv *priv = nv_engine(ndev, NVOBJ_ENGINE_GR);
+	struct nve0_graph_priv *priv = nv_engine(ndev, NVDEV_ENGINE_GR);
 	u32 trap = nv_rd32(ndev, 0x400108);
 	int rop;
 
@@ -731,36 +725,32 @@ nve0_graph_destroy(struct nouveau_device *ndev, int engine)
 
 	if (priv->grctx_vals)
 		kfree(priv->grctx_vals);
-
-	NVOBJ_ENGINE_DEL(ndev, GR);
-	kfree(priv);
 }
 
 int
-nve0_graph_create(struct nouveau_device *ndev)
+nve0_graph_create(struct nouveau_device *ndev, int engine)
 {
 	struct nve0_graph_priv *priv;
 	int ret, gpc, i;
 	u32 kepler;
 
+	ret = nouveau_engine_create(ndev, engine, "PGRAPH", "graphics", &priv);
+	if (ret)
+		return ret;
+
 	kepler = nve0_graph_class(ndev);
 	if (!kepler) {
 		NV_ERROR(ndev, "PGRAPH: unsupported chipset, please report!\n");
-		return 0;
+		ret = -ENODEV;
+		goto done;
 	}
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
+	priv->base.base.subdev.destroy = nve0_graph_destroy;
+	priv->base.base.subdev.init = nve0_graph_init;
+	priv->base.base.context_new = nve0_graph_context_new;
+	priv->base.base.context_del = nve0_graph_context_del;
+	priv->base.base.object_new = nve0_graph_object_new;
 
-	priv->base.destroy = nve0_graph_destroy;
-	priv->base.init = nve0_graph_init;
-	priv->base.fini = nve0_graph_fini;
-	priv->base.context_new = nve0_graph_context_new;
-	priv->base.context_del = nve0_graph_context_del;
-	priv->base.object_new = nve0_graph_object_new;
-
-	NVOBJ_ENGINE_ADD(ndev, GR, &priv->base);
 	nouveau_irq_register(ndev, 12, nve0_graph_isr);
 
 	NV_INFO(ndev, "PGRAPH: using external firmware\n");
@@ -769,16 +759,16 @@ nve0_graph_create(struct nouveau_device *ndev)
 	    nve0_graph_create_fw(ndev, "fuc41ac", &priv->fuc41ac) ||
 	    nve0_graph_create_fw(ndev, "fuc41ad", &priv->fuc41ad)) {
 		ret = 0;
-		goto error;
+		goto done;
 	}
 
 	ret = nouveau_gpuobj_new(ndev, NULL, 0x1000, 256, 0, &priv->unk4188b4);
 	if (ret)
-		goto error;
+		goto done;
 
 	ret = nouveau_gpuobj_new(ndev, NULL, 0x1000, 256, 0, &priv->unk4188b8);
 	if (ret)
-		goto error;
+		goto done;
 
 	for (i = 0; i < 0x1000; i += 4) {
 		nv_wo32(priv->unk4188b4, i, 0x00000010);
@@ -819,9 +809,7 @@ nve0_graph_create(struct nouveau_device *ndev)
 	NVOBJ_CLASS(ndev, 0xa040, GR); /* subc 2: P2MF */
 	NVOBJ_CLASS(ndev, 0x902d, GR); /* subc 3: 2D */
 	NVOBJ_CLASS(ndev, 0xa0b5, GR); /* subc 4: COPY */
-	return 0;
 
-error:
-	nve0_graph_destroy(ndev, NVOBJ_ENGINE_GR);
-	return ret;
+done:
+	return nouveau_engine_init(ndev, engine, ret);
 }

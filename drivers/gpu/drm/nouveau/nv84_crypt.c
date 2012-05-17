@@ -31,9 +31,10 @@
 #include "nouveau_ramht.h"
 #include "nouveau_instmem.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_crypt.h"
 
-struct nv84_crypt_engine {
-	struct nouveau_engine base;
+struct nv84_crypt_priv {
+	struct nouveau_crypt_priv base;
 };
 
 static int
@@ -162,34 +163,29 @@ nv84_crypt_init(struct nouveau_device *ndev, int engine)
 static void
 nv84_crypt_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv84_crypt_engine *pcrypt = nv_engine(ndev, engine);
-
-	NVOBJ_ENGINE_DEL(ndev, CRYPT);
-
 	nouveau_irq_unregister(ndev, 14);
-	kfree(pcrypt);
 }
 
 int
-nv84_crypt_create(struct nouveau_device *ndev)
+nv84_crypt_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv84_crypt_engine *pcrypt;
+	struct nv84_crypt_priv *priv;
+	int ret;
 
-	pcrypt = kzalloc(sizeof(*pcrypt), GFP_KERNEL);
-	if (!pcrypt)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PCRYPT", "crypt", &priv);
+	if (ret)
+		return ret;
 
-	pcrypt->base.destroy = nv84_crypt_destroy;
-	pcrypt->base.init = nv84_crypt_init;
-	pcrypt->base.fini = nv84_crypt_fini;
-	pcrypt->base.context_new = nv84_crypt_context_new;
-	pcrypt->base.context_del = nv84_crypt_context_del;
-	pcrypt->base.object_new = nv84_crypt_object_new;
-	pcrypt->base.tlb_flush = nv84_crypt_tlb_flush;
+	priv->base.base.subdev.destroy = nv84_crypt_destroy;
+	priv->base.base.subdev.init = nv84_crypt_init;
+	priv->base.base.subdev.fini = nv84_crypt_fini;
+	priv->base.base.context_new = nv84_crypt_context_new;
+	priv->base.base.context_del = nv84_crypt_context_del;
+	priv->base.base.object_new = nv84_crypt_object_new;
+	priv->base.base.tlb_flush = nv84_crypt_tlb_flush;
 
 	nouveau_irq_register(ndev, 14, nv84_crypt_isr);
 
-	NVOBJ_ENGINE_ADD(ndev, CRYPT, &pcrypt->base);
 	NVOBJ_CLASS (ndev, 0x74c1, CRYPT);
-	return 0;
+	return nouveau_engine_init(ndev, engine, ret);
 }

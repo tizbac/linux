@@ -152,9 +152,11 @@ nv50_vm_flush(struct nouveau_vm *vm)
 
 	nouveau_instmem_flush(ndev);
 
-	for (i = 0; i < NVOBJ_ENGINE_NR; i++) {
-		if (atomic_read(&vm->engref[i]))
-			ndev->engine[i]->tlb_flush(ndev, i);
+	for (i = 0; i < NVDEV_SUBDEV_NR; i++) {
+		if (atomic_read(&vm->engref[i])) {
+			struct nouveau_engine *engine = nv_engine(ndev, i);
+			engine->tlb_flush(ndev, i);
+		}
 	}
 }
 

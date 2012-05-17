@@ -426,7 +426,7 @@ static struct nouveau_enum vm_fault[] = {
 void
 nv50_fb_vm_trap(struct nouveau_device *ndev, int display)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	const struct nouveau_enum *en, *cl;
 	unsigned long flags;
 	u32 trap[6], idx, chinst;

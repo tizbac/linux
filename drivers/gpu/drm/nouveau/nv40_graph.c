@@ -31,22 +31,23 @@
 #include "nouveau_fifo.h"
 #include "nouveau_ramht.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_graph.h"
 
-struct nv40_graph_engine {
-	struct nouveau_engine base;
+struct nv40_graph_priv {
+	struct nouveau_graph_priv base;
 	u32 grctx_size;
 };
 
 static int
 nv40_graph_context_new(struct nouveau_channel *chan, int engine)
 {
-	struct nv40_graph_engine *pgraph = nv_engine(chan->device, engine);
+	struct nv40_graph_priv *priv = nv_engine(chan->device, engine);
 	struct nouveau_device *ndev = chan->device;
 	struct nouveau_gpuobj *grctx = NULL;
 	unsigned long flags;
 	int ret;
 
-	ret = nouveau_gpuobj_new(ndev, NULL, pgraph->grctx_size, 16,
+	ret = nouveau_gpuobj_new(ndev, NULL, priv->grctx_size, 16,
 				 NVOBJ_FLAG_ZERO_ALLOC, &grctx);
 	if (ret)
 		return ret;
@@ -175,7 +176,7 @@ nv40_graph_set_tile_region(struct nouveau_device *ndev, int i)
 int
 nv40_graph_init(struct nouveau_device *ndev, int engine)
 {
-	struct nv40_graph_engine *pgraph = nv_engine(ndev, engine);
+	struct nv40_graph_priv *priv = nv_engine(ndev, engine);
 	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	u32 vramsz;
 	int i, j;
@@ -186,7 +187,7 @@ nv40_graph_init(struct nouveau_device *ndev, int engine)
 			 NV_PMC_ENABLE_PGRAPH);
 
 	/* generate and upload context program */
-	nv40_grctx_init(ndev, &pgraph->grctx_size);
+	nv40_grctx_init(ndev, &priv->grctx_size);
 
 	/* No context present currently */
 	nv_wr32(ndev, NV40_PGRAPH_CTXCTL_CUR, 0x00000000);
@@ -344,7 +345,7 @@ nv40_graph_fini(struct nouveau_device *ndev, int engine, bool suspend)
 static int
 nv40_graph_isr_chid(struct nouveau_device *ndev, u32 inst)
 {
-	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVOBJ_ENGINE_FIFO);
+	struct nouveau_fifo_priv *pfifo = nv_engine(ndev, NVDEV_ENGINE_FIFO);
 	struct nouveau_gpuobj *grctx;
 	unsigned long flags;
 	int i;
@@ -353,7 +354,7 @@ nv40_graph_isr_chid(struct nouveau_device *ndev, u32 inst)
 	for (i = 0; i < pfifo->channels; i++) {
 		if (!ndev->channels.ptr[i])
 			continue;
-		grctx = ndev->channels.ptr[i]->engctx[NVOBJ_ENGINE_GR];
+		grctx = ndev->channels.ptr[i]->engctx[NVDEV_ENGINE_GR];
 
 		if (grctx && grctx->pinst == inst)
 			break;
@@ -410,32 +411,27 @@ nv40_graph_isr(struct nouveau_device *ndev)
 static void
 nv40_graph_destroy(struct nouveau_device *ndev, int engine)
 {
-	struct nv40_graph_engine *pgraph = nv_engine(ndev, engine);
-
 	nouveau_irq_unregister(ndev, 12);
-
-	NVOBJ_ENGINE_DEL(ndev, GR);
-	kfree(pgraph);
 }
 
 int
-nv40_graph_create(struct nouveau_device *ndev)
+nv40_graph_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv40_graph_engine *pgraph;
+	struct nv40_graph_priv *priv;
+	int ret;
 
-	pgraph = kzalloc(sizeof(*pgraph), GFP_KERNEL);
-	if (!pgraph)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PGRAPH", "graphics", &priv);
+	if (ret)
+		return ret;
 
-	pgraph->base.destroy = nv40_graph_destroy;
-	pgraph->base.init = nv40_graph_init;
-	pgraph->base.fini = nv40_graph_fini;
-	pgraph->base.context_new = nv40_graph_context_new;
-	pgraph->base.context_del = nv40_graph_context_del;
-	pgraph->base.object_new = nv40_graph_object_new;
-	pgraph->base.set_tile_region = nv40_graph_set_tile_region;
+	priv->base.base.subdev.destroy = nv40_graph_destroy;
+	priv->base.base.subdev.init = nv40_graph_init;
+	priv->base.base.subdev.fini = nv40_graph_fini;
+	priv->base.base.context_new = nv40_graph_context_new;
+	priv->base.base.context_del = nv40_graph_context_del;
+	priv->base.base.object_new = nv40_graph_object_new;
+	priv->base.base.set_tile_region = nv40_graph_set_tile_region;
 
-	NVOBJ_ENGINE_ADD(ndev, GR, &pgraph->base);
 	nouveau_irq_register(ndev, 12, nv40_graph_isr);
 
 	NVOBJ_CLASS(ndev, 0x0030, GR); /* null */
@@ -460,5 +456,5 @@ nv40_graph_create(struct nouveau_device *ndev)
 	else
 		NVOBJ_CLASS(ndev, 0x4097, GR);
 
-	return 0;
+	return nouveau_engine_init(ndev, engine, ret);
 }

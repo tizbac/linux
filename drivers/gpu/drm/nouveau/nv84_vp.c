@@ -29,14 +29,15 @@
 #include "nouveau_vm.h"
 #include "nouveau_ramht.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_vp.h"
 
 /*XXX: This stub is currently used on NV98+ also, as soon as this becomes
  *     more than just an enable/disable stub this needs to be split out to
  *     nv98_vp.c...
  */
 
-struct nv84_vp_engine {
-	struct nouveau_engine base;
+struct nv84_vp_priv {
+	struct nouveau_vp_priv base;
 };
 
 static int
@@ -57,29 +58,17 @@ nv84_vp_init(struct nouveau_device *ndev, int engine)
 	return 0;
 }
 
-static void
-nv84_vp_destroy(struct nouveau_device *ndev, int engine)
-{
-	struct nv84_vp_engine *pvp = nv_engine(ndev, engine);
-
-	NVOBJ_ENGINE_DEL(ndev, VP);
-
-	kfree(pvp);
-}
-
 int
-nv84_vp_create(struct nouveau_device *ndev)
+nv84_vp_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv84_vp_engine *pvp;
+	struct nv84_vp_priv *priv;
+	int ret;
 
-	pvp = kzalloc(sizeof(*pvp), GFP_KERNEL);
-	if (!pvp)
-		return -ENOMEM;
+	ret = nouveau_engine_create(ndev, engine, "PVP", "vp", &priv);
+	if (ret)
+		return ret;
 
-	pvp->base.destroy = nv84_vp_destroy;
-	pvp->base.init = nv84_vp_init;
-	pvp->base.fini = nv84_vp_fini;
-
-	NVOBJ_ENGINE_ADD(ndev, VP, &pvp->base);
-	return 0;
+	priv->base.base.subdev.init = nv84_vp_init;
+	priv->base.base.subdev.fini = nv84_vp_fini;
+	return nouveau_engine_init(ndev, engine, ret);
 }
