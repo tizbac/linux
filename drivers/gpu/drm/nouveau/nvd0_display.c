@@ -28,6 +28,7 @@
 #include "drm_crtc_helper.h"
 
 #include "nouveau_drv.h"
+#include "nouveau_fb.h"
 #include "nouveau_connector.h"
 #include "nouveau_encoder.h"
 #include "nouveau_crtc.h"
@@ -1971,6 +1972,7 @@ int
 nvd0_display_create(struct nouveau_device *ndev)
 {
 	struct nouveau_bios *bios = nv_subdev(ndev, NVDEV_SUBDEV_VBIOS);
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct dcb_table *dcb = &bios->dcb;
 	struct pci_dev *pdev = ndev->dev->pdev;
 	struct drm_connector *connector, *tmp;
@@ -2080,7 +2082,7 @@ nvd0_display_create(struct nouveau_device *ndev)
 
 		nv_wo32(disp->mem, dmao + 0x20, 0x00000049);
 		nv_wo32(disp->mem, dmao + 0x24, 0x00000000);
-		nv_wo32(disp->mem, dmao + 0x28, (ndev->vram_size - 1) >> 8);
+		nv_wo32(disp->mem, dmao + 0x28, (pfb->ram.size - 1) >> 8);
 		nv_wo32(disp->mem, dmao + 0x2c, 0x00000000);
 		nv_wo32(disp->mem, dmao + 0x30, 0x00000000);
 		nv_wo32(disp->mem, dmao + 0x34, 0x00000000);
@@ -2090,7 +2092,7 @@ nvd0_display_create(struct nouveau_device *ndev)
 
 		nv_wo32(disp->mem, dmao + 0x40, 0x00000009);
 		nv_wo32(disp->mem, dmao + 0x44, 0x00000000);
-		nv_wo32(disp->mem, dmao + 0x48, (ndev->vram_size - 1) >> 8);
+		nv_wo32(disp->mem, dmao + 0x48, (pfb->ram.size - 1) >> 8);
 		nv_wo32(disp->mem, dmao + 0x4c, 0x00000000);
 		nv_wo32(disp->mem, dmao + 0x50, 0x00000000);
 		nv_wo32(disp->mem, dmao + 0x54, 0x00000000);
@@ -2100,7 +2102,7 @@ nvd0_display_create(struct nouveau_device *ndev)
 
 		nv_wo32(disp->mem, dmao + 0x60, 0x0fe00009);
 		nv_wo32(disp->mem, dmao + 0x64, 0x00000000);
-		nv_wo32(disp->mem, dmao + 0x68, (ndev->vram_size - 1) >> 8);
+		nv_wo32(disp->mem, dmao + 0x68, (pfb->ram.size - 1) >> 8);
 		nv_wo32(disp->mem, dmao + 0x6c, 0x00000000);
 		nv_wo32(disp->mem, dmao + 0x70, 0x00000000);
 		nv_wo32(disp->mem, dmao + 0x74, 0x00000000);

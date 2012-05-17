@@ -61,7 +61,7 @@ nv50_instmem_get(struct nouveau_instmem *pimem, struct nouveau_gpuobj *gpuobj,
 	size  = (size + 4095) & ~4095;
 	align = max(align, (u32)4096);
 
-	ret = pfb->vram_get(pfb, size, align, 0, 0x800, &node->mem);
+	ret = pfb->ram.get(pfb, size, align, 0, 0x800, &node->mem);
 	if (ret) {
 		kfree(node);
 		return ret;
@@ -77,7 +77,7 @@ nv50_instmem_get(struct nouveau_instmem *pimem, struct nouveau_gpuobj *gpuobj,
 		ret = nouveau_vm_get(vm, size, node->mem->page_shift,
 				     flags, &node->chan_vma);
 		if (ret) {
-			pfb->vram_put(pfb, &node->mem);
+			pfb->ram.put(pfb, &node->mem);
 			kfree(node);
 			return ret;
 		}
@@ -103,7 +103,7 @@ nv50_instmem_put(struct nouveau_instmem *pimem, struct nouveau_gpuobj *gpuobj)
 		nouveau_vm_put(&node->chan_vma);
 	}
 
-	pfb->vram_put(pfb, &node->mem);
+	pfb->ram.put(pfb, &node->mem);
 
 	gpuobj->node = NULL;
 	kfree(node);
@@ -113,14 +113,15 @@ static int
 nv50_instmem_map(struct nouveau_instmem *pimem, struct nouveau_gpuobj *gpuobj)
 {
 	struct nouveau_device *ndev = pimem->base.device;
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct nv50_instmem_priv *priv = (void *)pimem;
 	struct nv50_instmem_node *node = gpuobj->node;
 	u64 offset = node->mem->offset;
 	int ret;
 
 	offset |= 0x00000001;
-	if (ndev->vram_sys_base) {
-		offset += ndev->vram_sys_base;
+	if (pfb->ram.stolen) {
+		offset += pfb->ram.stolen;
 		offset |= 0x00000030;
 	}
 
@@ -256,7 +257,7 @@ nv50_instmem_destroy(struct nouveau_device *ndev, int subdev)
 	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct nv50_instmem_priv *priv = nv_subdev(ndev, subdev);
 	nouveau_mm_fini(&priv->heap);
-	pfb->vram_put(pfb, &priv->mem);
+	pfb->ram.put(pfb, &priv->mem);
 }
 
 int
@@ -286,7 +287,7 @@ nv50_instmem_create(struct nouveau_device *ndev, int subdev)
 		priv->base.flush = nv84_instmem_flush;
 
 	/* allocate memory for channel and ramin page tables */
-	ret = pfb->vram_get(pfb, (20 + 64) * 1024, 65536, 0, 0x800, &priv->mem);
+	ret = pfb->ram.get(pfb, (20 + 64) * 1024, 65536, 0, 0x800, &priv->mem);
 	if (ret)
 		goto done;
 
@@ -318,8 +319,8 @@ nv50_instmem_create(struct nouveau_device *ndev, int subdev)
 
 	/* page table, init and map self into start of ramin */
 	offset |= 0x00000001;
-	if (ndev->vram_sys_base) {
-		offset += ndev->vram_sys_base;
+	if (pfb->ram.stolen) {
+		offset += pfb->ram.stolen;
 		offset |= 0x00000030;
 	}
 

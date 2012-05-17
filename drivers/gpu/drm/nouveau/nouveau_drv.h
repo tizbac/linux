@@ -577,24 +577,6 @@ struct nouveau_device {
 		spinlock_t lock;
 	} tile;
 
-	/* VRAM/fb configuration */
-	enum {
-		NV_MEM_TYPE_UNKNOWN = 0,
-		NV_MEM_TYPE_STOLEN,
-		NV_MEM_TYPE_SGRAM,
-		NV_MEM_TYPE_SDRAM,
-		NV_MEM_TYPE_DDR1,
-		NV_MEM_TYPE_DDR2,
-		NV_MEM_TYPE_DDR3,
-		NV_MEM_TYPE_GDDR2,
-		NV_MEM_TYPE_GDDR3,
-		NV_MEM_TYPE_GDDR4,
-		NV_MEM_TYPE_GDDR5
-	} vram_type;
-	u64 vram_size;
-	u64 vram_sys_base;
-	bool vram_rank_B;
-
 	u64 fb_available_size;
 	u64 fb_mappable_pages;
 	u64 fb_aper_free;

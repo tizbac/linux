@@ -45,6 +45,7 @@
 #include "drm_fb_helper.h"
 #include "nouveau_drv.h"
 #include "nouveau_drm.h"
+#include "nouveau_fb.h"
 #include "nouveau_crtc.h"
 #include "nouveau_fbcon.h"
 #include "nouveau_dma.h"
@@ -450,6 +451,7 @@ static struct drm_fb_helper_funcs nouveau_fbcon_helper_funcs = {
 int
 nouveau_fbcon_init(struct nouveau_device *ndev)
 {
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct nouveau_fbdev *nfbdev;
 	int preferred_bpp;
 	int ret;
@@ -471,9 +473,9 @@ nouveau_fbcon_init(struct nouveau_device *ndev)
 
 	drm_fb_helper_single_add_all_connectors(&nfbdev->helper);
 
-	if (ndev->vram_size <= 32 * 1024 * 1024)
+	if (pfb->ram.size <= 32 * 1024 * 1024)
 		preferred_bpp = 8;
-	else if (ndev->vram_size <= 64 * 1024 * 1024)
+	else if (pfb->ram.size <= 64 * 1024 * 1024)
 		preferred_bpp = 16;
 	else
 		preferred_bpp = 32;

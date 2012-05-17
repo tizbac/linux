@@ -138,12 +138,12 @@ nv20_fb_create(struct nouveau_device *ndev, int subdev)
 		return ret;
 
 	switch (pbus1218 & 0x00000300) {
-	case 0x00000000: ndev->vram_type = NV_MEM_TYPE_SDRAM; break;
-	case 0x00000100: ndev->vram_type = NV_MEM_TYPE_DDR1; break;
-	case 0x00000200: ndev->vram_type = NV_MEM_TYPE_GDDR3; break;
-	case 0x00000300: ndev->vram_type = NV_MEM_TYPE_GDDR2; break;
+	case 0x00000000: priv->base.ram.type = NV_MEM_TYPE_SDRAM; break;
+	case 0x00000100: priv->base.ram.type = NV_MEM_TYPE_DDR1; break;
+	case 0x00000200: priv->base.ram.type = NV_MEM_TYPE_GDDR3; break;
+	case 0x00000300: priv->base.ram.type = NV_MEM_TYPE_GDDR2; break;
 	}
-	ndev->vram_size = mem_size & 0xff000000;
+	priv->base.ram.size = mem_size & 0xff000000;
 
 	if (ndev->chipset >= 0x25)
 		drm_mm_init(&priv->base.tag_heap, 0, 64 * 1024);

@@ -32,6 +32,7 @@
 
 #include "drmP.h"
 #include "nouveau_drv.h"
+#include "nouveau_fb.h"
 
 #include <ttm/ttm_page_alloc.h>
 
@@ -137,8 +138,9 @@ nouveau_debugfs_memory_info(struct seq_file *m, void *data)
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_minor *minor = node->minor;
 	struct nouveau_device *ndev = nouveau_device(minor->dev);
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 
-	seq_printf(m, "VRAM total: %dKiB\n", (int)(ndev->vram_size >> 10));
+	seq_printf(m, "VRAM total: %dKiB\n", (int)(pfb->ram.size >> 10));
 	return 0;
 }
 

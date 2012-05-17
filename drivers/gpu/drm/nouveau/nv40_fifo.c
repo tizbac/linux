@@ -27,6 +27,7 @@
 #include "drmP.h"
 
 #include "nouveau_drv.h"
+#include "nouveau_fb.h"
 #include "nouveau_fifo.h"
 #include "nouveau_util.h"
 #include "nouveau_ramht.h"
@@ -135,6 +136,7 @@ error:
 static int
 nv40_fifo_init(struct nouveau_device *ndev, int engine)
 {
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct nv40_fifo_priv *priv = nv_engine(ndev, engine);
 	int i;
 
@@ -162,7 +164,7 @@ nv40_fifo_init(struct nouveau_device *ndev, int engine)
 		break;
 	default:
 		nv_wr32(ndev, 0x002230, 0x00000000);
-		nv_wr32(ndev, 0x002220, ((ndev->vram_size - 512 * 1024 +
+		nv_wr32(ndev, 0x002220, ((pfb->ram.size - 512 * 1024 +
 					 priv->ramfc->pinst) >> 16) |
 				       0x00030000);
 		break;

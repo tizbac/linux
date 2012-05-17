@@ -191,6 +191,7 @@ static const struct vram_types {
 int
 nouveau_mem_vram_init(struct nouveau_device *ndev)
 {
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct ttm_bo_device *bdev = &ndev->ttm.bdev;
 	struct drm_device *dev = ndev->dev;
 	const struct vram_types *vram_type;
@@ -236,22 +237,22 @@ nouveau_mem_vram_init(struct nouveau_device *ndev)
 		if (nouveau_vram_type) {
 			if (!strcasecmp(nouveau_vram_type, vram_type->name))
 				break;
-			ndev->vram_type = vram_type->value;
+			pfb->ram.type = vram_type->value;
 		} else {
-			if (vram_type->value == ndev->vram_type)
+			if (vram_type->value == pfb->ram.type)
 				break;
 		}
 		vram_type++;
 	}
 
 	NV_INFO(ndev, "Detected %dMiB VRAM (%s)\n",
-		(int)(ndev->vram_size >> 20), vram_type->name);
-	if (ndev->vram_sys_base) {
+		(int)(pfb->ram.size >> 20), vram_type->name);
+	if (pfb->ram.stolen) {
 		NV_INFO(ndev, "Stolen system memory at: 0x%010llx\n",
-			ndev->vram_sys_base);
+			      pfb->ram.stolen);
 	}
 
-	ndev->fb_available_size = ndev->vram_size;
+	ndev->fb_available_size = pfb->ram.size;
 	ndev->fb_mappable_pages = ndev->fb_available_size;
 	if (ndev->fb_mappable_pages > pci_resource_len(dev->pdev, 1))
 		ndev->fb_mappable_pages = pci_resource_len(dev->pdev, 1);
@@ -349,6 +350,7 @@ nv50_mem_timing_calc(struct nouveau_device *ndev, u32 freq,
 		     struct nouveau_pm_memtiming *boot,
 		     struct nouveau_pm_memtiming *t)
 {
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct bit_entry P;
 	u8 unk18 = 1, unk20 = 0, unk21 = 0, tmp7_3;
 
@@ -402,7 +404,7 @@ nv50_mem_timing_calc(struct nouveau_device *ndev, u32 freq,
 		t->reg[7] = 0x4000202 | (e->tCL - 1) << 16;
 
 		/* XXX: P.version == 1 only has DDR2 and GDDR3? */
-		if (ndev->vram_type == NV_MEM_TYPE_DDR2) {
+		if (pfb->ram.type == NV_MEM_TYPE_DDR2) {
 			t->reg[5] |= (e->tCL + 3) << 8;
 			t->reg[6] |= (t->tCWL - 2) << 8;
 			t->reg[8] |= (e->tCL - 4);
@@ -663,6 +665,7 @@ int
 nouveau_mem_timing_calc(struct nouveau_device *ndev, u32 freq,
 			struct nouveau_pm_memtiming *t)
 {
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_memtiming *boot = &pm->boot.timing;
 	struct nouveau_pm_tbl_entry *e;
@@ -694,7 +697,7 @@ nouveau_mem_timing_calc(struct nouveau_device *ndev, u32 freq,
 		break;
 	}
 
-	switch (ndev->vram_type * !ret) {
+	switch (pfb->ram.type * !ret) {
 	case NV_MEM_TYPE_GDDR3:
 		ret = nouveau_mem_gddr3_mr(ndev, freq, e, len, boot, t);
 		break;
@@ -721,7 +724,7 @@ nouveau_mem_timing_calc(struct nouveau_device *ndev, u32 freq,
 		else
 			dll_off = !!(ramcfg[2] & 0x40);
 
-		switch (ndev->vram_type) {
+		switch (pfb->ram.type) {
 		case NV_MEM_TYPE_GDDR3:
 			t->mr[1] &= ~0x00000040;
 			t->mr[1] |=  0x00000040 * dll_off;
@@ -739,6 +742,7 @@ nouveau_mem_timing_calc(struct nouveau_device *ndev, u32 freq,
 void
 nouveau_mem_timing_read(struct nouveau_device *ndev, struct nouveau_pm_memtiming *t)
 {
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	u32 timing_base, timing_regs, mr_base;
 	int i;
 
@@ -786,7 +790,7 @@ nouveau_mem_timing_read(struct nouveau_device *ndev, struct nouveau_pm_memtiming
 	t->odt = 0;
 	t->drive_strength = 0;
 
-	switch (ndev->vram_type) {
+	switch (pfb->ram.type) {
 	case NV_MEM_TYPE_DDR3:
 		t->odt |= (t->mr[1] & 0x200) >> 7;
 	case NV_MEM_TYPE_DDR2:
@@ -809,11 +813,12 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 {
 	struct nouveau_pm_memtiming *info = &perflvl->timing;
 	struct nouveau_device *ndev = exec->device;
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	u32 tMRD = 1000, tCKSRE = 0, tCKSRX = 0, tXS = 0, tDLLK = 0;
 	u32 mr[3] = { info->mr[0], info->mr[1], info->mr[2] };
 	u32 mr1_dlloff;
 
-	switch (ndev->vram_type) {
+	switch (pfb->ram.type) {
 	case NV_MEM_TYPE_DDR2:
 		tDLLK = 2000;
 		mr1_dlloff = 0x00000001;
@@ -834,7 +839,7 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 	}
 
 	/* fetch current MRs */
-	switch (ndev->vram_type) {
+	switch (pfb->ram.type) {
 	case NV_MEM_TYPE_GDDR3:
 	case NV_MEM_TYPE_DDR3:
 		mr[2] = exec->mrg(exec, 2);
@@ -901,7 +906,7 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 		exec->mrs (exec, 0, info->mr[0] | 0x00000000);
 		exec->wait(exec, tMRD);
 		exec->wait(exec, tDLLK);
-		if (ndev->vram_type == NV_MEM_TYPE_GDDR3)
+		if (pfb->ram.type == NV_MEM_TYPE_GDDR3)
 			exec->precharge(exec);
 	}
 
@@ -967,7 +972,7 @@ nouveau_vram_manager_del(struct ttm_mem_type_manager *man,
 	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 
 	nouveau_mem_node_cleanup(mem->mm_node);
-	pfb->vram_put(pfb, (struct nouveau_mem **)&mem->mm_node);
+	pfb->ram.put(pfb, (struct nouveau_mem **)&mem->mm_node);
 }
 
 static int
@@ -986,9 +991,9 @@ nouveau_vram_manager_new(struct ttm_mem_type_manager *man,
 	if (nvbo->tile_flags & NOUVEAU_GEM_TILE_NONCONTIG)
 		size_nc = 1 << nvbo->page_shift;
 
-	ret = pfb->vram_get(pfb, mem->num_pages << PAGE_SHIFT,
-			    mem->page_alignment << PAGE_SHIFT, size_nc,
-			    (nvbo->tile_flags >> 8) & 0x3ff, &node);
+	ret = pfb->ram.get(pfb, mem->num_pages << PAGE_SHIFT,
+			   mem->page_alignment << PAGE_SHIFT, size_nc,
+			   (nvbo->tile_flags >> 8) & 0x3ff, &node);
 	if (ret) {
 		mem->mm_node = NULL;
 		return (ret == -ENOSPC) ? 0 : ret;

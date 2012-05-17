@@ -26,6 +26,7 @@
 
 #include "nouveau_drv.h"
 #include "nouveau_bios.h"
+#include "nouveau_fb.h"
 #include "nouveau_pm.h"
 #include "nouveau_clock.h"
 
@@ -369,13 +370,15 @@ mclk_mrg(struct nouveau_mem_exec_func *exec, int mr)
 static void
 mclk_mrs(struct nouveau_mem_exec_func *exec, int mr, u32 data)
 {
+	struct nouveau_fb *pfb = nv_subdev(exec->device, NVDEV_SUBDEV_FB);
+
 	if (mr <= 1) {
-		if (exec->device->vram_rank_B)
+		if (pfb->ram.ranks > 1)
 			nv_wr32(exec->device, 0x1002c8 + ((mr - 0) * 4), data);
 		nv_wr32(exec->device, 0x1002c0 + ((mr - 0) * 4), data);
 	} else
 	if (mr <= 3) {
-		if (exec->device->vram_rank_B)
+		if (pfb->ram.ranks > 1)
 			nv_wr32(exec->device, 0x1002e8 + ((mr - 2) * 4), data);
 		nv_wr32(exec->device, 0x1002e0 + ((mr - 2) * 4), data);
 	}

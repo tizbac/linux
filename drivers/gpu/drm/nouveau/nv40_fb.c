@@ -146,34 +146,34 @@ nv40_fb_create(struct nouveau_device *ndev, int subdev)
 	if (ndev->chipset == 0x40) {
 		u32 pbus1218 = nv_rd32(ndev, 0x001218);
 		switch (pbus1218 & 0x00000300) {
-		case 0x00000000: ndev->vram_type = NV_MEM_TYPE_SDRAM; break;
-		case 0x00000100: ndev->vram_type = NV_MEM_TYPE_DDR1; break;
-		case 0x00000200: ndev->vram_type = NV_MEM_TYPE_GDDR3; break;
-		case 0x00000300: ndev->vram_type = NV_MEM_TYPE_DDR2; break;
+		case 0x00000000: priv->base.ram.type = NV_MEM_TYPE_SDRAM; break;
+		case 0x00000100: priv->base.ram.type = NV_MEM_TYPE_DDR1; break;
+		case 0x00000200: priv->base.ram.type = NV_MEM_TYPE_GDDR3; break;
+		case 0x00000300: priv->base.ram.type = NV_MEM_TYPE_DDR2; break;
 		}
 	} else
 	if (ndev->chipset == 0x49 || ndev->chipset == 0x4b) {
 		u32 pfb914 = nv_rd32(ndev, 0x100914);
 		switch (pfb914 & 0x00000003) {
-		case 0x00000000: ndev->vram_type = NV_MEM_TYPE_DDR1; break;
-		case 0x00000001: ndev->vram_type = NV_MEM_TYPE_DDR2; break;
-		case 0x00000002: ndev->vram_type = NV_MEM_TYPE_GDDR3; break;
+		case 0x00000000: priv->base.ram.type = NV_MEM_TYPE_DDR1; break;
+		case 0x00000001: priv->base.ram.type = NV_MEM_TYPE_DDR2; break;
+		case 0x00000002: priv->base.ram.type = NV_MEM_TYPE_GDDR3; break;
 		case 0x00000003: break;
 		}
 	} else
 	if (ndev->chipset != 0x4e) {
 		u32 pfb474 = nv_rd32(ndev, 0x100474);
 		if (pfb474 & 0x00000004)
-			ndev->vram_type = NV_MEM_TYPE_GDDR3;
+			priv->base.ram.type = NV_MEM_TYPE_GDDR3;
 		if (pfb474 & 0x00000002)
-			ndev->vram_type = NV_MEM_TYPE_DDR2;
+			priv->base.ram.type = NV_MEM_TYPE_DDR2;
 		if (pfb474 & 0x00000001)
-			ndev->vram_type = NV_MEM_TYPE_DDR1;
+			priv->base.ram.type = NV_MEM_TYPE_DDR1;
 	} else {
-		ndev->vram_type = NV_MEM_TYPE_STOLEN;
+		priv->base.ram.type = NV_MEM_TYPE_STOLEN;
 	}
 
-	ndev->vram_size = nv_rd32(ndev, 0x10020c) & 0xff000000;
+	priv->base.ram.size = nv_rd32(ndev, 0x10020c) & 0xff000000;
 
 	priv->base.base.destroy = nv10_fb_destroy;
 	priv->base.base.init = nv40_fb_init;

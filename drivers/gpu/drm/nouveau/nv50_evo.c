@@ -25,6 +25,7 @@
 #include "drmP.h"
 
 #include "nouveau_drv.h"
+#include "nouveau_fb.h"
 #include "nouveau_dma.h"
 #include "nouveau_ramht.h"
 #include "nouveau_instmem.h"
@@ -241,6 +242,7 @@ nv50_evo_destroy(struct nouveau_device *ndev)
 int
 nv50_evo_create(struct nouveau_device *ndev)
 {
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	struct nv50_display *disp = nv50_display(ndev);
 	struct nouveau_gpuobj *ramht = NULL;
 	struct nouveau_channel *evo;
@@ -302,24 +304,24 @@ nv50_evo_create(struct nouveau_device *ndev)
 
 	/* create some default objects for the scanout memtypes we support */
 	ret = nv50_evo_dmaobj_new(disp->master, NvEvoVRAM, 0x0000,
-				  0, ndev->vram_size, NULL);
+				  0, pfb->ram.size, NULL);
 	if (ret)
 		goto err;
 
 	ret = nv50_evo_dmaobj_new(disp->master, NvEvoVRAM_LP, 0x80000000,
-				  0, ndev->vram_size, NULL);
+				  0, pfb->ram.size, NULL);
 	if (ret)
 		goto err;
 
 	ret = nv50_evo_dmaobj_new(disp->master, NvEvoFB32, 0x80000000 |
 				  (ndev->chipset < 0xc0 ? 0x7a00 : 0xfe00),
-				  0, ndev->vram_size, NULL);
+				  0, pfb->ram.size, NULL);
 	if (ret)
 		goto err;
 
 	ret = nv50_evo_dmaobj_new(disp->master, NvEvoFB16, 0x80000000 |
 				  (ndev->chipset < 0xc0 ? 0x7000 : 0xfe00),
-				  0, ndev->vram_size, NULL);
+				  0, pfb->ram.size, NULL);
 	if (ret)
 		goto err;
 
@@ -354,21 +356,21 @@ nv50_evo_create(struct nouveau_device *ndev)
 			goto err;
 
 		ret = nv50_evo_dmaobj_new(dispc->sync, NvEvoVRAM_LP, 0x80000000,
-					  0, ndev->vram_size, NULL);
+					  0, pfb->ram.size, NULL);
 		if (ret)
 			goto err;
 
 		ret = nv50_evo_dmaobj_new(dispc->sync, NvEvoFB32, 0x80000000 |
 					  (ndev->chipset < 0xc0 ?
 					  0x7a00 : 0xfe00),
-					  0, ndev->vram_size, NULL);
+					  0, pfb->ram.size, NULL);
 		if (ret)
 			goto err;
 
 		ret = nv50_evo_dmaobj_new(dispc->sync, NvEvoFB16, 0x80000000 |
 					  (ndev->chipset < 0xc0 ?
 					  0x7000 : 0xfe00),
-					  0, ndev->vram_size, NULL);
+					  0, pfb->ram.size, NULL);
 		if (ret)
 			goto err;
 

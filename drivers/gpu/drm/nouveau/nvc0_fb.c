@@ -67,7 +67,7 @@ static int
 nvc0_fb_vram_new(struct nouveau_fb *pfb, u64 size, u32 align, u32 ncmin,
 		 u32 memtype, struct nouveau_mem **pmem)
 {
-	struct nouveau_mm *mm = &pfb->mm;
+	struct nouveau_mm *mm = &pfb->ram.mm;
 	struct nouveau_mm_node *r;
 	struct nouveau_mem *mem;
 	int type = (memtype & 0x0ff);
@@ -97,7 +97,7 @@ nvc0_fb_vram_new(struct nouveau_fb *pfb, u64 size, u32 align, u32 ncmin,
 			ret = nouveau_mm_head(mm, 1, size, ncmin, align, &r);
 		if (ret) {
 			mutex_unlock(&mm->mutex);
-			pfb->vram_put(pfb, &mem);
+			pfb->ram.put(pfb, &mem);
 			return ret;
 		}
 
@@ -162,7 +162,7 @@ nvc0_fb_destroy(struct nouveau_device *ndev, int subdev)
 		__free_page(priv->r100c10_page);
 	}
 
-	nouveau_mm_fini(&priv->base.mm);
+	nouveau_mm_fini(&priv->base.ram.mm);
 }
 
 static int
@@ -182,8 +182,8 @@ nvc0_vram_detect(struct nvc0_fb_priv *priv)
 	NV_DEBUG(ndev, "0x100800: 0x%08x\n", nv_rd32(ndev, 0x100800));
 	NV_DEBUG(ndev, "parts 0x%08x mask 0x%08x\n", parts, pmask);
 
-	ndev->vram_type = nouveau_mem_vbios_type(ndev);
-	ndev->vram_rank_B = !!(nv_rd32(ndev, 0x10f200) & 0x00000004);
+	priv->base.ram.type = nouveau_mem_vbios_type(ndev);
+	priv->base.ram.ranks = (nv_rd32(ndev, 0x10f200) & 0x00000004) ? 2 : 1;
 
 	/* read amount of vram attached to each memory controller */
 	for (part = 0; part < parts; part++) {
@@ -196,29 +196,29 @@ nvc0_vram_detect(struct nvc0_fb_priv *priv)
 			}
 
 			NV_DEBUG(ndev, "%d: mem_amount 0x%08x\n", part, psize);
-			ndev->vram_size += (u64)psize << 20;
+			priv->base.ram.size += (u64)psize << 20;
 		}
 	}
 
 	/* if all controllers have the same amount attached, there's no holes */
 	if (uniform) {
 		offset = rsvd_head;
-		length = (ndev->vram_size >> 12) - rsvd_head - rsvd_tail;
-		return nouveau_mm_init(&pfb->mm, offset, length, 1);
+		length = (priv->base.ram.size >> 12) - rsvd_head - rsvd_tail;
+		return nouveau_mm_init(&pfb->ram.mm, offset, length, 1);
 	}
 
 	/* otherwise, address lowest common amount from 0GiB */
-	ret = nouveau_mm_init(&pfb->mm, rsvd_head, (bsize << 8) * parts, 1);
+	ret = nouveau_mm_init(&pfb->ram.mm, rsvd_head, (bsize << 8) * parts, 1);
 	if (ret)
 		return ret;
 
 	/* and the rest starting from (8GiB + common_size) */
 	offset = (0x0200000000ULL >> 12) + (bsize << 8);
-	length = (ndev->vram_size >> 12) - (bsize << 8) - rsvd_tail;
+	length = (priv->base.ram.size >> 12) - (bsize << 8) - rsvd_tail;
 
-	ret = nouveau_mm_init(&pfb->mm, offset, length, 0);
+	ret = nouveau_mm_init(&pfb->ram.mm, offset, length, 0);
 	if (ret) {
-		nouveau_mm_fini(&pfb->mm);
+		nouveau_mm_fini(&pfb->ram.mm);
 		return ret;
 	}
 
@@ -238,8 +238,8 @@ nvc0_fb_create(struct nouveau_device *ndev, int subdev)
 	priv->base.base.destroy = nvc0_fb_destroy;
 	priv->base.base.init = nvc0_fb_init;
 	priv->base.memtype_valid = nvc0_fb_memtype_valid;
-	priv->base.vram_get = nvc0_fb_vram_new;
-	priv->base.vram_put = nv50_fb_vram_del;
+	priv->base.ram.get = nvc0_fb_vram_new;
+	priv->base.ram.put = nv50_fb_vram_del;
 
 	ret = nvc0_vram_detect(priv);
 	if (ret)

@@ -25,9 +25,10 @@
 #include "drmP.h"
 
 #include "nouveau_drv.h"
-#include "nouveau_instmem.h"
+#include "nouveau_fb.h"
 #include "nouveau_vm.h"
 #include "nouveau_gpuobj.h"
+#include "nouveau_instmem.h"
 
 void
 nv50_vm_map_pgt(struct nouveau_gpuobj *pgd, u32 pde,
@@ -76,14 +77,15 @@ nv50_vm_map(struct nouveau_vma *vma, struct nouveau_gpuobj *pgt,
 	    struct nouveau_mem *mem, u32 pte, u32 cnt, u64 phys, u64 delta)
 {
 	struct nouveau_device *ndev = vma->vm->device;
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
 	u32 comp = (mem->memtype & 0x180) >> 7;
 	u32 block, target;
 	int i;
 
 	/* IGPs don't have real VRAM, re-target to stolen system memory */
 	target = 0;
-	if (ndev->vram_sys_base) {
-		phys += ndev->vram_sys_base;
+	if (pfb->ram.stolen) {
+		phys += pfb->ram.stolen;
 		target = 3;
 	}
 

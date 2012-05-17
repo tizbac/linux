@@ -65,29 +65,29 @@ nv04_fb_create(struct nouveau_device *ndev, int subdev)
 
 	boot0 = nv_rd32(ndev, NV04_PFB_BOOT_0);
 	if (boot0 & 0x00000100) {
-		ndev->vram_size  = ((boot0 >> 12) & 0xf) * 2 + 2;
-		ndev->vram_size *= 1024 * 1024;
+		priv->base.ram.size  = ((boot0 >> 12) & 0xf) * 2 + 2;
+		priv->base.ram.size *= 1024 * 1024;
 	} else {
 		switch (boot0 & NV04_PFB_BOOT_0_RAM_AMOUNT) {
 		case NV04_PFB_BOOT_0_RAM_AMOUNT_32MB:
-			ndev->vram_size = 32 * 1024 * 1024;
+			priv->base.ram.size = 32 * 1024 * 1024;
 			break;
 		case NV04_PFB_BOOT_0_RAM_AMOUNT_16MB:
-			ndev->vram_size = 16 * 1024 * 1024;
+			priv->base.ram.size = 16 * 1024 * 1024;
 			break;
 		case NV04_PFB_BOOT_0_RAM_AMOUNT_8MB:
-			ndev->vram_size = 8 * 1024 * 1024;
+			priv->base.ram.size = 8 * 1024 * 1024;
 			break;
 		case NV04_PFB_BOOT_0_RAM_AMOUNT_4MB:
-			ndev->vram_size = 4 * 1024 * 1024;
+			priv->base.ram.size = 4 * 1024 * 1024;
 			break;
 		}
 	}
 
 	if ((boot0 & 0x00000038) <= 0x10)
-		ndev->vram_type = NV_MEM_TYPE_SGRAM;
+		priv->base.ram.type = NV_MEM_TYPE_SGRAM;
 	else
-		ndev->vram_type = NV_MEM_TYPE_SDRAM;
+		priv->base.ram.type = NV_MEM_TYPE_SDRAM;
 
 	priv->base.base.init = nv04_fb_init;
 	priv->base.memtype_valid = nv04_fb_memtype_valid;

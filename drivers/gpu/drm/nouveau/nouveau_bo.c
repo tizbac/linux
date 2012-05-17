@@ -33,6 +33,7 @@
 #include "nouveau_drm.h"
 #include "nouveau_drv.h"
 #include "nouveau_dma.h"
+#include "nouveau_fb.h"
 #include "nouveau_mm.h"
 #include "nouveau_vm.h"
 #include "nouveau_fence.h"
@@ -155,7 +156,8 @@ static void
 set_placement_range(struct nouveau_bo *nvbo, u32 type)
 {
 	struct nouveau_device *ndev = nouveau_bdev(nvbo->bo.bdev);
-	int vram_pages = ndev->vram_size >> PAGE_SHIFT;
+	struct nouveau_fb *pfb = nv_subdev(ndev, NVDEV_SUBDEV_FB);
+	int vram_pages = pfb->ram.size >> PAGE_SHIFT;
 
 	if (ndev->card_type == NV_10 &&
 	    nvbo->tile_mode && (type & TTM_PL_FLAG_VRAM) &&

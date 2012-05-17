@@ -118,18 +118,18 @@ nv10_fb_create(struct nouveau_device *ndev, int subdev)
 			mib = ((mem >> 4) & 127) + 1;
 		}
 
-		ndev->vram_type = NV_MEM_TYPE_STOLEN;
-		ndev->vram_size = mib * 1024 * 1024;
+		priv->base.ram.type = NV_MEM_TYPE_STOLEN;
+		priv->base.ram.size = mib * 1024 * 1024;
 	} else {
 		u32 data = nv_rd32(ndev, NV04_PFB_FIFO_DATA);
 		u32 cfg0 = nv_rd32(ndev, 0x100200);
 
 		if (cfg0 & 0x00000001)
-			ndev->vram_type = NV_MEM_TYPE_DDR1;
+			priv->base.ram.type = NV_MEM_TYPE_DDR1;
 		else
-			ndev->vram_type = NV_MEM_TYPE_SDRAM;
+			priv->base.ram.type = NV_MEM_TYPE_SDRAM;
 
-		ndev->vram_size = data & NV10_PFB_FIFO_DATA_RAM_AMOUNT_MB_MASK;
+		priv->base.ram.size = data & NV10_PFB_FIFO_DATA_RAM_AMOUNT_MB_MASK;
 	}
 
 	priv->base.base.destroy = nv10_fb_destroy;

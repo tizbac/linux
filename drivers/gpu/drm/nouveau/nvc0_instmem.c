@@ -159,7 +159,7 @@ nvc0_instmem_create(struct nouveau_device *ndev, int subdev)
 	priv->base.flush = nv84_instmem_flush;
 
 	/* allocate memory for memory and ramin page tables */
-	ret = pfb->vram_get(pfb, (8 + 64) * 1024, 65536, 0, 0x800, &priv->mem);
+	ret = pfb->ram.get(pfb, (8 + 64) * 1024, 65536, 0, 0x800, &priv->mem);
 	if (ret)
 		goto done;
 

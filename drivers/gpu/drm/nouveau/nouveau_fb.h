@@ -5,10 +5,31 @@ struct nouveau_fb {
 	struct nouveau_subdev base;
 
 	bool (*memtype_valid)(struct nouveau_fb *, u32 memtype);
-	int  (*vram_get)(struct nouveau_fb *, u64 size, u32 align, u32 size_nc,
-			 u32 type, struct nouveau_mem **);
-	void (*vram_put)(struct nouveau_fb *, struct nouveau_mem **);
-	struct nouveau_mm mm;
+
+	struct {
+		enum {
+			NV_MEM_TYPE_UNKNOWN = 0,
+			NV_MEM_TYPE_STOLEN,
+			NV_MEM_TYPE_SGRAM,
+			NV_MEM_TYPE_SDRAM,
+			NV_MEM_TYPE_DDR1,
+			NV_MEM_TYPE_DDR2,
+			NV_MEM_TYPE_DDR3,
+			NV_MEM_TYPE_GDDR2,
+			NV_MEM_TYPE_GDDR3,
+			NV_MEM_TYPE_GDDR4,
+			NV_MEM_TYPE_GDDR5
+		} type;
+		u64 stolen;
+		u64 size;
+		int ranks;
+
+		struct nouveau_mm mm;
+
+		int  (*get)(struct nouveau_fb *, u64 size, u32 align,
+			    u32 size_nc, u32 type, struct nouveau_mem **);
+		void (*put)(struct nouveau_fb *, struct nouveau_mem **);
+	} ram;
 
 	int num_tiles;
 	void (*init_tile_region)(struct nouveau_fb *, int i, u32 addr,
