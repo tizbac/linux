@@ -50,6 +50,6 @@ nv84_bsp_create(struct nouveau_device *ndev, int engine)
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.unit = 0x00008000;
+	priv->base.base.subdev.unit = 0x04008000;
 	return nouveau_engine_init(ndev, engine, ret);
 }

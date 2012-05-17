@@ -31,25 +31,20 @@
 #include "nouveau_gpuobj.h"
 #include "nouveau_vp.h"
 
-/*XXX: This stub is currently used on NV98+ also, as soon as this becomes
- *     more than just an enable/disable stub this needs to be split out to
- *     nv98_vp.c...
- */
-
-struct nv84_vp_priv {
+struct nv98_vp_priv {
 	struct nouveau_vp_priv base;
 };
 
 int
-nv84_vp_create(struct nouveau_device *ndev, int engine)
+nv98_vp_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv84_vp_priv *priv;
+	struct nv98_vp_priv *priv;
 	int ret;
 
 	ret = nouveau_engine_create(ndev, engine, "PVP", "vp", &priv);
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.unit = 0x00020000;
+	priv->base.base.subdev.unit = 0x01020000;
 	return nouveau_engine_init(ndev, engine, ret);
 }

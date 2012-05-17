@@ -29,22 +29,22 @@
 #include "nouveau_vm.h"
 #include "nouveau_ramht.h"
 #include "nouveau_gpuobj.h"
-#include "nouveau_ppp.h"
+#include "nouveau_bsp.h"
 
-struct nv98_ppp_priv {
-	struct nouveau_ppp_priv base;
+struct nvc0_bsp_priv {
+	struct nouveau_bsp_priv base;
 };
 
 int
-nv98_ppp_create(struct nouveau_device *ndev, int engine)
+nvc0_bsp_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv98_ppp_priv *priv;
+	struct nvc0_bsp_priv *priv;
 	int ret;
 
-	ret = nouveau_engine_create(ndev, engine, "PPPP", "ppp", &priv);
+	ret = nouveau_engine_create(ndev, engine, "PBSP", "bsp", &priv);
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.unit = 0x00400002;
+	priv->base.base.subdev.unit = 0x00008000;
 	return nouveau_engine_init(ndev, engine, ret);
 }

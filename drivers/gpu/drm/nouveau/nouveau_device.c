@@ -517,11 +517,13 @@ nouveau_device_create(struct nouveau_device *ndev)
 	/* bitstream processor */
 	switch (ndev->card_type * !(disable & (1 << NVDEV_ENGINE_BSP))) {
 	case NV_50:
+		if (ndev->chipset >= 0x84)
+			nv84_bsp_create(ndev, NVDEV_ENGINE_BSP);
+		break;
 	case NV_C0:
 	case NV_D0:
 	case NV_E0:
-		if (ndev->chipset >= 0x84)
-			nv84_bsp_create(ndev, NVDEV_ENGINE_BSP);
+		nvc0_bsp_create(ndev, NVDEV_ENGINE_BSP);
 		break;
 	default:
 		break;
@@ -530,11 +532,13 @@ nouveau_device_create(struct nouveau_device *ndev)
 	/* video processor */
 	switch (ndev->card_type * !(disable & (1 << NVDEV_ENGINE_VP))) {
 	case NV_50:
+		if (ndev->chipset >= 0xa3 || ndev->chipset == 0x98)
+			nv98_vp_create(ndev, NVDEV_ENGINE_VP);
+		break;
 	case NV_C0:
 	case NV_D0:
 	case NV_E0:
-		if (ndev->chipset >= 0x84)
-			nv84_vp_create(ndev, NVDEV_ENGINE_VP);
+		nvc0_vp_create(ndev, NVDEV_ENGINE_VP);
 		break;
 	default:
 		break;
@@ -543,11 +547,13 @@ nouveau_device_create(struct nouveau_device *ndev)
 	/* video postprocessing engine */
 	switch (ndev->card_type * !(disable & (1 << NVDEV_ENGINE_PPP))) {
 	case NV_50:
+		if (ndev->chipset >= 0xa3 || ndev->chipset == 0x98)
+			nv98_ppp_create(ndev, NVDEV_ENGINE_PPP);
+		break;
 	case NV_C0:
 	case NV_D0:
 	case NV_E0:
-		if (ndev->chipset >= 0xa3 || ndev->chipset == 0x98)
-			nv98_ppp_create(ndev, NVDEV_ENGINE_PPP);
+		nvc0_vp_create(ndev, NVDEV_ENGINE_PPP);
 		break;
 	default:
 		break;

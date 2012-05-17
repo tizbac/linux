@@ -31,20 +31,20 @@
 #include "nouveau_gpuobj.h"
 #include "nouveau_ppp.h"
 
-struct nv98_ppp_priv {
+struct nvc0_ppp_priv {
 	struct nouveau_ppp_priv base;
 };
 
 int
-nv98_ppp_create(struct nouveau_device *ndev, int engine)
+nvc0_ppp_create(struct nouveau_device *ndev, int engine)
 {
-	struct nv98_ppp_priv *priv;
+	struct nvc0_ppp_priv *priv;
 	int ret;
 
 	ret = nouveau_engine_create(ndev, engine, "PPPP", "ppp", &priv);
 	if (ret)
 		return ret;
 
-	priv->base.base.subdev.unit = 0x00400002;
+	priv->base.base.subdev.unit = 0x00000002;
 	return nouveau_engine_init(ndev, engine, ret);
 }

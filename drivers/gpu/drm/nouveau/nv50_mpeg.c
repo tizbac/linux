@@ -213,7 +213,7 @@ nv50_mpeg_create(struct nouveau_device *ndev, int engine)
 	priv->base.base.subdev.destroy = nv50_mpeg_destroy;
 	priv->base.base.subdev.init = nv50_mpeg_init;
 	priv->base.base.subdev.fini = nv50_mpeg_fini;
-	priv->base.base.subdev.unit = 0x00000002;
+	priv->base.base.subdev.unit = 0x00400002;
 	priv->base.base.context_new = nv50_mpeg_context_new;
 	priv->base.base.context_del = nv50_mpeg_context_del;
 	priv->base.base.object_new = nv50_mpeg_object_new;

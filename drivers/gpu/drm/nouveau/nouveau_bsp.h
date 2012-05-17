@@ -6,5 +6,6 @@ struct nouveau_bsp_priv {
 };
 
 int nv84_bsp_create(struct nouveau_device *, int engine);
+int nvc0_bsp_create(struct nouveau_device *, int engine);
 
 #endif

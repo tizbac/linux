@@ -28,9 +28,9 @@ nouveau-y := nouveau_device.o nouveau_subdev.o nouveau_engine.o \
              nv84_crypt.o nv98_crypt.o \
              nva3_copy.o nvc0_copy.o \
              nv31_mpeg.o nv50_mpeg.o \
-             nv84_bsp.o \
-             nv84_vp.o \
-             nv98_ppp.o \
+             nv84_bsp.o nvc0_bsp.o \
+             nv98_vp.o nvc0_vp.o \
+             nv98_ppp.o nvc0_ppp.o \
              nv04_instmem.o nv50_instmem.o nvc0_instmem.o \
              nv50_bar.o nvc0_bar.o \
              nv04_dac.o nv04_dfp.o nv04_tv.o nv17_tv.o nv17_tv_modes.o \

@@ -6,5 +6,6 @@ struct nouveau_ppp_priv {
 };
 
 int nv98_ppp_create(struct nouveau_device *, int engine);
+int nvc0_ppp_create(struct nouveau_device *, int engine);
 
 #endif

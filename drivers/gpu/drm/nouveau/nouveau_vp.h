@@ -5,6 +5,7 @@ struct nouveau_vp_priv {
 	struct nouveau_engine base;
 };
 
-int nv84_vp_create(struct nouveau_device *, int engine);
+int nv98_vp_create(struct nouveau_device *, int engine);
+int nvc0_vp_create(struct nouveau_device *, int engine);
 
 #endif
