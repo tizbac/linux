@@ -37,15 +37,16 @@ static void nv04_vblank_crtc1_isr(struct nouveau_device *);
 static void
 nv04_display_store_initial_head_owner(struct nouveau_device *ndev)
 {
+	struct nv04_display *disp = nv04_display(ndev);
 
 	if (ndev->chipset != 0x11) {
-		ndev->crtc_owner = NVReadVgaCrtc(ndev, 0, NV_CIO_CRE_44);
+		disp->crtc_owner = NVReadVgaCrtc(ndev, 0, NV_CIO_CRE_44);
 		return;
 	}
 
 	/* reading CR44 is broken on nv11, so we attempt to infer it */
 	if (nv_rd32(ndev, NV_PBUS_DEBUG_1) & (1 << 28))	/* heads tied, restore both */
-		ndev->crtc_owner = 0x4;
+		disp->crtc_owner = 0x4;
 	else {
 		u8 slaved_on_A, slaved_on_B;
 		bool tvA = false;
@@ -64,21 +65,31 @@ nv04_display_store_initial_head_owner(struct nouveau_device *ndev)
 					MASK(NV_CIO_CRE_LCD_LCD_SELECT));
 
 		if (slaved_on_A && !tvA)
-			ndev->crtc_owner = 0x0;
+			disp->crtc_owner = 0x0;
 		else if (slaved_on_B && !tvB)
-			ndev->crtc_owner = 0x3;
+			disp->crtc_owner = 0x3;
 		else if (slaved_on_A)
-			ndev->crtc_owner = 0x0;
+			disp->crtc_owner = 0x0;
 		else if (slaved_on_B)
-			ndev->crtc_owner = 0x3;
+			disp->crtc_owner = 0x3;
 		else
-			ndev->crtc_owner = 0x0;
+			disp->crtc_owner = 0x0;
 	}
 }
 
 int
 nv04_display_early_init(struct nouveau_device *ndev)
 {
+	struct nv04_display *disp = nv04_display(ndev);
+
+	if (!disp) {
+		disp = kzalloc(sizeof(*disp), GFP_KERNEL);
+		if (!disp)
+			return -ENOMEM;
+
+		ndev->subsys.display.priv = disp;
+	}
+
 	/* Make the I2C buses accessible. */
 	if (!nv_gf4_disp_arch(ndev)) {
 		u32 pmc_enable = nv_rd32(ndev, NV03_PMC_ENABLE);
@@ -109,11 +120,13 @@ nv04_display_early_init(struct nouveau_device *ndev)
 void
 nv04_display_late_takedown(struct nouveau_device *ndev)
 {
+	struct nv04_display *disp = nv04_display(ndev);
 
 	if (nv_two_heads(ndev))
-		NVSetOwner(ndev, ndev->crtc_owner);
+		NVSetOwner(ndev, disp->crtc_owner);
 
 	NVLockVgaCrtcs(ndev, true);
+	kfree(disp);
 }
 
 int

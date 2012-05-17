@@ -41,7 +41,8 @@ static void
 nv04_cursor_set_offset(struct nouveau_crtc *nv_crtc, u32 offset)
 {
 	struct nouveau_device *ndev = nouveau_device(nv_crtc->base.dev);
-	struct nv04_crtc_reg *regp = &ndev->mode_reg.crtc_reg[nv_crtc->index];
+	struct nv04_display *disp = nv04_display(ndev);
+	struct nv04_crtc_reg *regp = &disp->mode_reg.crtc_reg[nv_crtc->index];
 	struct drm_crtc *crtc = &nv_crtc->base;
 
 	regp->CRTC[NV_CIO_CRE_HCUR_ADDR0_INDEX] =

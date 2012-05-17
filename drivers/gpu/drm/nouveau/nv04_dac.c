@@ -35,6 +35,8 @@
 #include "nouveau_gpio.h"
 #include "nvreg.h"
 
+#include "nv04_display.h"
+
 int nv04_dac_output_offset(struct drm_encoder *encoder)
 {
 	struct dcb_entry *dcb = nouveau_encoder(encoder)->dcb;
@@ -406,9 +408,10 @@ void nv04_dac_update_dacclk(struct drm_encoder *encoder, bool enable)
 {
 	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct dcb_entry *dcb = nouveau_encoder(encoder)->dcb;
+	struct nv04_display *disp = nv04_display(ndev);
 
 	if (nv_gf4_disp_arch(ndev)) {
-		u32 *dac_users = &ndev->dac_users[ffs(dcb->or) - 1];
+		u32 *dac_users = &disp->dac_users[ffs(dcb->or) - 1];
 		int dacclk_off = NV_PRAMDAC_DACCLK + nv04_dac_output_offset(encoder);
 		u32 dacclk = NVReadRAMDAC(ndev, 0, dacclk_off);
 
@@ -431,9 +434,10 @@ bool nv04_dac_in_use(struct drm_encoder *encoder)
 {
 	struct nouveau_device *ndev = nouveau_device(encoder->dev);
 	struct dcb_entry *dcb = nouveau_encoder(encoder)->dcb;
+	struct nv04_display *disp = nv04_display(ndev);
 
 	return nv_gf4_disp_arch(ndev) &&
-		(ndev->dac_users[ffs(dcb->or) - 1] & ~(1 << dcb->index));
+		(disp->dac_users[ffs(dcb->or) - 1] & ~(1 << dcb->index));
 }
 
 static void nv04_dac_dpms(struct drm_encoder *encoder, int mode)

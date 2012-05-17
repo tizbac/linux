@@ -50,7 +50,8 @@ static void nv_crtc_set_digital_vibrance(struct drm_crtc *crtc, int level)
 {
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
 	struct nouveau_device *ndev = nouveau_device(crtc->dev);
-	struct nv04_crtc_reg *regp = &ndev->mode_reg.crtc_reg[nv_crtc->index];
+	struct nv04_display *disp = nv04_display(ndev);
+	struct nv04_crtc_reg *regp = &disp->mode_reg.crtc_reg[nv_crtc->index];
 
 	regp->CRTC[NV_CIO_CRE_CSB] = nv_crtc->saturation = level;
 	if (nv_crtc->saturation && nv_gf4_disp_arch(ndev)) {
@@ -65,7 +66,8 @@ static void nv_crtc_set_image_sharpening(struct drm_crtc *crtc, int level)
 {
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
 	struct nouveau_device *ndev = nouveau_device(crtc->dev);
-	struct nv04_crtc_reg *regp = &ndev->mode_reg.crtc_reg[nv_crtc->index];
+	struct nv04_display *disp = nv04_display(ndev);
+	struct nv04_crtc_reg *regp = &disp->mode_reg.crtc_reg[nv_crtc->index];
 
 	nv_crtc->sharpness = level;
 	if (level < 0)	/* blur is in hw range 0x3f -> 0x20 */
@@ -104,7 +106,8 @@ static void nv_crtc_calc_state_ext(struct drm_crtc *crtc, struct drm_display_mod
 {
 	struct nouveau_device *ndev = nouveau_device(crtc->dev);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
-	struct nv04_mode_state *state = &ndev->mode_reg;
+	struct nv04_display *disp = nv04_display(ndev);
+	struct nv04_mode_state *state = &disp->mode_reg;
 	struct nv04_crtc_reg *regp = &state->crtc_reg[nv_crtc->index];
 	struct nouveau_pll_vals *pv = &regp->pllvals;
 	struct pll_lims pll_lim;
@@ -225,7 +228,8 @@ nv_crtc_mode_set_vga(struct drm_crtc *crtc, struct drm_display_mode *mode)
 {
 	struct nouveau_device *ndev = nouveau_device(crtc->dev);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
-	struct nv04_crtc_reg *regp = &ndev->mode_reg.crtc_reg[nv_crtc->index];
+	struct nv04_display *disp = nv04_display(ndev);
+	struct nv04_crtc_reg *regp = &disp->mode_reg.crtc_reg[nv_crtc->index];
 	struct drm_framebuffer *fb = crtc->fb;
 
 	/* Calculate our timings */
@@ -451,8 +455,9 @@ nv_crtc_mode_set_regs(struct drm_crtc *crtc, struct drm_display_mode * mode)
 {
 	struct nouveau_device *ndev = nouveau_device(crtc->dev);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
-	struct nv04_crtc_reg *regp = &ndev->mode_reg.crtc_reg[nv_crtc->index];
-	struct nv04_crtc_reg *savep = &ndev->saved_reg.crtc_reg[nv_crtc->index];
+	struct nv04_display *disp = nv04_display(ndev);
+	struct nv04_crtc_reg *regp = &disp->mode_reg.crtc_reg[nv_crtc->index];
+	struct nv04_crtc_reg *savep = &disp->saved_reg.crtc_reg[nv_crtc->index];
 	struct drm_encoder *encoder;
 	bool lvds_output = false, tmds_output = false, tv_output = false,
 		off_chip_digital = false;
@@ -530,7 +535,7 @@ nv_crtc_mode_set_regs(struct drm_crtc *crtc, struct drm_display_mode * mode)
 
 	/* The blob seems to take the current value from crtc 0, add 4 to that
 	 * and reuse the old value for crtc 1 */
-	regp->CRTC[NV_CIO_CRE_TVOUT_LATENCY] = ndev->saved_reg.crtc_reg[0].CRTC[NV_CIO_CRE_TVOUT_LATENCY];
+	regp->CRTC[NV_CIO_CRE_TVOUT_LATENCY] = disp->saved_reg.crtc_reg[0].CRTC[NV_CIO_CRE_TVOUT_LATENCY];
 	if (!nv_crtc->index)
 		regp->CRTC[NV_CIO_CRE_TVOUT_LATENCY] += 4;
 
@@ -608,6 +613,7 @@ nv_crtc_mode_set(struct drm_crtc *crtc, struct drm_display_mode *mode,
 {
 	struct nouveau_device *ndev = nouveau_device(crtc->dev);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
+	struct nv04_display *disp = nv04_display(ndev);
 
 	NV_DEBUG_KMS(ndev, "CTRC mode on CRTC %d:\n", nv_crtc->index);
 	drm_mode_debug_printmodeline(adjusted_mode);
@@ -618,7 +624,7 @@ nv_crtc_mode_set(struct drm_crtc *crtc, struct drm_display_mode *mode,
 	nv_crtc_mode_set_vga(crtc, adjusted_mode);
 	/* calculated in nv04_dfp_prepare, nv40 needs it written before calculating PLLs */
 	if (ndev->card_type == NV_40)
-		NVWriteRAMDAC(ndev, 0, NV_PRAMDAC_SEL_CLK, ndev->mode_reg.sel_clk);
+		NVWriteRAMDAC(ndev, 0, NV_PRAMDAC_SEL_CLK, disp->mode_reg.sel_clk);
 	nv_crtc_mode_set_regs(crtc, adjusted_mode);
 	nv_crtc_calc_state_ext(crtc, mode, adjusted_mode->clock);
 	return 0;
@@ -628,9 +634,10 @@ static void nv_crtc_save(struct drm_crtc *crtc)
 {
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
 	struct nouveau_device *ndev = nouveau_device(crtc->dev);
-	struct nv04_mode_state *state = &ndev->mode_reg;
+	struct nv04_display *disp = nv04_display(ndev);
+	struct nv04_mode_state *state = &disp->mode_reg;
 	struct nv04_crtc_reg *crtc_state = &state->crtc_reg[nv_crtc->index];
-	struct nv04_mode_state *saved = &ndev->saved_reg;
+	struct nv04_mode_state *saved = &disp->saved_reg;
 	struct nv04_crtc_reg *crtc_saved = &saved->crtc_reg[nv_crtc->index];
 
 	if (nv_two_heads(ndev))
@@ -649,13 +656,14 @@ static void nv_crtc_restore(struct drm_crtc *crtc)
 {
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
 	struct nouveau_device *ndev = nouveau_device(crtc->dev);
+	struct nv04_display *disp = nv04_display(ndev);
 	int head = nv_crtc->index;
-	u8 saved_cr21 = ndev->saved_reg.crtc_reg[head].CRTC[NV_CIO_CRE_21];
+	u8 saved_cr21 = disp->saved_reg.crtc_reg[head].CRTC[NV_CIO_CRE_21];
 
 	if (nv_two_heads(ndev))
 		NVSetOwner(ndev, head);
 
-	nouveau_hw_load_state(ndev, head, &ndev->saved_reg);
+	nouveau_hw_load_state(ndev, head, &disp->saved_reg);
 	nv_lock_vga_crtc_shadow(ndev, head, saved_cr21);
 
 	nv_crtc->last_dpms = NV_DPMS_CLEARED;
@@ -688,8 +696,9 @@ static void nv_crtc_commit(struct drm_crtc *crtc)
 	struct drm_crtc_helper_funcs *funcs = crtc->helper_private;
 	struct nouveau_device *ndev = nouveau_device(crtc->dev);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
+	struct nv04_display *disp = nv04_display(ndev);
 
-	nouveau_hw_load_state(ndev, nv_crtc->index, &ndev->mode_reg);
+	nouveau_hw_load_state(ndev, nv_crtc->index, &disp->mode_reg);
 	nv04_crtc_mode_set_base(crtc, crtc->x, crtc->y, NULL);
 
 #ifdef __BIG_ENDIAN
@@ -727,17 +736,18 @@ nv_crtc_gamma_load(struct drm_crtc *crtc)
 {
 	struct nouveau_device *ndev = nouveau_device(crtc->dev);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
+	struct nv04_display *disp = nv04_display(ndev);
 	struct rgb { u8 r, g, b; } __attribute__((packed)) *rgbs;
 	int i;
 
-	rgbs = (struct rgb *)ndev->mode_reg.crtc_reg[nv_crtc->index].DAC;
+	rgbs = (struct rgb *)disp->mode_reg.crtc_reg[nv_crtc->index].DAC;
 	for (i = 0; i < 256; i++) {
 		rgbs[i].r = nv_crtc->lut.r[i] >> 8;
 		rgbs[i].g = nv_crtc->lut.g[i] >> 8;
 		rgbs[i].b = nv_crtc->lut.b[i] >> 8;
 	}
 
-	nouveau_hw_load_state_palette(ndev, nv_crtc->index, &ndev->mode_reg);
+	nouveau_hw_load_state_palette(ndev, nv_crtc->index, &disp->mode_reg);
 }
 
 static void
@@ -773,7 +783,8 @@ nv04_crtc_do_mode_set_base(struct drm_crtc *crtc,
 {
 	struct nouveau_device *ndev = nouveau_device(crtc->dev);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
-	struct nv04_crtc_reg *regp = &ndev->mode_reg.crtc_reg[nv_crtc->index];
+	struct nv04_display *disp = nv04_display(ndev);
+	struct nv04_crtc_reg *regp = &disp->mode_reg.crtc_reg[nv_crtc->index];
 	struct drm_framebuffer *drm_fb;
 	struct nouveau_framebuffer *fb;
 	int arb_burst, arb_lwm;

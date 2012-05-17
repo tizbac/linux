@@ -542,16 +542,17 @@ static void nouveau_vga_font_io(struct nouveau_device *ndev,
 				void __iomem *iovram,
 				bool save, unsigned plane)
 {
+	struct nv04_display *disp = nv04_display(ndev);
 	unsigned i;
 
 	NVWriteVgaSeq(ndev, 0, NV_VIO_SR_PLANE_MASK_INDEX, 1 << plane);
 	NVWriteVgaGr(ndev, 0, NV_VIO_GX_READ_MAP_INDEX, plane);
 	for (i = 0; i < 16384; i++) {
 		if (save) {
-			ndev->saved_vga_font[plane][i] =
+			disp->saved_vga_font[plane][i] =
 					ioread32_native(iovram + i * 4);
 		} else {
-			iowrite32_native(ndev->saved_vga_font[plane][i],
+			iowrite32_native(disp->saved_vga_font[plane][i],
 							iovram + i * 4);
 		}
 	}

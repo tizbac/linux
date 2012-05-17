@@ -25,6 +25,7 @@
 
 #include "drmP.h"
 #include "nouveau_drv.h"
+#include "nv04_display.h"
 
 #define MASK(field) ( \
 	(0xffffffff >> (31 - ((1 ? field) - (0 ? field)))) << (0 ? field))
@@ -356,8 +357,9 @@ nv_set_crtc_base(struct nouveau_device *ndev, int head, u32 offset)
 static inline void
 nv_show_cursor(struct nouveau_device *ndev, int head, bool show)
 {
+	struct nv04_display *disp = nv04_display(ndev);
 	u8 *curctl1 =
-		&ndev->mode_reg.crtc_reg[head].CRTC[NV_CIO_CRE_HCUR_ADDR1_INDEX];
+		&disp->mode_reg.crtc_reg[head].CRTC[NV_CIO_CRE_HCUR_ADDR1_INDEX];
 
 	if (show)
 		*curctl1 |= MASK(NV_CIO_CRE_HCUR_ADDR1_ENABLE);
