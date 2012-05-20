@@ -60,7 +60,7 @@ nouveau_pm_perflvl_aux(struct nouveau_device *ndev, struct nouveau_pm_level *per
 		}
 	}
 
-	if (pvolt && pvolt->set) {
+	if (pvolt) {
 		if (perflvl->volt_min && b->volt_min > a->volt_min) {
 			ret = pvolt->set(pvolt, perflvl->volt_min);
 			if (ret) {
@@ -234,7 +234,7 @@ nouveau_pm_perflvl_get(struct nouveau_device *ndev, struct nouveau_pm_level *per
 			return ret;
 	}
 
-	if (pvolt && pvolt->get) {
+	if (pvolt) {
 		ret = pvolt->get(pvolt);
 		if (ret > 0) {
 			perflvl->volt_min = ret;
