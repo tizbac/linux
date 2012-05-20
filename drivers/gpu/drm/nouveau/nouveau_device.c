@@ -96,6 +96,7 @@ nouveau_device_create(struct nouveau_device *ndev)
 {
 	int disable = nouveau_noaccel;
 	int ret = 0;
+	int i;
 
 	/* mask out any engines that are known not to work as they should,
 	 * these can be overridden by the user
@@ -559,7 +560,10 @@ nouveau_device_create(struct nouveau_device *ndev)
 		break;
 	}
 
-	if (ret)
+	if (ret) {
+		for (i = NVDEV_SUBDEV_NR - 1; i >= 0; i--)
+			nouveau_subdev_fini(ndev, i, false);
 		nouveau_device_destroy(ndev);
+	}
 	return ret;
 }
