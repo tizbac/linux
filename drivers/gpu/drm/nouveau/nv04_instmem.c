@@ -108,7 +108,6 @@ nv04_instmem_create(struct nouveau_device *ndev, int subdev)
 	if (ret)
 		return ret;
 
-	priv->base.base.device = ndev;
 	priv->base.base.destroy = nv04_instmem_destroy;
 	priv->base.get = nv04_instmem_get;
 	priv->base.put = nv04_instmem_put;
