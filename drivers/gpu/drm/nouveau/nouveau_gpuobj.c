@@ -757,7 +757,7 @@ nouveau_gpuobj_fini(struct nouveau_device *ndev, int subdev, bool suspend)
 {
 	struct nouveau_gpuobj_priv *priv = nv_subdev(ndev, subdev);
 	struct nouveau_gpuobj *gpuobj;
-	int i, ret = 0;
+	int i;
 
 	if (suspend) {
 		list_for_each_entry(gpuobj, &priv->list, list) {
@@ -766,8 +766,7 @@ nouveau_gpuobj_fini(struct nouveau_device *ndev, int subdev, bool suspend)
 
 			gpuobj->suspend = vmalloc(gpuobj->size);
 			if (!gpuobj->suspend) {
-				ret = -ENOMEM;
-				goto error;
+				return -ENOMEM;
 			}
 
 			for (i = 0; i < gpuobj->size; i += 4)
@@ -775,16 +774,13 @@ nouveau_gpuobj_fini(struct nouveau_device *ndev, int subdev, bool suspend)
 		}
 	}
 
-error:
-	if (ret)
-		priv->base.init(ndev, subdev);
-	return ret;
+	return 0;
 }
 
 static void
 nouveau_gpuobj_destroy(struct nouveau_device *ndev, int subdev)
 {
-	struct nouveau_gpuobj_priv *priv = nv_subdev(ndev, NVDEV_SUBDEV_GPUOBJ);
+	struct nouveau_gpuobj_priv *priv = nv_subdev(ndev, subdev);
 	struct nouveau_gpuobj_method *om, *tm;
 	struct nouveau_gpuobj_class *oc, *tc;
 
