@@ -61,7 +61,7 @@ nouveau_perf_entry(struct nouveau_device *ndev, int idx,
 		   u8 *ver, u8 *hdr, u8 *cnt, u8 *len)
 {
 	u8 *perf = nouveau_perf_table(ndev, ver);
-	if (perf) {
+	if (perf && idx < NOUVEAU_PM_MAX_LEVEL) {
 		if (*ver >= 0x12 && *ver < 0x20 && idx < perf[2]) {
 			*hdr = perf[3];
 			*cnt = 0;
