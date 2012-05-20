@@ -132,10 +132,6 @@ nv10_fb_create(struct nouveau_device *ndev, int subdev)
 		ndev->vram_size = data & NV10_PFB_FIFO_DATA_RAM_AMOUNT_MB_MASK;
 	}
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
-
 	priv->base.base.destroy = nv10_fb_destroy;
 	priv->base.base.init = nv10_fb_init;
 	priv->base.memtype_valid = nv04_fb_memtype_valid;
