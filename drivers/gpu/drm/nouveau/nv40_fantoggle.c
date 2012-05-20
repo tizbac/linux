@@ -32,11 +32,32 @@
 
 struct nv40_fantoggle_priv {
 	struct nouveau_fanctl base;
+	struct nouveau_alarm alarm;
 	int line;
-	u32 divs;
 
+	u32 period_us;
 	u8 fanspeed;
 };
+
+static void
+nv40_fantoggle_timer_callback(struct nouveau_alarm *alarm)
+{
+	struct nv40_fantoggle_priv *priv =
+		container_of(alarm, struct nv40_fantoggle_priv, alarm);
+	struct nouveau_device *ndev = priv->base.base.device;
+	struct nouveau_timer *ptimer = nv_subdev(ndev, NVDEV_SUBDEV_TIMER);
+	int duty = 0, next_change = 0;
+
+	duty = !nouveau_gpio_func_get(ndev, DCB_GPIO_PWM_FAN);
+	nouveau_gpio_func_set(ndev, DCB_GPIO_PWM_FAN, duty);
+
+	next_change = (priv->fanspeed * priv->period_us) / 100;
+	if (duty)
+		next_change = priv->period_us - next_change;
+
+	if (priv->fanspeed > 0 && priv->fanspeed < 100)
+		ptimer->alarm(ptimer, next_change * 1000, alarm);
+}
 
 static int
 nv40_fantoggle_get(struct nouveau_fanctl *pfan)
@@ -50,8 +71,12 @@ static int
 nv40_fantoggle_set(struct nouveau_fanctl *pfan, int percent)
 {
 	struct nv40_fantoggle_priv *priv = (void *)pfan;
+	int prev_fanspeed = priv->fanspeed;
 
 	priv->fanspeed = percent;
+
+	if (prev_fanspeed == 0 || prev_fanspeed == 100)
+		nv40_fantoggle_timer_callback(&priv->alarm);
 
 	return 0;
 }
@@ -61,8 +86,6 @@ nv40_fantoggle_create(struct nouveau_device *ndev, int subdev)
 {
 	struct nv40_fantoggle_priv *priv;
 	struct gpio_func gpio;
-	u8 *perf, version;
-	u16 divs;
 	int ret;
 
 	ret = nouveau_gpio_find(ndev, 0, DCB_GPIO_PWM_FAN, 0xff, &gpio);
@@ -81,12 +104,6 @@ nv40_fantoggle_create(struct nouveau_device *ndev, int subdev)
 		return -ENODEV;
 	}
 
-	perf = nouveau_perf_table(ndev, &version);
-	divs = ROM16(perf[6]);
-	if (!perf || !divs) {
-		NV_ERROR(ndev, "FANCTL: TOGGLE divider unknown\n");
-		return -EINVAL;
-	}
 
 	ret = nouveau_subdev_create(ndev, subdev, "FANCTL", "fan", &priv);
 	if (ret)
@@ -95,7 +112,12 @@ nv40_fantoggle_create(struct nouveau_device *ndev, int subdev)
 	priv->base.get = nv40_fantoggle_get;
 	priv->base.set = nv40_fantoggle_set;
 	priv->base.sense = nv40_fanpwm_sense;
+	priv->alarm.func = nv40_fantoggle_timer_callback;
 	priv->line = gpio.line;
-	priv->divs = divs;
+	priv->period_us = 28328; /* use adt7473's default PWM frequency */
+	priv->fanspeed = 30; /* TODO: use pm->cur->fanspeed */
+
+	nv40_fantoggle_timer_callback(&priv->alarm);
+
 	return nouveau_subdev_init(ndev, subdev, ret);
 }
