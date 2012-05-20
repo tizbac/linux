@@ -107,13 +107,6 @@ nv40_fb_init(struct nouveau_device *ndev, int subdev)
 	u32 tmp;
 	int i;
 
-	if (ndev->chipset != 0x40 && ndev->chipset != 0x45) {
-		if (nv44_graph_class(ndev))
-			nv44_fb_init_gart(ndev);
-		else
-			nv40_fb_init_gart(ndev);
-	}
-
 	switch (ndev->chipset) {
 	case 0x40:
 	case 0x45:
@@ -121,6 +114,10 @@ nv40_fb_init(struct nouveau_device *ndev, int subdev)
 		nv_wr32(ndev, NV10_PFB_CLOSE_PAGE2, tmp & ~(1 << 15));
 		break;
 	default:
+		if (nv44_graph_class(ndev))
+			nv44_fb_init_gart(ndev);
+		else
+			nv40_fb_init_gart(ndev);
 		break;
 	}
 
