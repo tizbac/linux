@@ -53,9 +53,6 @@ struct gpio_func {
 
 /* nouveau_gpio.c */
 int  nouveau_gpio_create(struct nouveau_device *, int subdev);
-void nouveau_gpio_destroy(struct nouveau_device *);
-int  nouveau_gpio_init(struct nouveau_device *);
-void nouveau_gpio_fini(struct nouveau_device *);
 void nouveau_gpio_reset(struct nouveau_device *);
 int  nouveau_gpio_drive(struct nouveau_device *, int idx, int line,
 			int dir, int out);

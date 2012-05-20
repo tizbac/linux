@@ -37,7 +37,6 @@ void nv30_fb_free_tile_region(struct nouveau_fb *, int i);
 int  nv40_fb_create(struct nouveau_device *, int);
 
 int  nv50_fb_create(struct nouveau_device *, int);
-void nv50_fb_vram_fini(struct nouveau_fb *);
 void nv50_fb_vram_del(struct nouveau_fb *, struct nouveau_mem **);
 void nv50_fb_vm_trap(struct nouveau_device *, int display);
 
