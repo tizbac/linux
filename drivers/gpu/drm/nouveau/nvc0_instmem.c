@@ -107,7 +107,7 @@ static int
 nvc0_instmem_init(struct nouveau_device *ndev, int subdev)
 {
 	struct nvc0_instmem_priv *priv = nv_subdev(ndev, subdev);
-	int ret = 0, i;
+	int i;
 
 	nv_wr32(ndev, 0x001700, priv->mem->offset >> 16);
 
@@ -128,15 +128,11 @@ nvc0_instmem_init(struct nouveau_device *ndev, int subdev)
 	for (i = 0; i < 64 * 1024; i += 4) {
 		if (nv_rd32(ndev, 0x702000 + i) != nv_ri32(ndev, i)) {
 			NV_ERROR(ndev, "INSTMEM: readback failed\n");
-			ret = -EIO;
-			goto error;
+			return -EIO;
 		}
 	}
 
-error:
-	if (ret)
-		priv->base.base.fini(ndev, subdev, false);
-	return ret;
+	return 0;
 }
 
 int
