@@ -92,8 +92,6 @@ nv50_bar_create(struct nouveau_device *ndev, int subdev)
 	if (ret)
 		return ret;
 
-	priv->base.base.name = "BAR";
-	priv->base.base.device = ndev;
 	priv->base.base.destroy = nv50_bar_destroy;
 	priv->base.base.init = nv50_bar_init;
 	priv->base.map = nv50_bar_map;
