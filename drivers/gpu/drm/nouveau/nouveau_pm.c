@@ -306,7 +306,8 @@ nouveau_pm_get_perflvl_info(struct device *d,
 static ssize_t
 nouveau_pm_get_perflvl(struct device *d, struct device_attribute *a, char *buf)
 {
-	struct nouveau_device *ndev = pci_get_drvdata(to_pci_dev(d));
+	struct drm_device *dev = pci_get_drvdata(to_pci_dev(d));
+	struct nouveau_device *ndev = nouveau_device(dev);
 	struct nouveau_pm_engine *pm = &ndev->subsys.pm;
 	struct nouveau_pm_level cur;
 	int len = PAGE_SIZE, ret;
@@ -327,7 +328,8 @@ static ssize_t
 nouveau_pm_set_perflvl(struct device *d, struct device_attribute *a,
 		       const char *buf, size_t count)
 {
-	struct nouveau_device *ndev = pci_get_drvdata(to_pci_dev(d));
+	struct drm_device *dev = pci_get_drvdata(to_pci_dev(d));
+	struct nouveau_device *ndev = nouveau_device(dev);
 	int ret;
 
 	ret = nouveau_pm_profile_set(ndev, buf);
