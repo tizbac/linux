@@ -32,6 +32,7 @@
 #include "nouveau_instmem.h"
 #include "nouveau_gpuobj.h"
 #include "nouveau_crypt.h"
+#include "nouveau_graph.h"
 
 struct nv84_crypt_priv {
 	struct nouveau_crypt_priv base;
@@ -120,18 +121,30 @@ nv84_crypt_tlb_flush(struct nouveau_device *ndev, int engine)
 	nv50_vm_flush_engine(ndev, 0x0a);
 }
 
+static struct nouveau_bitfield nv84_crypt_intr[] = {
+	{ 0x00000001, "INVALID_STATE" },
+	{ 0x00000002, "ILLEGAL_MTHD" },
+	{ 0x00000004, "ILLEGAL_CLASS" },
+	{ 0x00000080, "QUERY" },
+	{ 0x00000100, "FAULT" },
+	{}
+};
+
 static void
 nv84_crypt_isr(struct nouveau_device *ndev)
 {
 	u32 stat = nv_rd32(ndev, 0x102130);
 	u32 mthd = nv_rd32(ndev, 0x102190);
 	u32 data = nv_rd32(ndev, 0x102194);
-	u32 inst = nv_rd32(ndev, 0x102188) & 0x7fffffff;
+	u64 inst = (u64)(nv_rd32(ndev, 0x102188) & 0x7fffffff) << 12;
 	int show = nouveau_ratelimit();
+	int chid = nv50_graph_isr_chid(ndev, inst);
 
 	if (show) {
-		NV_INFO(ndev, "PCRYPT_INTR: 0x%08x 0x%08x 0x%08x 0x%08x\n",
-			     stat, mthd, data, inst);
+		NV_INFO(ndev, "PCRYPT:");
+		nouveau_bitfield_print(nv84_crypt_intr, stat);
+		printk(KERN_CONT " ch %d (0x%010llx) mthd 0x%04x data 0x%08x\n",
+			chid, inst, mthd, data);
 	}
 
 	nv_wr32(ndev, 0x102130, stat);
