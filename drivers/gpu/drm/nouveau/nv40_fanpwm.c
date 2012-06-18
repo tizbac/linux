@@ -67,6 +67,11 @@ nv40_fanpwm_set(struct nouveau_fanctl *pfan, int percent)
 	struct nv40_fanpwm_priv *priv = (void *)pfan;
 	u32 duty;
 
+	if (percent > 100)
+		percent = 100;
+	else if (percent < 0)
+		percent = 0;
+
 	duty = ((priv->divs * percent) + 99) / 100;
 	duty = priv->divs - duty;
 
