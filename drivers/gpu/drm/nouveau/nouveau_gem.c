@@ -340,6 +340,7 @@ retry:
 		if (nvbo->reserved_by && nvbo->reserved_by == file_priv) {
 			NV_ERROR(ndev, "multiple instances of buffer %d on "
 				      "validation list\n", b->handle);
+			drm_gem_object_unreference_unlocked(gem);
 			validate_fini(op, NULL);
 			return -EINVAL;
 		}
