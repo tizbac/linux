@@ -869,8 +869,9 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 
 	/* exit self-refresh mode */
 	exec->wait(exec, tCKSRX);
-	exec->precharge(exec);
+	
 	exec->refresh_self(exec, false);
+	exec->precharge(exec);//tizbac: refresh self is disabled before precharge
 	exec->refresh_auto(exec, true);
 	exec->wait(exec, tXS);
 	exec->wait(exec, tXS);
@@ -883,7 +884,7 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 
 	if (mr[1] != info->mr[1]) {
 		/* need to keep DLL off until later, at least on GDDR3 */
-		exec->mrs (exec, 1, info->mr[1] | (mr[1] & mr1_dlloff));
+		exec->mrs (exec, 1, info->mr[1] | (mr[1] & mr1_dlloff) | 0x1); //tizbac: must be |0x1
 		exec->wait(exec, tMRD);
 	}
 

@@ -417,7 +417,6 @@ mclk_precharge(struct nouveau_mem_exec_func *exec)
 {
 	struct nv50_pm_state *info = exec->priv;
 	struct hwsq_ucode *hwsq = &info->mclk_hwsq;
-
 	hwsq_wr32(hwsq, 0x1002d4, 0x00000001);
 }
 
@@ -497,12 +496,16 @@ mclk_clock_set(struct nouveau_mem_exec_func *exec)
 	info->mmast = nv_rd32(exec->device, 0x00c040);
 	info->mmast &= ~0xc0000000; /* get MCLK_2 from HREF */
 	info->mmast |=  0x0000c000; /* use MCLK_2 as MPLL_BYPASS clock */
-
-	hwsq_wr32(hwsq, 0xc040, info->mmast);
+ 
+	//hwsq_wr32(hwsq, 0xc040, info->mmast); tizbac: not used on my nv92 by proprietary driver
+	ctrl |= 0x8000; //tizbac - UNK10
 	hwsq_wr32(hwsq, 0x4008, ctrl | 0x00000200); /* bypass MPLL */
 	if (info->mctrl & 0x80000000)
 		hwsq_wr32(hwsq, 0x400c, info->mcoef);
-	hwsq_wr32(hwsq, 0x4008, info->mctrl);
+	hwsq_wr32(hwsq, 0x4008, (info->mctrl | 0x8200) &0xEFFFFFFF);//tizbac remove UNK28
+	//tizbac: wait 64 usec
+	hwsq_usec(hwsq, 64);
+  hwsq_wr32(hwsq, 0x4008,(info->mctrl | 0x8000) &0xEFFFFFFF);
 }
 
 static void
@@ -568,9 +571,12 @@ calc_mclk(struct nouveau_device *ndev, struct nouveau_pm_level *perflvl,
 	}
 	if (ndev->chipset >= 0x92)
 		hwsq_wr32(hwsq, 0x611200, 0x00003300); /* disable scanout */
+  
+  
+  hwsq_usec(hwsq,12);//tizbac
 	hwsq_setf(hwsq, 0x10, 0); /* disable bus access */
 	hwsq_op5f(hwsq, 0x00, 0x01); /* no idea :s */
-
+  hwsq_usec(hwsq,2);//tizbac
 	ret = nouveau_mem_exec(&exec, perflvl);
 	if (ret)
 		return ret;
